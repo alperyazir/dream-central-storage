@@ -10,3 +10,7 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 *.egg-info/
+
+# MinIO local data and metadata (do not commit)
+dream-central-storage-api/.minio-data/
+xl.meta

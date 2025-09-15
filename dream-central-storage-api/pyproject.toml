@@ -10,6 +10,8 @@ requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.103,<1",
   "uvicorn[standard]>=0.23,<1",
+  "pydantic>=2.7,<3",
+  "minio>=7.2,<8",
 ]
 
 [project.optional-dependencies]
@@ -38,3 +40,6 @@ known-first-party = ["app"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["app/tests"]
+markers = [
+  "integration: marks tests that require local MinIO (deselect with '-m \"not integration\"')",
+]
