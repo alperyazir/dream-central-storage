@@ -92,10 +92,12 @@ Static bearer authentication is enabled via middleware.
 
 Setup:
 
-```
-export AUTH_BEARER_TOKEN='secret-token'
-uvicorn app.main:app --reload
-```
+- Option A (recommended): create `.env`
+  - `cp .env.example .env` and edit values
+  - `uvicorn app.main:app --reload`
+- Option B: export in shell
+  - `export AUTH_BEARER_TOKEN='secret-token'`
+  - `uvicorn app.main:app --reload`
 
 ## Upload Application Build (Story 1.4)
 
@@ -112,7 +114,7 @@ Secure endpoint to upload a FlowBook app build by platform and version.
 Example:
 
 ```
-export AUTH_BEARER_TOKEN='secret-token'
+# If using .env, just run uvicorn; otherwise export vars
 uvicorn app.main:app --reload
 
 curl -i -X POST \

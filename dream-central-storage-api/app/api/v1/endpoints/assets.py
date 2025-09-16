@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import io
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
 from app.api.v1.deps import get_current_user
 from app.core.config import load_s3_config
 from app.services.storage import create_minio_client
-
 
 router = APIRouter(prefix="/api/v1/apps", tags=["apps"])
 
@@ -18,9 +17,9 @@ Platform = Literal["linux", "macos", "windows"]
 
 @router.post("/", status_code=status.HTTP_201_CREATED, dependencies=[Depends(get_current_user)])
 async def upload_app_build(
-    version: str = Form(...),
-    platform: str = Form(...),
-    file: UploadFile = File(...),
+    version: Annotated[str, Form()],
+    platform: Annotated[str, Form()],
+    file: Annotated[UploadFile, File()],
 ) -> dict[str, str]:
     version = (version or "").strip()
     if not version:
@@ -28,7 +27,9 @@ async def upload_app_build(
 
     norm_platform = (platform or "").strip().lower()
     if norm_platform not in {"linux", "macos", "windows"}:
-        raise HTTPException(status_code=422, detail="platform must be one of: linux, macos, windows")
+        raise HTTPException(
+            status_code=422, detail="platform must be one of: linux, macos, windows"
+        )
 
     # Read file content (MVP: acceptable for small uploads in tests)
     content = await file.read()
@@ -59,4 +60,3 @@ async def upload_app_build(
 
     location = f"s3://{cfg.bucket}/{object_name}"
     return {"version": version, "platform": norm_platform, "location": location}
-

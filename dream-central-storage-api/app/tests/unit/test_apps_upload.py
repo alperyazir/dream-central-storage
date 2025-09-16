@@ -32,6 +32,7 @@ def test_upload_app_build_happy_path(monkeypatch: pytest.MonkeyPatch):
 
     # Patch client factory at usage site
     import app.api.v1.endpoints.assets as assets_mod
+
     importlib.reload(assets_mod)
     fake = _FakeMinio()
     monkeypatch.setattr(assets_mod, "create_minio_client", lambda cfg: fake)

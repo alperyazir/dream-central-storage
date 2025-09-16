@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 
+from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI
 
 from app.api.v1.endpoints.assets import router as apps_router
@@ -25,6 +26,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Dream Central Storage API", lifespan=lifespan)
 
 # Auth middleware (public health endpoints only)
+# Load .env if present (does not override existing env)
+load_dotenv(find_dotenv(), override=False)
 _auth_cfg = load_auth_config()
 app.add_middleware(
     AuthMiddleware,

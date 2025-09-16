@@ -31,4 +31,3 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         request.state.auth = {"sub": None, "roles": [], "scopes": [], "token_type": "static"}
         return await call_next(request)
-
