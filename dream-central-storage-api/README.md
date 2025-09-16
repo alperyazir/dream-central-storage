@@ -23,6 +23,44 @@ FastAPI service that provides health checks and will host endpoints for managing
 - Test (unit): `pytest -m "not integration"`
 - Test (all, with MinIO running): `pytest`
 
+## Authentication (Story 1.3)
+
+Static bearer authentication is enabled via middleware.
+
+- Public endpoints (no auth required):
+  - `GET /health`
+  - `GET /storage/health`
+- Protected endpoints: any other future API routes will require a bearer token.
+
+Setup:
+
+```
+export AUTH_BEARER_TOKEN='secret-token'
+uvicorn app.main:app --reload
+```
+
+Examples:
+
+- Public (no header):
+
+```
+curl -i localhost:8000/health
+curl -i localhost:8000/storage/health
+```
+
+- Protected (header required): minimal protected route (now available)
+
+```
+# Without token → 401
+curl -i localhost:8000/api/v1/private/ping
+
+# Wrong token → 403
+curl -i -H "Authorization: Bearer wrong" localhost:8000/api/v1/private/ping
+
+# With token → 200
+curl -i -H "Authorization: Bearer $AUTH_BEARER_TOKEN" localhost:8000/api/v1/private/ping
+```
+
 ## Project Layout
 
 ```

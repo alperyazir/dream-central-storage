@@ -71,4 +71,3 @@ def check_s3_connection(cfg: S3Config) -> tuple[bool, str]:
     except Exception as exc:  # pragma: no cover - depends on env
         logger.exception("S3 connectivity check failed: %s", exc)
         return False, f"Error: {exc}"
-

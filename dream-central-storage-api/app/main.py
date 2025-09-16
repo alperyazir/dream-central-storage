@@ -3,7 +3,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.core.config import load_s3_config
+from app.api.v1.endpoints.private import router as private_router
+from app.core.config import load_auth_config, load_s3_config
+from app.middleware.auth import AuthMiddleware
 from app.services.storage import check_s3_connection
 
 
@@ -21,6 +23,17 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Dream Central Storage API", lifespan=lifespan)
+
+# Story 1.3: register auth middleware with public bypasses
+_auth_cfg = load_auth_config()
+app.add_middleware(
+    AuthMiddleware,
+    token=_auth_cfg.bearer_token,
+    public_paths=("/health", "/storage/health"),
+)
+
+# Routers
+app.include_router(private_router)
 
 
 @app.get("/health")

@@ -34,4 +34,3 @@ def test_load_s3_config_supports_minio_aliases(monkeypatch):
     assert cfg.secret_key == "ska"
     assert cfg.bucket == "bucket2"
     assert cfg.secure is False
-

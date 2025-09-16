@@ -54,5 +54,7 @@ def test_storage_health_with_minio():
         assert resp.status_code == 200
         body = resp.json()
         assert body.get("status") == "ok"
-        assert "bucket" in body.get("detail", "").lower() or "connected" in body.get("detail", "").lower()
-
+        assert (
+            "bucket" in body.get("detail", "").lower()
+            or "connected" in body.get("detail", "").lower()
+        )

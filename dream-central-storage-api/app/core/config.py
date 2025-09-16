@@ -4,11 +4,17 @@ from pydantic import BaseModel, Field
 
 
 class S3Config(BaseModel):
-    endpoint: str | None = Field(default=None, description="S3/MinIO endpoint, e.g., http://localhost:9000")
+    endpoint: str | None = Field(
+        default=None, description="S3/MinIO endpoint, e.g., http://localhost:9000"
+    )
     access_key: str | None = Field(default=None, description="S3/MinIO access key")
     secret_key: str | None = Field(default=None, description="S3/MinIO secret key")
     bucket: str | None = Field(default=None, description="Default bucket name for assets")
     secure: bool = Field(default=False, description="Use TLS for the S3 connection")
+
+
+class AuthConfig(BaseModel):
+    bearer_token: str | None = Field(default=None, description="Static bearer token for MVP auth")
 
 
 def load_s3_config(env: dict[str, str] | None = None) -> S3Config:
@@ -41,7 +47,9 @@ def load_s3_config(env: dict[str, str] | None = None) -> S3Config:
     bucket = get_any("S3_BUCKET", "MINIO_BUCKET")
 
     secure_raw = source.get("S3_SECURE")
-    secure = str(secure_raw).lower() in {"1", "true", "yes", "on"} if secure_raw is not None else False
+    secure = (
+        str(secure_raw).lower() in {"1", "true", "yes", "on"} if secure_raw is not None else False
+    )
 
     return S3Config(
         endpoint=endpoint,
@@ -51,3 +59,18 @@ def load_s3_config(env: dict[str, str] | None = None) -> S3Config:
         secure=secure,
     )
 
+
+def load_auth_config(env: dict[str, str] | None = None) -> AuthConfig:
+    """Load authentication configuration from environment variables.
+
+    Supported variables (MVP):
+    - AUTH_BEARER_TOKEN: static token used for simple bearer validation
+    """
+    source = env or {}
+    if not source:
+        import os
+
+        source = os.environ  # type: ignore[assignment]
+
+    token = source.get("AUTH_BEARER_TOKEN")
+    return AuthConfig(bearer_token=token)
