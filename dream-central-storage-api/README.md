@@ -122,5 +122,16 @@ curl -i -X POST \
   -F version=1.0.0 \
   -F platform=linux \
   -F file=@flowbook.zip \
-  localhost:8000/api/v1/apps/
+localhost:8000/api/v1/apps/
 ```
+
+### Large File Uploads
+
+- The service streams uploads directly to S3/MinIO and does not load the entire file into memory.
+- Multipart uploads are used automatically with 10 MB parts.
+  - This keeps memory usage low and supports very large files.
+  - Adjusting part size is not yet configurable (defaults to 10 MB).
+- Ensure your reverse proxy allows large bodies if needed:
+  - Nginx: `client_max_body_size 2G;`
+  - Traefik: `traefik.http.middlewares.limit.buffering.maxRequestBodyBytes`
+- Application-level size limits are not enforced; add them at the proxy if required.
