@@ -80,3 +80,47 @@ Run integration tests (requires MinIO running):
 ```
 pytest -m integration -q
 ```
+
+## Authentication (Static Bearer)
+
+Static bearer authentication is enabled via middleware.
+
+- Public endpoints (no auth required):
+  - `GET /health`
+  - `GET /storage/health`
+- Protected endpoints require a bearer token.
+
+Setup:
+
+- Option A (recommended): create `.env`
+  - `cp .env.example .env` and edit values
+  - `uvicorn app.main:app --reload`
+- Option B: export in shell
+  - `export AUTH_BEARER_TOKEN='secret-token'`
+  - `uvicorn app.main:app --reload`
+
+## Upload Application Build (Story 1.4)
+
+Secure endpoint to upload a FlowBook app build by platform and version.
+
+- Route: `POST /api/v1/apps/`
+- Auth: Bearer token required (see Authentication)
+- Form fields:
+  - `version`: string (e.g., `1.0.0`)
+  - `platform`: one of `linux`, `macos`, `windows` (case-insensitive)
+  - `file`: zip file (multipart)
+- Storage path: `apps/{platform}/{version}/flowbook.zip`
+
+Example:
+
+```
+# If using .env, just run uvicorn; otherwise export vars
+uvicorn app.main:app --reload
+
+curl -i -X POST \
+  -H "Authorization: Bearer $AUTH_BEARER_TOKEN" \
+  -F version=1.0.0 \
+  -F platform=linux \
+  -F file=@flowbook.zip \
+  localhost:8000/api/v1/apps/
+```

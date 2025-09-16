@@ -14,3 +14,7 @@ __pycache__/
 # MinIO local data and metadata (do not commit)
 dream-central-storage-api/.minio-data/
 xl.meta
+
+# Environment files (do not commit secrets)
+.env
+dream-central-storage-api/.env

@@ -10,4 +10,3 @@ def test_storage_health_endpoint():
     data = resp.json()
     assert "status" in data and data["status"] in {"ok", "error"}
     assert "detail" in data
-
