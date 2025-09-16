@@ -12,6 +12,7 @@ dependencies = [
   "uvicorn[standard]>=0.23,<1",
   "pydantic>=2.7,<3",
   "minio>=7.2,<8",
+  "python-multipart>=0.0.6",
 ]
 
 [project.optional-dependencies]

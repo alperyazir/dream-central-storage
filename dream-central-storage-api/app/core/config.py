@@ -11,6 +11,10 @@ class S3Config(BaseModel):
     secure: bool = Field(default=False, description="Use TLS for the S3 connection")
 
 
+class AuthConfig(BaseModel):
+    bearer_token: str | None = Field(default=None, description="Static bearer token for MVP auth")
+
+
 def load_s3_config(env: dict[str, str] | None = None) -> S3Config:
     """Load S3 config from environment variables.
 
@@ -51,3 +55,17 @@ def load_s3_config(env: dict[str, str] | None = None) -> S3Config:
         secure=secure,
     )
 
+
+def load_auth_config(env: dict[str, str] | None = None) -> AuthConfig:
+    """Load authentication configuration from environment variables.
+
+    - AUTH_BEARER_TOKEN: static token used for simple bearer validation
+    """
+    source = env or {}
+    if not source:
+        import os
+
+        source = os.environ  # type: ignore[assignment]
+
+    token = source.get("AUTH_BEARER_TOKEN")
+    return AuthConfig(bearer_token=token)
