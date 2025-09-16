@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -31,10 +30,9 @@ async def upload_app_build(
             status_code=422, detail="platform must be one of: linux, macos, windows"
         )
 
-    # Read file content (MVP: acceptable for small uploads in tests)
-    content = await file.read()
-    if not content:
-        raise HTTPException(status_code=422, detail="file is required")
+    # Streamed upload: avoid loading entire file into memory
+    # Reset pointer in case the framework pre-read any bytes
+    await file.seek(0)
 
     cfg = load_s3_config()
     if not cfg.bucket:
@@ -47,12 +45,13 @@ async def upload_app_build(
     object_name = f"apps/{norm_platform}/{version}/flowbook.zip"
 
     try:
-        data = io.BytesIO(content)
+        # Stream directly from the underlying file-like object. Use multipart with unknown length.
         client.put_object(  # type: ignore[attr-defined]
             cfg.bucket,
             object_name,
-            data,
-            length=len(content),
+            data=file.file,  # SpooledTemporaryFile / file-like object
+            length=-1,  # unknown size → multipart upload
+            part_size=10 * 1024 * 1024,  # 10MB parts
             content_type=file.content_type or "application/zip",
         )
     except Exception as exc:

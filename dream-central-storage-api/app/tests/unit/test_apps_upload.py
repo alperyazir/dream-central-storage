@@ -18,7 +18,7 @@ class _FakeMinio:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, int, str]] = []
 
-    def put_object(self, bucket: str, object_name: str, data, length: int, content_type: str | None = None):  # type: ignore[no-untyped-def]
+    def put_object(self, bucket: str, object_name: str, data, length: int, content_type: str | None = None, **kwargs):  # type: ignore[no-untyped-def]
         # drain data to simulate upload
         if hasattr(data, "read"):
             _ = data.read()
