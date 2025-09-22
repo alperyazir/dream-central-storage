@@ -1,10 +1,15 @@
+"""Database access helpers for book metadata."""
+
+from __future__ import annotations
+
+from app.models.book import Book
 from app.repositories.base import BaseRepository
 
 
-class BookRepository(BaseRepository):
-    """Repository placeholder for interacting with book metadata."""
+class BookRepository(BaseRepository[Book]):
+    """Repository for interacting with book metadata records."""
 
-    def __init__(self):
-        super().__init__(model=None)
+    def __init__(self) -> None:
+        super().__init__(model=Book)
 
-    # Future methods will implement CRUD operations once models are defined.
+    # CRUD helpers will be implemented in subsequent stories once API endpoints are added.

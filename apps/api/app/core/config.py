@@ -1,5 +1,20 @@
 from functools import lru_cache
-from pydantic_settings import BaseSettings, SettingsConfigDict
+
+try:
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+except ImportError:  # pragma: no cover - exercised only when dependency missing
+    from pydantic import BaseModel, ConfigDict
+
+    class BaseSettings(BaseModel):
+        """Fallback BaseSettings that mirrors pydantic-settings behaviour for tests."""
+
+        model_config = ConfigDict()
+
+
+    def SettingsConfigDict(**kwargs: object) -> ConfigDict:
+        """Provide a ConfigDict-compatible factory when pydantic-settings is unavailable."""
+
+        return ConfigDict(**kwargs)
 
 
 class Settings(BaseSettings):
