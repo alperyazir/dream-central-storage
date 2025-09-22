@@ -37,6 +37,7 @@ class Settings(BaseSettings):
 
     jwt_secret_key: str = "CHANGE_ME"
     jwt_algorithm: str = "HS256"
+    jwt_access_token_expires_minutes: int = 30
 
     model_config = SettingsConfigDict(
         env_file=".env",

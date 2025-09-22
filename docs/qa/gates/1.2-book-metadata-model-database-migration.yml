@@ -1,0 +1,42 @@
+schema: 1
+story: '1.2'
+story_title: 'Book Metadata Model & Database Migration'
+gate: PASS
+status_reason: 'Dialect-aware trigger/function ensures updated_at automation; migration test now covers the path.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-09-22T21:32:35Z'
+
+top_issues: []
+waiver:
+  active: false
+
+quality_score: 90
+expires: '2025-10-06T21:32:40Z'
+
+evidence:
+  tests_reviewed: 2
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'No new exposure; trigger logic is database-internal.'
+  performance:
+    status: PASS
+    notes: 'Trigger overhead negligible relative to write volume.'
+  reliability:
+    status: PASS
+    notes: 'Timestamp automation now aligns with schema guidance across dialects.'
+  maintainability:
+    status: PASS
+    notes: 'Trigger logic encapsulated in migration; regression tests enforce behaviour.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Validate the migration on the managed Postgres instance during release readiness to confirm trigger creation succeeds.'
+      refs:
+        - apps/api/alembic/versions/20250922_01_create_books_table.py:47
