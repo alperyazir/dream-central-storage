@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,7 @@ from app.db import get_db
 from app.repositories.book import BookRepository
 from app.repositories.user import UserRepository
 from app.schemas.book import BookCreate, BookRead, BookUpdate
+from app.services import UploadError, get_minio_client, upload_book_archive
 
 router = APIRouter(prefix="/books", tags=["Books"])
 _bearer_scheme = HTTPBearer(auto_error=True)
@@ -107,3 +108,41 @@ def update_book(
 
     updated = _book_repository.update(db, book, data=update_data)
     return BookRead.model_validate(updated)
+
+
+@router.post("/{book_id}/upload", status_code=status.HTTP_201_CREATED)
+async def upload_book(
+    book_id: int,
+    file: UploadFile,
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    db: Session = Depends(get_db),
+):
+    """Upload a zipped book folder to MinIO for the specified book."""
+
+    _require_admin(credentials, db)
+    book = _book_repository.get_by_id(db, book_id)
+    if book is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+
+    settings = get_settings()
+    client = get_minio_client(settings)
+    prefix = f"{book.publisher}/{book.book_name}/"
+
+    contents = await file.read()
+    try:
+        manifest = upload_book_archive(
+            client=client,
+            archive_bytes=contents,
+            bucket=settings.minio_books_bucket,
+            object_prefix=prefix,
+            content_type="application/octet-stream",
+        )
+    except UploadError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - defensive guard
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to upload book archive",
+        ) from exc
+
+    return {"book_id": book_id, "files": manifest}
