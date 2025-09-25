@@ -58,3 +58,24 @@ def upload_book_archive(
         manifest.append({"path": file_path, "size": entry.file_size})
 
     return manifest
+
+
+def upload_app_archive(
+    *,
+    client: Minio,
+    archive_bytes: bytes,
+    bucket: str,
+    platform: str,
+    version: str,
+    content_type: str | None = None,
+) -> list[dict[str, object]]:
+    """Upload an application build archive into MinIO under platform/version."""
+
+    prefix = f"{platform}/{version}/"
+    return upload_book_archive(
+        client=client,
+        archive_bytes=archive_bytes,
+        bucket=bucket,
+        object_prefix=prefix,
+        content_type=content_type,
+    )

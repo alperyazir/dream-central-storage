@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.core.config import get_settings
-from app.routers import auth, books, health
+from app.routers import apps, auth, books, health
 from app.services import ensure_buckets, get_minio_client
 
 
@@ -21,6 +21,7 @@ app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=li
 
 app.include_router(auth.router)
 app.include_router(books.router)
+app.include_router(apps.router)
 app.include_router(health.router)
 
 
@@ -32,4 +33,3 @@ async def health_check() -> dict[str, str]:
         "service": settings.app_name,
         "version": settings.app_version,
     }
-

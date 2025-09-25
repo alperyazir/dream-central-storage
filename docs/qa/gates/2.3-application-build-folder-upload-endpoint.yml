@@ -1,0 +1,42 @@
+schema: 1
+story: '2.3'
+story_title: 'Application Build Folder Upload Endpoint'
+gate: PASS
+status_reason: 'JWT-guarded app build upload streams archives to platform/version prefix with manifest and comprehensive tests.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-09-23T13:35:00Z'
+
+top_issues: []
+waiver:
+  active: false
+
+quality_score: 93
+expires: '2025-10-07T13:35:05Z'
+
+evidence:
+  tests_reviewed: 35
+  risks_identified: 1
+  trace:
+    ac_covered: [1, 2, 3, 4]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'JWT auth enforced; invalid platform requests rejected with sanitized responses.'
+  performance:
+    status: PASS
+    notes: 'Streaming uploads avoid loading full archives into memory.'
+  reliability:
+    status: PASS
+    notes: 'Archive helper handles bad ZIPs; MinIO errors translated to actionable HTTP codes.'
+  maintainability:
+    status: PASS
+    notes: 'Shared storage helper keeps logic centralized; tests provide clear coverage.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Expand ALLOWED_PLATFORMS when new targets are introduced to avoid code edits in endpoint.'
+      refs:
+        - apps/api/app/routers/apps.py:17
