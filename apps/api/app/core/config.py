@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     minio_access_key: str = "dream_minio"
     minio_secret_key: str = "dream_minio_secret"
     minio_secure: bool = False
+    minio_books_bucket: str = "books"
+    minio_apps_bucket: str = "apps"
+    minio_trash_bucket: str = "trash"
 
     jwt_secret_key: str = "CHANGE_ME"
     jwt_algorithm: str = "HS256"
@@ -53,6 +56,16 @@ class Settings(BaseSettings):
             f"{self.database_scheme}://{self.database_user}:{self.database_password}"
             f"@{self.database_host}:{self.database_port}/{self.database_name}"
         )
+
+    @property
+    def minio_buckets(self) -> list[str]:
+        """Return the list of buckets the application requires."""
+
+        return [
+            self.minio_books_bucket,
+            self.minio_apps_bucket,
+            self.minio_trash_bucket,
+        ]
 
 
 @lru_cache

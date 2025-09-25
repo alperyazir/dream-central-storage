@@ -1,3 +1,3 @@
-from . import auth, health  # noqa: F401
+from . import auth, books, health  # noqa: F401
 
-__all__ = ["auth", "health"]
+__all__ = ["auth", "books", "health"]

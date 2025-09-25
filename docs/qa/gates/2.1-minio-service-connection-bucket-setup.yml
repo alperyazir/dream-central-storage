@@ -1,0 +1,39 @@
+schema: 1
+story: '2.1'
+story_title: 'MinIO Service Connection & Bucket Setup'
+gate: PASS
+status_reason: 'Settings-driven MinIO client, bucket bootstrap, and mocked unit tests meet all acceptance criteria.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-09-23T12:55:00Z'
+
+top_issues: []
+waiver:
+  active: false
+
+quality_score: 95
+expires: '2025-10-07T12:55:05Z'
+
+evidence:
+  tests_reviewed: 24
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Credentials sourced from environment settings; logging avoids secrets leakage.'
+  performance:
+    status: PASS
+    notes: 'Bootstrap occurs once at startup/CLI; no runtime overhead.'
+  reliability:
+    status: PASS
+    notes: 'Idempotent bucket creation with error escalation ensures predictable behaviour.'
+  maintainability:
+    status: PASS
+    notes: 'Service helpers encapsulate MinIO usage; tests protect against regressions.'
+
+recommendations:
+  immediate: []
+  future: []

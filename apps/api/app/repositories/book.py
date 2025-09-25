@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sqlalchemy.orm import Session
+
 from app.models.book import Book
 from app.repositories.base import BaseRepository
 
@@ -12,4 +14,22 @@ class BookRepository(BaseRepository[Book]):
     def __init__(self) -> None:
         super().__init__(model=Book)
 
-    # CRUD helpers will be implemented in subsequent stories once API endpoints are added.
+    def create(self, session: Session, *, data: dict[str, object]) -> Book:
+        book = Book(**data)
+        created = self.add(session, book)
+        session.commit()
+        return created
+
+    def list_all_books(self, session: Session) -> list[Book]:
+        return self.list_all(session)
+
+    def get_by_id(self, session: Session, identifier: int) -> Book | None:
+        return self.get(session, identifier)
+
+    def update(self, session: Session, book: Book, *, data: dict[str, object]) -> Book:
+        for field, value in data.items():
+            setattr(book, field, value)
+        session.flush()
+        session.refresh(book)
+        session.commit()
+        return book

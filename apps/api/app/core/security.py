@@ -101,3 +101,39 @@ def create_access_token(
     signature_segment = _b64encode(signature)
 
     return f"{header_segment}.{payload_segment}.{signature_segment}"
+
+
+def decode_access_token(
+    token: str, *, settings: Settings | None = None
+) -> dict[str, Any]:
+    """Decode and validate a JWT created by ``create_access_token``."""
+
+    active_settings = settings or get_settings()
+    parts = token.split(".")
+    if len(parts) != 3:
+        raise ValueError("Token structure invalid")
+
+    header_segment, payload_segment, signature_segment = parts
+    signing_input = f"{header_segment}.{payload_segment}".encode("ascii")
+    expected_signature = hmac.new(
+        active_settings.jwt_secret_key.encode("utf-8"),
+        signing_input,
+        hashlib.sha256,
+    ).digest()
+    provided_signature = _b64decode(signature_segment)
+    if not hmac.compare_digest(provided_signature, expected_signature):
+        raise ValueError("Token signature mismatch")
+
+    try:
+        payload_data = json.loads(_b64decode(payload_segment))
+    except json.JSONDecodeError as exc:  # pragma: no cover - defensive guard
+        raise ValueError("Token payload malformed") from exc
+
+    exp = payload_data.get("exp")
+    if exp is None:
+        raise ValueError("Token missing expiration")
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    if now_ts >= int(exp):
+        raise ValueError("Token expired")
+
+    return payload_data
