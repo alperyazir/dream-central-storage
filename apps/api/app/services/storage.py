@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import zipfile
+from collections import defaultdict
 from typing import Iterable
 
 from minio import Minio
@@ -79,3 +80,55 @@ def upload_app_archive(
         object_prefix=prefix,
         content_type=content_type,
     )
+
+
+def list_objects_tree(client: Minio, bucket: str, prefix: str) -> dict[str, object]:
+    """Return a hierarchical tree of objects under ``prefix`` within ``bucket``."""
+
+    root = {
+        "path": prefix,
+        "type": "folder",
+        "children": {},
+    }
+
+    objects = client.list_objects(bucket, prefix=prefix, recursive=True)
+    for obj in objects:
+        rel_path = obj.object_name[len(prefix) :]
+        parts = [p for p in rel_path.split("/") if p]
+        current = root
+
+        for part in parts[:-1]:
+            children = current.setdefault("children", {})
+            if part not in children:
+                children[part] = {
+                    "path": f"{current['path']}{part}/",
+                    "type": "folder",
+                    "children": {},
+                }
+            current = children[part]
+
+        if not parts:
+            continue
+
+        file_name = parts[-1]
+        children = current.setdefault("children", {})
+        children[file_name] = {
+            "path": f"{current['path']}{file_name}",
+            "type": "file",
+            "size": obj.size,
+        }
+
+    return _normalize_tree(root)
+
+
+def _normalize_tree(node: dict[str, object]) -> dict[str, object]:
+    children = node.get("children")
+    if not children:
+        node["children"] = []
+        return node
+
+    normalized_children = []
+    for name, child in children.items():
+        normalized_children.append(_normalize_tree(child))
+    node["children"] = sorted(normalized_children, key=lambda item: item["path"])
+    return node
