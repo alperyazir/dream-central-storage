@@ -1,0 +1,29 @@
+.layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+}
+
+.layout__sidebar {
+  display: flex;
+  background-color: #111827;
+  color: #f9fafb;
+}
+
+.layout__content {
+  padding: 1.5rem;
+  background-color: #f9fafb;
+}
+
+@media (max-width: 768px) {
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .layout__sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+}

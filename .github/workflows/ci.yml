@@ -21,6 +21,15 @@ jobs:
       - name: Install workspace dependencies
         run: npm install
 
+      - name: Lint admin panel
+        run: npm run lint -- --filter=admin-panel...
+
+      - name: Test admin panel
+        run: npm run test -- --filter=admin-panel...
+
+      - name: Build admin panel
+        run: npm run build -- --filter=admin-panel...
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

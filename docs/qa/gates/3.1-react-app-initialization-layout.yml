@@ -1,0 +1,50 @@
+schema: 1
+story: '3.1'
+story_title: 'React App Initialization & Layout'
+gate: PASS
+status_reason: 'Build/test pipeline now runs with tsc --noEmit, repo stays clean, and routing test warnings resolved; only React Router future notices remain.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-09-26T11:04:00Z'
+
+waiver:
+  active: false
+
+top_issues: []
+
+risk_summary:
+  totals: { critical: 0, high: 0, medium: 0, low: 0 }
+  recommendations:
+    must_fix: []
+    monitor:
+      - 'Track React Router v7 future flag migration when upgrading.'
+
+quality_score: 90
+expires: '2025-10-10T11:04:00Z'
+
+evidence:
+  tests_reviewed: 3
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Frontend scaffold introduces no new security surface; config-based API URL remains adjustable.'
+  performance:
+    status: PASS
+    notes: 'Vite build output and layout are lightweight; no performance risks identified.'
+  reliability:
+    status: PASS
+    notes: 'Type-checks without emission keep CI deterministic; tests capture routing flow.'
+  maintainability:
+    status: PASS
+    notes: 'Tooling hardened, tests regain TS coverage, and warnings eliminated for clean developer experience.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Adopt React Router v7 future flags (startTransition, relative splat) before upgrading major version.'
+      refs:
+        - apps/admin-panel/src/App.tsx:1
