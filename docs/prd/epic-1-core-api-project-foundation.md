@@ -37,3 +37,11 @@
 5.  `PUT /books/{book_id}`: Updates the metadata for an existing book.
 
 ---
+## **Story 1.5: API CORS Configuration for Admin Panel Access**
+**As a** frontend developer, **I want** the API to permit cross-origin requests from approved admin panel origins, **so that** the React client can successfully authenticate without browser CORS errors.
+**Acceptance Criteria:**
+1. The FastAPI service enables CORS middleware that allows credentials and standard methods (`GET`, `POST`, `OPTIONS`, etc.) for configured origins.
+2. Allowed origins are configurable via environment variable(s) with sensible defaults for local development (`http://localhost:5173`).
+3. Preflight `OPTIONS` requests to authentication endpoints (e.g., `/auth/login`) succeed without returning 405 errors.
+4. Documentation (README or env sample) lists the new configuration knob(s) and default values.
+5. Automated tests cover at least one CORS preflight scenario, validating expected headers in the response.

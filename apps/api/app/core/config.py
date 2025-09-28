@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expires_minutes: int = 30
 
+    cors_allowed_origins: str | list[str] = "http://localhost:5173"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -66,6 +68,19 @@ class Settings(BaseSettings):
             self.minio_apps_bucket,
             self.minio_trash_bucket,
         ]
+
+    @property
+    def resolved_cors_allowed_origins(self) -> list[str]:
+        """Return the configured CORS origins as a normalized list."""
+
+        if isinstance(self.cors_allowed_origins, str):
+            return [
+                origin.strip()
+                for origin in self.cors_allowed_origins.split(",")
+                if origin.strip()
+            ]
+
+        return list(self.cors_allowed_origins)
 
 
 @lru_cache
