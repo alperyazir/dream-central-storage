@@ -16,3 +16,7 @@ Run tests with:
 ```bash
 pytest
 ```
+
+### Configuration
+
+Key environment variables are defined in `.env.example`. For local admin panel development, ensure `DCS_CORS_ALLOWED_ORIGINS` lists the allowed frontend origins (comma-separated), e.g. `http://localhost:5173`.
