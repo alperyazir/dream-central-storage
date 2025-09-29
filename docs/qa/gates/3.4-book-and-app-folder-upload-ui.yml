@@ -1,0 +1,43 @@
+schema: 1
+story: '3.4'
+story_title: 'Book and App Folder Upload UI'
+story_slug: 'book-and-app-folder-upload-ui'
+gate: PASS
+status_reason: 'Auth tokens now stay in memory only and the regression suite enforces the storage policy.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-09-29T08:57:17Z'
+
+top_issues: []
+waiver:
+  active: false
+
+quality_score: 100
+expires: '2025-10-13T08:57:17Z'
+
+evidence:
+  tests_reviewed: 13
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Tokens remain in state memory; login/logout reset the store without touching storage APIs.'
+  performance:
+    status: PASS
+    notes: 'Removed JSON serialization on auth success, keeping login work minimal.'
+  reliability:
+    status: PASS
+    notes: 'Error flows still reset to the base state, avoiding stale credentials.'
+  maintainability:
+    status: PASS
+    notes: 'Simplified store shape and regression tests document the contract clearly.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Document for administrators that sessions end on refresh so the shorter lifetime is expected.'
+      refs:
+        - 'docs/stories/3.4.book-and-app-folder-upload-ui.md'

@@ -89,6 +89,11 @@ describe('Dashboard', () => {
               path: 'macOS/1.0.0/app.zip',
               type: 'file',
               size: 1_048_576
+            },
+            {
+              path: 'macOS/1.0.0/Readme.md',
+              type: 'file',
+              size: 512
             }
           ]
         }
@@ -144,6 +149,8 @@ describe('Dashboard', () => {
     const buildRows = within(buildsTable).getAllByRole('row').slice(1);
     expect(buildRows).toHaveLength(2);
     expect(buildRows[0]).toHaveTextContent(/macos/i);
+    expect(buildRows[0]).toHaveTextContent(/1\.0\.0/i);
+    expect(buildRows[0]).toHaveTextContent(/2 files/i);
     expect(buildRows[1]).toHaveTextContent(/windows/i);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
@@ -227,5 +234,262 @@ describe('Dashboard', () => {
     renderDashboard();
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/boom/i);
+  });
+
+  it('opens the upload dialog and shows contextual instructions', async () => {
+    authenticateTestUser();
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      if (url.endsWith('/books')) {
+        const headers = new Headers(init?.headers as HeadersInit);
+        expect(headers.get('Authorization')).toBe('Bearer test-token');
+        return Promise.resolve(createJsonResponse([]));
+      }
+
+      if (url.includes('/storage/apps/')) {
+        return Promise.resolve(createJsonResponse({ path: 'macOS/', type: 'folder', children: [] }));
+      }
+
+      throw new Error(`Unexpected request to ${url}`);
+    });
+
+    renderDashboard();
+
+    await screen.findByRole('table', { name: /books table/i });
+
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /upload/i }));
+    });
+
+    const dialog = screen.getByRole('dialog', { name: /upload content/i });
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /book/i })).toHaveAttribute('aria-selected', 'true');
+    expect(within(dialog).getByText(/zipped book data folder/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/metadata\.json/i)).toBeInTheDocument();
+
+    await act(async () => {
+      await user.click(screen.getByRole('tab', { name: /application/i }));
+    });
+
+    expect(within(dialog).getByText(/zipped application build/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/platform\/version/i)).toBeInTheDocument();
+  });
+
+  it('uploads a book archive and refreshes dashboard data', async () => {
+    authenticateTestUser();
+
+    const booksPayload = [
+      {
+        id: 1,
+        publisher: 'Dream Press',
+        book_name: 'Dream Atlas',
+        language: 'English',
+        category: 'Fiction',
+        status: 'published'
+      }
+    ];
+
+    const buildTree = { path: 'macOS/', type: 'folder', children: [] };
+
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      const method = (init?.method ?? 'GET').toUpperCase();
+
+      if (url.endsWith('/books') && method === 'GET') {
+        const headers = new Headers(init?.headers as HeadersInit);
+        expect(headers.get('Authorization')).toBe('Bearer test-token');
+        return Promise.resolve(createJsonResponse(booksPayload));
+      }
+
+      if (url.includes('/storage/apps/') && method === 'GET') {
+        return Promise.resolve(createJsonResponse(buildTree));
+      }
+
+      if (url.endsWith('/books/1/upload') && method === 'POST') {
+        const headers = new Headers(init?.headers as HeadersInit);
+        expect(headers.get('Authorization')).toBe('Bearer test-token');
+        expect(init?.body).toBeInstanceOf(FormData);
+        const formData = init?.body as FormData;
+        const file = formData.get('file');
+        expect(file).toBeInstanceOf(File);
+        expect((file as File).name).toBe('book.zip');
+        return Promise.resolve(createJsonResponse({ book_id: 1, files: [{ path: 'dream/file.json', size: 128 }] }));
+      }
+
+      throw new Error(`Unexpected request to ${url}`);
+    });
+
+    renderDashboard();
+
+    await screen.findByRole('table', { name: /books table/i });
+
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /upload/i }));
+    });
+
+    const dialog = screen.getByRole('dialog', { name: /upload content/i });
+    const fileInput = within(dialog).getByTestId('upload-archive-input');
+
+    await act(async () => {
+      await user.click(within(dialog).getByLabelText(/target book/i));
+    });
+    const bookOption = await screen.findByRole('option', { name: /dream atlas/i });
+    await act(async () => {
+      await user.click(bookOption);
+    });
+
+    await act(async () => {
+      const archive = new File(['dummy'], 'book.zip', { type: 'application/zip' });
+      await user.upload(fileInput, archive);
+    });
+
+    await act(async () => {
+      await user.click(within(dialog).getByRole('button', { name: /^upload$/i }));
+    });
+
+    expect(within(dialog).getByText(/uploaded 1 file/i)).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(7));
+  });
+
+  it('uploads an application archive and displays success feedback', async () => {
+    authenticateTestUser();
+
+    const booksPayload = [
+      {
+        id: 1,
+        publisher: 'Dream Press',
+        book_name: 'Dream Atlas',
+        language: 'English',
+        category: 'Fiction',
+        status: 'published'
+      }
+    ];
+
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      const method = (init?.method ?? 'GET').toUpperCase();
+
+      if (url.endsWith('/books') && method === 'GET') {
+        return Promise.resolve(createJsonResponse(booksPayload));
+      }
+
+      if (url.includes('/storage/apps/') && method === 'GET') {
+        return Promise.resolve(createJsonResponse({ path: 'macOS/', type: 'folder', children: [] }));
+      }
+
+      if (url.endsWith('/apps/macos/upload') && method === 'POST') {
+        const headers = new Headers(init?.headers as HeadersInit);
+        expect(headers.get('Authorization')).toBe('Bearer test-token');
+        const formData = init?.body as FormData;
+        expect(formData.get('file')).toBeInstanceOf(File);
+        return Promise.resolve(createJsonResponse({ platform: 'macos', version: 'abc123', files: [] }));
+      }
+
+      throw new Error(`Unexpected request to ${url}`);
+    });
+
+    renderDashboard();
+
+    await screen.findByRole('table', { name: /books table/i });
+    const user = userEvent.setup();
+
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /upload/i }));
+    });
+
+    const dialog = screen.getByRole('dialog', { name: /upload content/i });
+
+    await act(async () => {
+      await user.click(within(dialog).getByRole('tab', { name: /application/i }));
+    });
+
+    const fileInput = within(dialog).getByTestId('upload-archive-input');
+
+    await act(async () => {
+      const archive = new File(['dummy'], 'app.zip', { type: 'application/zip' });
+      await user.upload(fileInput, archive);
+    });
+
+    await act(async () => {
+      await user.click(within(dialog).getByRole('button', { name: /^upload$/i }));
+    });
+
+    expect(within(dialog).getByText(/uploaded build version/i)).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/apps\/macos\/upload$/), expect.any(Object)));
+  });
+
+  it('sanitizes backend error details when an upload fails', async () => {
+    authenticateTestUser();
+
+    const booksPayload = [
+      {
+        id: 1,
+        publisher: 'Dream Press',
+        book_name: 'Dream Atlas',
+        language: 'English',
+        category: 'Fiction',
+        status: 'published'
+      }
+    ];
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = input.toString();
+        const method = (init?.method ?? 'GET').toUpperCase();
+
+        if (url.endsWith('/books') && method === 'GET') {
+          return Promise.resolve(createJsonResponse(booksPayload));
+        }
+
+        if (url.includes('/storage/apps/') && method === 'GET') {
+          return Promise.resolve(createJsonResponse({ path: 'macOS/', type: 'folder', children: [] }));
+        }
+
+        if (url.endsWith('/books/1/upload') && method === 'POST') {
+          return Promise.resolve(new Response('Internal server error', { status: 500 }));
+        }
+
+        throw new Error(`Unexpected request to ${url}`);
+      });
+
+      renderDashboard();
+
+      await screen.findByRole('table', { name: /books table/i });
+
+      const user = userEvent.setup();
+
+      await act(async () => {
+        await user.click(screen.getByRole('button', { name: /upload/i }));
+      });
+
+      const dialog = screen.getByRole('dialog', { name: /upload content/i });
+      await act(async () => {
+        await user.click(within(dialog).getByLabelText(/target book/i));
+      });
+
+      const bookOption = await screen.findByRole('option', { name: /dream atlas/i });
+      await act(async () => {
+        await user.click(bookOption);
+      });
+
+      const fileInput = within(dialog).getByTestId('upload-archive-input');
+      await act(async () => {
+        const archive = new File(['dummy'], 'book.zip', { type: 'application/zip' });
+        await user.upload(fileInput, archive);
+      });
+
+      await act(async () => {
+        await user.click(within(dialog).getByRole('button', { name: /^upload$/i }));
+      });
+
+      expect(within(dialog).getByText(/upload failed\. please check the archive and try again\./i)).toBeInTheDocument();
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });

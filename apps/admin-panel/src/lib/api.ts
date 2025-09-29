@@ -10,6 +10,7 @@ export interface ApiClient {
   request: <T = unknown>(path: string, init?: RequestOptions) => Promise<T>;
   get: <T = unknown>(path: string, init?: RequestOptions) => Promise<T>;
   post: <T = unknown, TBody = unknown>(path: string, body?: TBody, init?: RequestOptions) => Promise<T>;
+  postForm: <T = unknown>(path: string, formData: FormData, init?: RequestOptions) => Promise<T>;
 }
 
 const parseResponse = async <T>(response: Response): Promise<T> => {
@@ -63,10 +64,18 @@ export const createApiClient = (baseUrl: string = appConfig.apiBaseUrl): ApiClie
     });
   };
 
+  const postForm = <T>(path: string, formData: FormData, init?: RequestOptions) =>
+    request<T>(path, {
+      ...init,
+      method: 'POST',
+      body: formData
+    });
+
   return {
     request,
     get,
-    post
+    post,
+    postForm
   };
 };
 

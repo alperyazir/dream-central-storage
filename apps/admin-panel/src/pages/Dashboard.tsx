@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
+  Button,
   CircularProgress,
   FormControl,
   InputLabel,
@@ -20,12 +21,14 @@ import {
 } from '@mui/material';
 
 import { fetchBooks, BookRecord } from '../lib/books';
+import { SUPPORTED_APP_PLATFORMS, toPlatformSlug } from '../lib/platforms';
 import { listAppContents, StorageNode } from '../lib/storage';
 import { useAuthStore } from '../stores/auth';
+import UploadDialog from '../components/UploadDialog';
 
 import '../styles/page.css';
 
-const APP_PLATFORMS = ['macOS', 'windows'] as const;
+const APP_PLATFORMS = SUPPORTED_APP_PLATFORMS;
 
 type SortDirection = 'asc' | 'desc';
 
@@ -75,28 +78,37 @@ const mapBookRecords = (records: BookRecord[]): BookRow[] =>
     category: record.category
   }));
 
-const collectAppBuildRows = (root: StorageNode | undefined, platform: string): AppBuildRow[] => {
+const collectAppBuildRows = (
+  root: StorageNode | undefined,
+  platformLabel: string,
+  platformSlug: string
+): AppBuildRow[] => {
   if (!root) {
     return [];
   }
 
-  const rows: AppBuildRow[] = [];
+  const aggregated = new Map<string, { display: string; fileCount: number; totalSize: number }>();
+  const slugPrefix = `${platformSlug}/`;
 
   const walk = (node: StorageNode) => {
     if (node.type === 'file') {
       const normalized = node.path.replace(/\/+$/, '');
-      const relative = normalized.startsWith(`${platform}/`) ? normalized.slice(platform.length + 1) : normalized;
+      const lowerCased = normalized.toLowerCase();
+      const relative = lowerCased.startsWith(slugPrefix)
+        ? normalized.slice(slugPrefix.length)
+        : normalized;
       const segments = relative.split('/').filter(Boolean);
-      const version = segments.length > 1 ? segments[0] : '';
-      const fileName = segments.length > 1 ? segments.slice(1).join('/') : segments[0] ?? normalized;
+      const rootSegment = segments[0] ?? normalized;
+      const key = rootSegment.toLowerCase();
+      const entry = aggregated.get(key) ?? {
+        display: rootSegment,
+        fileCount: 0,
+        totalSize: 0
+      };
 
-      rows.push({
-        platform,
-        version,
-        fileName,
-        path: normalized,
-        size: node.size
-      });
+      entry.fileCount += 1;
+      entry.totalSize += node.size ?? 0;
+      aggregated.set(key, entry);
     }
 
     node.children?.forEach((child) => {
@@ -106,7 +118,13 @@ const collectAppBuildRows = (root: StorageNode | undefined, platform: string): A
 
   walk(root);
 
-  return rows;
+  return Array.from(aggregated.values()).map((entry) => ({
+    platform: platformLabel,
+    version: entry.display,
+    fileName: `${entry.display}${entry.fileCount > 1 ? ` (${entry.fileCount} files)` : ''}`,
+    path: `${platformLabel}/${entry.display}`,
+    size: entry.totalSize || undefined
+  }));
 };
 
 const DashboardPage = () => {
@@ -125,6 +143,8 @@ const DashboardPage = () => {
   const [appSort, setAppSort] = useState<{ field: AppSortField; direction: SortDirection }>(
     { field: 'platform', direction: 'asc' }
   );
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [refreshIndex, setRefreshIndex] = useState(0);
   const platformCount = APP_PLATFORMS.length as number;
 
   useEffect(() => {
@@ -146,7 +166,7 @@ const DashboardPage = () => {
       try {
         const [bookResponse, ...appResponses] = await Promise.all([
           fetchBooks(token, tokenType),
-          ...APP_PLATFORMS.map((platform) => listAppContents(platform, token, tokenType))
+          ...APP_PLATFORMS.map((platform) => listAppContents(toPlatformSlug(platform), token, tokenType))
         ]);
 
         if (!isSubscribed) {
@@ -155,7 +175,7 @@ const DashboardPage = () => {
 
         const bookRows = mapBookRecords(bookResponse);
         const appRows = appResponses.flatMap((tree, index) =>
-          collectAppBuildRows(tree, APP_PLATFORMS[index])
+          collectAppBuildRows(tree, APP_PLATFORMS[index], toPlatformSlug(APP_PLATFORMS[index]))
         );
 
         setBooks(bookRows);
@@ -181,7 +201,7 @@ const DashboardPage = () => {
     return () => {
       isSubscribed = false;
     };
-  }, [isAuthenticated, token, tokenType]);
+  }, [isAuthenticated, token, tokenType, refreshIndex]);
 
   const handlePublisherChange = (event: SelectChangeEvent<string>) => {
     setPublisherFilter(event.target.value);
@@ -255,23 +275,46 @@ const DashboardPage = () => {
     return sorted;
   }, [appBuilds, appSort]);
 
-  if (loading) {
+  const uploadDialog = (
+    <UploadDialog
+      open={isUploadOpen}
+      onClose={() => setIsUploadOpen(false)}
+      books={books}
+      platforms={APP_PLATFORMS}
+      token={token}
+      tokenType={tokenType}
+      onSuccess={() => setRefreshIndex((value) => value + 1)}
+    />
+  );
+
+  const isInitialLoad = loading && books.length === 0 && appBuilds.length === 0;
+
+  if (isInitialLoad) {
     return (
-      <section className="page page--centered" aria-busy="true">
-        <CircularProgress aria-label="Loading dashboard data" />
-        <Typography variant="body1">Loading dashboard data…</Typography>
-      </section>
+      <>
+        <section className="page page--centered" aria-busy="true">
+          <CircularProgress aria-label="Loading dashboard data" />
+          <Typography variant="body1">Loading dashboard data…</Typography>
+        </section>
+        {uploadDialog}
+      </>
     );
   }
 
   return (
-    <section className="page" aria-live="polite">
+    <section className="page" aria-live="polite" aria-busy={loading}>
       <Typography variant="h4" component="h1" gutterBottom>
         Dashboard
       </Typography>
       <Typography variant="body1" paragraph>
-        Review stored content at a glance. Use the filters and sorting controls to focus on specific publishers or builds.
+        Review stored content at a glance. Use the filters, sorting controls, and upload tools to keep the catalog current.
       </Typography>
+
+      {loading ? (
+        <Alert severity="info" sx={{ mb: 3 }} role="status">
+          Refreshing dashboard data…
+        </Alert>
+      ) : null}
 
       {error ? (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -300,6 +343,9 @@ const DashboardPage = () => {
         <Typography variant="body2" color="text.secondary">
           Showing {filteredBooks.length} of {books.length} books
         </Typography>
+        <Button variant="contained" onClick={() => setIsUploadOpen(true)} sx={{ ml: 'auto' }}>
+          Upload
+        </Button>
       </Box>
 
       <TableContainer component={Paper} sx={{ mb: 4 }}>
@@ -444,6 +490,8 @@ const DashboardPage = () => {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {uploadDialog}
     </section>
   );
 };
