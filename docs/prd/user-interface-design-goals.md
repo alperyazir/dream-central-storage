@@ -19,6 +19,7 @@ The UX vision for the Dream Central Storage Admin Panel is a clean, efficient, a
 * **App Build Management View:** A view for managing all application builds for each platform (macOS, Linux, Windows).
 * **Metadata Edit Modal/Page:** A form for viewing and editing the metadata associated with a book.
 * **Trash/Archive View:** A dedicated area to view soft-deleted items and restore them.
+  * Surface retention guidance so administrators know items remain in trash for at least seven days before permanent removal.
 
 ## **Accessibility: WCAG AA**
 

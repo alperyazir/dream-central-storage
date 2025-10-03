@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.security import create_access_token
+from app.db import get_db
 from app.main import app
 
 
@@ -16,7 +17,7 @@ from app.main import app
 def override_dependencies(monkeypatch):
     from app.routers import storage
 
-    monkeypatch.setattr(storage, "_require_admin", lambda credentials: None)
+    monkeypatch.setattr(storage, "_require_admin", lambda credentials, db: 1)
 
     fake_client = MagicMock()
     fake_client.list_objects.return_value = [
@@ -25,7 +26,14 @@ def override_dependencies(monkeypatch):
     ]
     monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
 
+    def fake_get_db():
+        yield MagicMock()
+
+    app.dependency_overrides[get_db] = fake_get_db
+
     yield
+
+    app.dependency_overrides.pop(get_db, None)
 
 
 def _auth_headers() -> dict[str, str]:

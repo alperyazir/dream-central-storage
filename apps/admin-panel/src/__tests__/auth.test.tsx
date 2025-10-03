@@ -70,6 +70,10 @@ describe('Authentication flows', () => {
         return Promise.resolve(createJsonResponse(windows));
       }
 
+      if (url.endsWith('/storage/trash')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
+
       throw new Error(`Unexpected request to ${url}`);
     });
 
@@ -120,6 +124,10 @@ describe('Authentication flows', () => {
 
       if (normalized.includes('/storage/apps/windows')) {
         return Promise.resolve(createJsonResponse(windows));
+      }
+
+      if (url.endsWith('/storage/trash')) {
+        return Promise.resolve(createJsonResponse([]));
       }
 
       throw new Error(`Unexpected request to ${url}`);

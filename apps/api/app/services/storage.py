@@ -21,6 +21,10 @@ class RelocationError(Exception):
     """Raised when stored objects cannot be moved between buckets."""
 
 
+class RestorationError(Exception):
+    """Raised when objects cannot be restored from the trash bucket."""
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -33,6 +37,19 @@ class RelocationReport:
     source_prefix: str
     destination_prefix: str
     objects_moved: int
+
+
+@dataclass(slots=True)
+class TrashEntry:
+    """Aggregated metadata for a prefix stored in the trash bucket."""
+
+    key: str
+    bucket: str
+    path: str
+    item_type: str
+    object_count: int
+    total_size: int
+    metadata: dict[str, str] | None = None
 
 
 def iter_zip_entries(archive: zipfile.ZipFile) -> Iterable[zipfile.ZipInfo]:
@@ -153,6 +170,70 @@ def _normalize_tree(node: dict[str, object]) -> dict[str, object]:
     return node
 
 
+def list_trash_entries(client: Minio, trash_bucket: str) -> list[TrashEntry]:
+    """Aggregate trash bucket contents into logical restore targets."""
+
+    aggregates: dict[str, TrashEntry] = {}
+
+    try:
+        objects = client.list_objects(trash_bucket, recursive=True)
+    except S3Error as exc:  # pragma: no cover - propagated to caller
+        logger.error("Failed listing trash bucket '%s': %s", trash_bucket, exc)
+        raise RelocationError(f"Unable to list trash bucket '{trash_bucket}'") from exc
+
+    for obj in objects:
+        object_name = obj.object_name
+        if not object_name or object_name.endswith("/"):
+            continue
+
+        parts = [segment for segment in object_name.split("/") if segment]
+        if not parts:
+            continue
+
+        bucket = parts[0]
+        item_type = "unknown"
+        prefix_parts: list[str]
+        metadata: dict[str, str] | None = None
+
+        if bucket == "books" and len(parts) >= 3:
+            item_type = "book"
+            prefix_parts = parts[1:3]
+            metadata = {"publisher": parts[1], "book_name": parts[2]}
+        elif bucket == "apps" and len(parts) >= 3:
+            item_type = "app"
+            prefix_parts = parts[1:3]
+            metadata = {"platform": parts[1], "version": parts[2]}
+        else:
+            # Fallback: treat the next segment as the identifier when available.
+            prefix_parts = parts[1:2] if len(parts) >= 2 else []
+
+        if not prefix_parts:
+            continue
+
+        key_prefix = "/".join([bucket, *prefix_parts])
+        aggregate = aggregates.get(key_prefix)
+        if aggregate is None:
+            aggregates[key_prefix] = TrashEntry(
+                key=f"{key_prefix}/",
+                bucket=bucket,
+                path="/".join(prefix_parts),
+                item_type=item_type,
+                object_count=0,
+                total_size=0,
+                metadata=metadata,
+            )
+            aggregate = aggregates[key_prefix]
+        else:
+            # Preserve metadata from the first encountered object.
+            if aggregate.metadata is None and metadata:
+                aggregate.metadata = metadata
+
+        aggregate.object_count += 1
+        aggregate.total_size += obj.size or 0
+
+    return sorted(aggregates.values(), key=lambda entry: entry.key)
+
+
 def move_prefix_to_trash(
     *,
     client: Minio,
@@ -212,4 +293,80 @@ def move_prefix_to_trash(
         report.destination_bucket,
         report.destination_prefix,
     )
+    return report
+
+
+def restore_prefix_from_trash(
+    *,
+    client: Minio,
+    trash_bucket: str,
+    key: str,
+) -> RelocationReport:
+    """Restore a previously soft-deleted prefix from the trash bucket."""
+
+    normalized_key = key if key.endswith("/") else f"{key}/"
+    parts = [segment for segment in normalized_key.split("/") if segment]
+    if len(parts) < 2:
+        raise RestorationError("Invalid trash key; expected bucket/prefix pairs")
+
+    destination_bucket = parts[0]
+    destination_prefix = "/".join(parts[1:])
+    if destination_prefix and not destination_prefix.endswith("/"):
+        destination_prefix = f"{destination_prefix}/"
+
+    try:
+        objects = list(
+            client.list_objects(trash_bucket, prefix=normalized_key, recursive=True)
+        )
+    except S3Error as exc:  # pragma: no cover - depends on MinIO responses
+        logger.error("Failed listing trash objects for '%s': %s", normalized_key, exc)
+        raise RestorationError(f"Unable to list trash entry '{normalized_key}'") from exc
+
+    if not objects:
+        raise RestorationError(f"No trash objects found for key '{normalized_key}'")
+
+    restored = 0
+    for obj in objects:
+        source_object = obj.object_name
+        relative_path = source_object[len(normalized_key) :]
+        if relative_path == "":  # Defensive guard for prefix placeholders
+            continue
+
+        destination_object = f"{destination_prefix}{relative_path}"
+
+        try:
+            client.copy_object(
+                destination_bucket,
+                destination_object,
+                CopySource(trash_bucket, source_object),
+            )
+            client.remove_object(trash_bucket, source_object)
+        except S3Error as exc:  # pragma: no cover - depends on MinIO responses
+            logger.error(
+                "Failed restoring object '%s' to '%s/%s': %s",
+                source_object,
+                destination_bucket,
+                destination_object,
+                exc,
+            )
+            raise RestorationError(f"Unable to restore object '{source_object}'") from exc
+        restored += 1
+
+    report = RelocationReport(
+        source_bucket=trash_bucket,
+        destination_bucket=destination_bucket,
+        source_prefix=normalized_key,
+        destination_prefix=destination_prefix,
+        objects_moved=restored,
+    )
+
+    logger.info(
+        "Restored %s objects from %s/%s to %s/%s",
+        restored,
+        report.source_bucket,
+        report.source_prefix,
+        report.destination_bucket,
+        report.destination_prefix,
+    )
+
     return report

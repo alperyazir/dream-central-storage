@@ -22,6 +22,11 @@ const NavBar = () => {
             Dashboard
           </NavLink>
         </li>
+        <li>
+          <NavLink to="/trash" className={({ isActive }) => (isActive ? 'active' : '')}>
+            Trash
+          </NavLink>
+        </li>
         {isAuthenticated ? (
           <li>
             <button type="button" className="nav__button" onClick={handleLogout}>

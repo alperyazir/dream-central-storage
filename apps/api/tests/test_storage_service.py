@@ -13,9 +13,12 @@ from minio.error import S3Error
 
 from app.services.storage import (
     RelocationError,
+    RestorationError,
     UploadError,
     iter_zip_entries,
+    list_trash_entries,
     move_prefix_to_trash,
+    restore_prefix_from_trash,
     upload_book_archive,
 )
 
@@ -154,3 +157,54 @@ def test_move_prefix_to_trash_raises_when_listing_fails() -> None:
             prefix="dream/sky/",
             trash_bucket="trash",
         )
+
+
+def test_restore_prefix_from_trash_restores_objects() -> None:
+    client = MagicMock()
+    client.list_objects.return_value = [
+        SimpleNamespace(object_name="books/DreamPress/SkyTales/chapter1.txt"),
+        SimpleNamespace(object_name="books/DreamPress/SkyTales/notes/chapter2.txt"),
+    ]
+
+    report = restore_prefix_from_trash(
+        client=client,
+        trash_bucket="trash",
+        key="books/DreamPress/SkyTales/",
+    )
+
+    assert report.objects_moved == 2
+    copy_calls = client.copy_object.call_args_list
+    assert copy_calls[0][0][0] == "books"
+    assert copy_calls[0][0][1] == "DreamPress/SkyTales/chapter1.txt"
+    remove_calls = client.remove_object.call_args_list
+    assert remove_calls[0][0][0] == "trash"
+
+
+def test_restore_prefix_from_trash_raises_when_empty() -> None:
+    client = MagicMock()
+    client.list_objects.return_value = []
+
+    with pytest.raises(RestorationError):
+        restore_prefix_from_trash(
+            client=client,
+            trash_bucket="trash",
+            key="books/DreamPress/SkyTales/",
+        )
+
+
+def test_list_trash_entries_aggregates_books_and_apps() -> None:
+    client = MagicMock()
+    client.list_objects.return_value = [
+        SimpleNamespace(object_name="books/Press/Atlas/file1.txt", size=10),
+        SimpleNamespace(object_name="books/Press/Atlas/notes/file2.txt", size=5),
+        SimpleNamespace(object_name="apps/macos/1.0/app.zip", size=20),
+    ]
+
+    entries = list_trash_entries(client, "trash")
+
+    keys = {entry.key for entry in entries}
+    assert keys == {"apps/macos/1.0/", "books/Press/Atlas/"}
+    book_entry = next(entry for entry in entries if entry.item_type == "book")
+    assert book_entry.object_count == 2
+    assert book_entry.total_size == 15
+    assert book_entry.metadata == {"publisher": "Press", "book_name": "Atlas"}

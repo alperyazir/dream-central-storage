@@ -5,8 +5,12 @@ from .storage import (
     UploadError,
     RelocationError,
     RelocationReport,
+    RestorationError,
+    TrashEntry,
     list_objects_tree,
+    list_trash_entries,
     move_prefix_to_trash,
+    restore_prefix_from_trash,
     upload_app_archive,
     upload_book_archive,
 )
@@ -21,4 +25,8 @@ __all__ = [
     "move_prefix_to_trash",
     "RelocationError",
     "RelocationReport",
+    "RestorationError",
+    "TrashEntry",
+    "list_trash_entries",
+    "restore_prefix_from_trash",
 ]

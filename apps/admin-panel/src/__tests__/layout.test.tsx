@@ -27,6 +27,10 @@ const stubDashboardRequests = () => {
       return Promise.resolve(createJsonResponse({ path: 'windows/', type: 'folder', children: [] }));
     }
 
+    if (url.endsWith('/storage/trash')) {
+      return Promise.resolve(createJsonResponse([]));
+    }
+
     throw new Error(`Unexpected request to ${url}`);
   });
 };

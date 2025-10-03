@@ -1,0 +1,274 @@
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Tooltip,
+  Typography
+} from '@mui/material';
+import RestoreFromTrashIcon from '@mui/icons-material/RestoreFromTrash';
+
+import { restoreTrashEntry, listTrashEntries, TrashEntry } from '../lib/storage';
+import { useAuthStore } from '../stores/auth';
+
+import '../styles/page.css';
+
+const formatBytes = (size?: number) => {
+  if (typeof size !== 'number' || Number.isNaN(size)) {
+    return '—';
+  }
+
+  if (size === 0) {
+    return '0 B';
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const exponent = Math.min(Math.floor(Math.log(size) / Math.log(1024)), units.length - 1);
+  const value = size / Math.pow(1024, exponent);
+  const precision = value >= 10 || exponent === 0 ? 0 : 1;
+  return `${value.toFixed(precision)} ${units[exponent]}`;
+};
+
+const getEntryLabel = (entry: TrashEntry) => {
+  if (entry.item_type === 'book' && entry.metadata) {
+    const publisher = entry.metadata.publisher ?? entry.metadata.Publisher;
+    const bookName = entry.metadata.book_name ?? entry.metadata.bookName;
+    if (publisher && bookName) {
+      return `${publisher} / ${bookName}`;
+    }
+  }
+
+  if (entry.item_type === 'app' && entry.metadata) {
+    const platform = entry.metadata.platform ?? entry.metadata.Platform;
+    const version = entry.metadata.version ?? entry.metadata.Version;
+    if (platform && version) {
+      return `${platform} ${version}`;
+    }
+  }
+
+  return entry.path || entry.key;
+};
+
+const TrashPage = () => {
+  const token = useAuthStore((state) => state.token);
+  const tokenType = useAuthStore((state) => state.tokenType ?? 'Bearer');
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  const [entries, setEntries] = useState<TrashEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<TrashEntry | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [refreshIndex, setRefreshIndex] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+
+    const fetchEntries = async () => {
+      if (!isAuthenticated || !token) {
+        if (active) {
+          setEntries([]);
+          setLoading(false);
+        }
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await listTrashEntries(token, tokenType);
+        if (!active) {
+          return;
+        }
+        setEntries(response);
+      } catch (requestError) {
+        if (!active) {
+          return;
+        }
+        const message = requestError instanceof Error ? requestError.message : 'Unable to load trash contents.';
+        setError(message);
+        setEntries([]);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void fetchEntries();
+
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated, token, tokenType, refreshIndex]);
+
+  const openDialog = (entry: TrashEntry) => {
+    setSelectedEntry(entry);
+    setActionError(null);
+  };
+
+  const closeDialog = () => {
+    if (isRestoring) {
+      return;
+    }
+    setSelectedEntry(null);
+  };
+
+  const performRestore = async () => {
+    if (!selectedEntry || !token) {
+      return;
+    }
+
+    setIsRestoring(true);
+    setActionError(null);
+
+    try {
+      await restoreTrashEntry(selectedEntry.key, token, tokenType);
+      setSelectedEntry(null);
+      setRefreshIndex((value) => value + 1);
+    } catch (requestError) {
+      if (requestError instanceof Error) {
+        console.error('Failed to restore trash entry', requestError);
+      }
+      setActionError('Unable to restore the selected item.');
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  const sortedEntries = useMemo(() => {
+    return [...entries].sort((a, b) => getEntryLabel(a).localeCompare(getEntryLabel(b), undefined, { sensitivity: 'base' }));
+  }, [entries]);
+
+  const dialog = (
+    <Dialog
+      open={Boolean(selectedEntry)}
+      onClose={closeDialog}
+      aria-labelledby="trash-restore-dialog-title"
+      aria-describedby="trash-restore-dialog-description"
+    >
+      <DialogTitle id="trash-restore-dialog-title">Confirm Restore</DialogTitle>
+      <DialogContent>
+        <DialogContentText id="trash-restore-dialog-description">
+          {selectedEntry
+            ? `Restore "${getEntryLabel(selectedEntry)}" to ${selectedEntry.bucket} / ${selectedEntry.path}?`
+            : ''}
+        </DialogContentText>
+        {actionError ? (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {actionError}
+          </Alert>
+        ) : null}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={closeDialog} disabled={isRestoring}>
+          Cancel
+        </Button>
+        <Button onClick={performRestore} color="primary" disabled={isRestoring}>
+          {isRestoring ? 'Restoring…' : 'Restore'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
+  const hasEntries = sortedEntries.length > 0;
+  const isInitialLoad = loading && !hasEntries && !error;
+
+  return (
+    <section className="page" aria-busy={loading} aria-live="polite">
+      <Typography variant="h4" component="h1" gutterBottom>
+        Trash
+      </Typography>
+      <Typography variant="body1" paragraph>
+        Review items moved to the trash bucket. Restoring an entry will return it to its original location.
+      </Typography>
+
+      {loading ? (
+        <Alert severity="info" sx={{ mb: 3 }} role="status">
+          Refreshing trash contents…
+        </Alert>
+      ) : null}
+
+      {error ? (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      ) : null}
+
+      {!loading && !error && !hasEntries ? (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          Trash is currently empty.
+        </Alert>
+      ) : null}
+
+      {isInitialLoad ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 4 }}>
+          <CircularProgress aria-label="Loading trash entries" />
+          <Typography variant="body1">Loading trash entries…</Typography>
+        </Box>
+      ) : null}
+
+      {hasEntries ? (
+        <TableContainer component={Paper} sx={{ mt: 3 }}>
+          <Table aria-label="Trash entries table">
+            <TableHead>
+              <TableRow>
+                <TableCell>Name</TableCell>
+                <TableCell>Bucket</TableCell>
+                <TableCell>Path</TableCell>
+                <TableCell align="right">Objects</TableCell>
+                <TableCell align="right">Size</TableCell>
+                <TableCell align="right">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {sortedEntries.map((entry) => (
+                <TableRow key={entry.key} hover>
+                  <TableCell>{getEntryLabel(entry)}</TableCell>
+                  <TableCell>{entry.bucket}</TableCell>
+                  <TableCell>{entry.path}</TableCell>
+                  <TableCell align="right">{entry.object_count}</TableCell>
+                  <TableCell align="right">{formatBytes(entry.total_size)}</TableCell>
+                  <TableCell align="right">
+                    <Tooltip title="Restore item">
+                      <span>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<RestoreFromTrashIcon fontSize="small" />}
+                          onClick={() => openDialog(entry)}
+                          disabled={isRestoring}
+                        >
+                          Restore
+                        </Button>
+                      </span>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      ) : null}
+
+      {dialog}
+    </section>
+  );
+};
+
+export default TrashPage;
