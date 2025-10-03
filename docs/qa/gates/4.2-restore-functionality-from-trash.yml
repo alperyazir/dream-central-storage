@@ -1,0 +1,44 @@
+schema: 1
+story: '4.2'
+story_title: 'Restore Functionality from Trash'
+story_slug: 'restore-functionality-from-trash'
+
+gate: PASS
+status_reason: 'Restore APIs, UI, and tests meet soft-delete recovery requirements without blocking issues.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-10-03T19:21:00Z'
+
+top_issues: []
+waiver:
+  active: false
+
+quality_score: 100
+expires: '2025-10-17T19:21:00Z'
+
+evidence:
+  tests_reviewed: 79
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'JWT guard enforced for listing/restore endpoints; invalid keys rejected early.'
+  performance:
+    status: PASS
+    notes: 'Restore copies stream per object; monitor large trash sets and consider pagination.'
+  reliability:
+    status: PASS
+    notes: 'MinIO failures surface 404/502 and UI displays actionable error messaging.'
+  maintainability:
+    status: PASS
+    notes: 'Shared storage helper abstractions centralize restore logic and schemas.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Introduce pagination or chunking for /storage/trash if trash volume grows significantly.'
+      refs:
+        - 'apps/api/app/routers/storage.py'

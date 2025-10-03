@@ -1,0 +1,50 @@
+schema: 1
+story: '4.4'
+story_title: 'Integrate Application Monitoring'
+story_slug: 'integrate-application-monitoring'
+
+gate: PASS
+status_reason: 'Metrics middleware, Prometheus/Grafana stack, and runbook satisfy monitoring ACs with automated coverage.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-10-03T19:45:00Z'
+
+top_issues:
+  - severity: low
+    description: 'Dev Notes mention prometheus_client while implementation uses custom renderer; update doc for clarity in a follow-up.'
+    suggested_owner: po
+waiver:
+  active: false
+
+quality_score: 90
+expires: '2025-10-17T19:45:00Z'
+
+evidence:
+  tests_reviewed: 64
+  risks_identified: 1
+  trace:
+    ac_covered: [1, 2, 3]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Monitoring services optional via compose profile; Grafana default creds highlighted for change.'
+  performance:
+    status: PASS
+    notes: 'Scrape interval set to 15s; middleware uses lightweight in-memory stats.'
+  reliability:
+    status: PASS
+    notes: 'Runbook documents validation and troubleshooting for scrape failures.'
+  maintainability:
+    status: PASS
+    notes: 'Monitoring modules/dashboards stored alongside infrastructure assets for version control.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Add Prometheus alert rules once monitoring stabilizes to surface critical regressions.'
+      refs:
+        - 'infrastructure/monitoring/prometheus.yml'
+    - action: 'Update Dev Notes to reflect custom metrics renderer instead of prometheus_client library.'
+      refs:
+        - 'docs/stories/4.4.integrate-application-monitoring.md'
