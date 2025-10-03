@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.models.book import Book
+from app.models.book import Book, BookStatusEnum
 from app.repositories.base import BaseRepository
 
 
@@ -29,6 +29,15 @@ class BookRepository(BaseRepository[Book]):
     def update(self, session: Session, book: Book, *, data: dict[str, object]) -> Book:
         for field, value in data.items():
             setattr(book, field, value)
+        session.flush()
+        session.refresh(book)
+        session.commit()
+        return book
+
+    def archive(self, session: Session, book: Book) -> Book:
+        """Mark a book as archived and persist the change."""
+
+        book.status = BookStatusEnum.ARCHIVED
         session.flush()
         session.refresh(book)
         session.commit()

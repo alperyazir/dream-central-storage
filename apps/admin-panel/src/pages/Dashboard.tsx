@@ -4,7 +4,13 @@ import {
   Box,
   Button,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   FormControl,
+  IconButton,
   InputLabel,
   MenuItem,
   Paper,
@@ -17,12 +23,15 @@ import {
   TableHead,
   TableRow,
   TableSortLabel,
+  Tooltip,
   Typography
 } from '@mui/material';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 
-import { fetchBooks, BookRecord } from '../lib/books';
+import { fetchBooks, BookRecord, softDeleteBook } from '../lib/books';
 import { SUPPORTED_APP_PLATFORMS, toPlatformSlug } from '../lib/platforms';
 import { listAppContents, StorageNode } from '../lib/storage';
+import { softDeleteAppBuild } from '../lib/apps';
 import { useAuthStore } from '../stores/auth';
 import UploadDialog from '../components/UploadDialog';
 
@@ -36,6 +45,10 @@ type BookSortField = 'title' | 'publisher' | 'language' | 'category';
 
 type AppSortField = 'platform' | 'version' | 'fileName' | 'path' | 'size';
 
+type DeleteTarget =
+  | { kind: 'book'; record: BookRow }
+  | { kind: 'app'; record: AppBuildRow };
+
 interface BookRow {
   id: number;
   title: string;
@@ -46,9 +59,11 @@ interface BookRow {
 
 interface AppBuildRow {
   platform: string;
+  platformSlug: string;
   version: string;
   fileName: string;
   path: string;
+  storagePath: string;
   size?: number;
 }
 
@@ -120,9 +135,11 @@ const collectAppBuildRows = (
 
   return Array.from(aggregated.values()).map((entry) => ({
     platform: platformLabel,
+    platformSlug,
     version: entry.display,
     fileName: `${entry.display}${entry.fileCount > 1 ? ` (${entry.fileCount} files)` : ''}`,
-    path: `${platformLabel}/${entry.display}`,
+    path: `${platformSlug}/${entry.display}`,
+    storagePath: `${platformSlug}/${entry.display}/`,
     size: entry.totalSize || undefined
   }));
 };
@@ -145,6 +162,9 @@ const DashboardPage = () => {
   );
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [refreshIndex, setRefreshIndex] = useState(0);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const platformCount = APP_PLATFORMS.length as number;
 
   useEffect(() => {
@@ -221,6 +241,55 @@ const DashboardPage = () => {
     }));
   };
 
+  const promptBookDelete = (record: BookRow) => {
+    setActionError(null);
+    setDeleteTarget({ kind: 'book', record });
+  };
+
+  const promptAppDelete = (record: AppBuildRow) => {
+    setActionError(null);
+    setDeleteTarget({ kind: 'app', record });
+  };
+
+  const closeDeleteDialog = () => {
+    if (isDeleting) {
+      return;
+    }
+    setDeleteTarget(null);
+  };
+
+  const performDelete = async () => {
+    if (!deleteTarget || !token) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setActionError(null);
+
+    try {
+      if (deleteTarget.kind === 'book') {
+        await softDeleteBook(deleteTarget.record.id, token, tokenType);
+      } else {
+        await softDeleteAppBuild(
+          deleteTarget.record.platformSlug,
+          deleteTarget.record.storagePath,
+          token,
+          tokenType
+        );
+      }
+
+      setDeleteTarget(null);
+      setRefreshIndex((value) => value + 1);
+    } catch (requestError) {
+      if (requestError instanceof Error) {
+        console.error('Failed to complete delete request', requestError);
+      }
+      setActionError('Unable to complete delete request.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const uniquePublishers = useMemo(() => {
     const values = new Set<string>();
     books.forEach((book) => {
@@ -287,6 +356,37 @@ const DashboardPage = () => {
     />
   );
 
+  const deleteDialog = (
+    <Dialog
+      open={Boolean(deleteTarget)}
+      onClose={closeDeleteDialog}
+      aria-labelledby="delete-confirmation-title"
+      aria-describedby="delete-confirmation-description"
+    >
+      <DialogTitle id="delete-confirmation-title">Confirm Soft Delete</DialogTitle>
+      <DialogContent>
+        <DialogContentText id="delete-confirmation-description">
+          {deleteTarget?.kind === 'book'
+            ? `Soft-delete "${deleteTarget.record.title}"? Its metadata will be archived and associated files moved to the trash bucket.`
+            : `Soft-delete application build "${deleteTarget?.record.path}"? Assets will be moved to the trash bucket for restoration later.`}
+        </DialogContentText>
+        {actionError ? (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {actionError}
+          </Alert>
+        ) : null}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={closeDeleteDialog} disabled={isDeleting}>
+          Cancel
+        </Button>
+        <Button onClick={performDelete} color="error" disabled={isDeleting}>
+          {isDeleting ? 'Deleting...' : 'Delete'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
   const isInitialLoad = loading && books.length === 0 && appBuilds.length === 0;
 
   if (isInitialLoad) {
@@ -297,6 +397,7 @@ const DashboardPage = () => {
           <Typography variant="body1">Loading dashboard data…</Typography>
         </section>
         {uploadDialog}
+        {deleteDialog}
       </>
     );
   }
@@ -388,12 +489,13 @@ const DashboardPage = () => {
                   Category
                 </TableSortLabel>
               </TableCell>
+              <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {filteredBooks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} align="center">
+                <TableCell colSpan={5} align="center">
                   {books.length === 0 ? 'No books found.' : 'No books match the selected publisher.'}
                 </TableCell>
               </TableRow>
@@ -404,6 +506,21 @@ const DashboardPage = () => {
                   <TableCell>{book.publisher}</TableCell>
                   <TableCell>{book.language}</TableCell>
                   <TableCell>{book.category}</TableCell>
+                  <TableCell align="right">
+                    <Tooltip title="Soft-delete book">
+                      <span>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          aria-label={`Soft-delete book ${book.title}`}
+                          onClick={() => promptBookDelete(book)}
+                          disabled={isDeleting}
+                        >
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -467,12 +584,13 @@ const DashboardPage = () => {
                   Storage Path
                 </TableSortLabel>
               </TableCell>
+              <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {sortedAppBuilds.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} align="center">
+                <TableCell colSpan={6} align="center">
                   No application builds found.
                 </TableCell>
               </TableRow>
@@ -484,6 +602,21 @@ const DashboardPage = () => {
                   <TableCell>{build.fileName || '—'}</TableCell>
                   <TableCell>{formatBytes(build.size)}</TableCell>
                   <TableCell>{build.path}</TableCell>
+                  <TableCell align="right">
+                    <Tooltip title="Soft-delete application build">
+                      <span>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          aria-label={`Soft-delete build ${build.path}`}
+                          onClick={() => promptAppDelete(build)}
+                          disabled={isDeleting}
+                        >
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -492,6 +625,7 @@ const DashboardPage = () => {
       </TableContainer>
 
       {uploadDialog}
+      {deleteDialog}
     </section>
   );
 };

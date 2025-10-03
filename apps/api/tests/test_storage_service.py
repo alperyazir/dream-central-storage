@@ -4,11 +4,20 @@ from __future__ import annotations
 
 import io
 import zipfile
+from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock
 
 import pytest
 
-from app.services.storage import UploadError, iter_zip_entries, upload_book_archive
+from minio.error import S3Error
+
+from app.services.storage import (
+    RelocationError,
+    UploadError,
+    iter_zip_entries,
+    move_prefix_to_trash,
+    upload_book_archive,
+)
 
 
 @pytest.fixture()
@@ -61,4 +70,87 @@ def test_upload_book_archive_raises_for_invalid_zip() -> None:
             archive_bytes=b"not a zip",
             bucket="books",
             object_prefix="dream/sky/",
+        )
+
+
+def test_move_prefix_to_trash_relocates_objects() -> None:
+    client = MagicMock()
+    client.list_objects.return_value = [
+        SimpleNamespace(object_name="dream/sky/chapter1.txt"),
+        SimpleNamespace(object_name="dream/sky/notes/chapter2.txt"),
+    ]
+
+    report = move_prefix_to_trash(
+        client=client,
+        source_bucket="books",
+        prefix="dream/sky",
+        trash_bucket="trash",
+    )
+
+    assert report.objects_moved == 2
+    copy_calls = client.copy_object.call_args_list
+    assert len(copy_calls) == 2
+    first_source = copy_calls[0][0][2]
+    assert first_source.bucket_name == "books"
+    assert first_source.object_name == "dream/sky/chapter1.txt"
+    client.remove_object.assert_any_call("books", "dream/sky/chapter1.txt")
+    assert report.destination_prefix == "books/dream/sky/"
+
+
+def test_move_prefix_to_trash_allows_empty_prefix() -> None:
+    client = MagicMock()
+    client.list_objects.return_value = []
+
+    report = move_prefix_to_trash(
+        client=client,
+        source_bucket="books",
+        prefix="dream/sky/",
+        trash_bucket="trash",
+    )
+
+    assert report.objects_moved == 0
+    client.copy_object.assert_not_called()
+    client.remove_object.assert_not_called()
+
+
+def test_move_prefix_to_trash_raises_on_copy_failure() -> None:
+    client = MagicMock()
+    client.list_objects.return_value = [
+        SimpleNamespace(object_name="dream/sky/file.txt")
+    ]
+    client.copy_object.side_effect = S3Error(
+        "InternalError",
+        "copy failed",
+        "dream/sky/file.txt",
+        "request",
+        "host",
+        None,
+    )
+
+    with pytest.raises(RelocationError):
+        move_prefix_to_trash(
+            client=client,
+            source_bucket="books",
+            prefix="dream/sky/",
+            trash_bucket="trash",
+        )
+
+
+def test_move_prefix_to_trash_raises_when_listing_fails() -> None:
+    client = MagicMock()
+    client.list_objects.side_effect = S3Error(
+        "InternalError",
+        "list failed",
+        "dream/sky/",
+        "request",
+        "host",
+        None,
+    )
+
+    with pytest.raises(RelocationError):
+        move_prefix_to_trash(
+            client=client,
+            source_bucket="books",
+            prefix="dream/sky/",
+            trash_bucket="trash",
         )

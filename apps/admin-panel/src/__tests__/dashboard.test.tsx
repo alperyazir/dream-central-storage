@@ -492,4 +492,163 @@ describe('Dashboard', () => {
       errorSpy.mockRestore();
     }
   });
+
+  it('initiates soft delete for a book and refreshes data', async () => {
+    authenticateTestUser();
+
+    const booksPayloadInitial = [
+      {
+        id: 1,
+        publisher: 'Dream Press',
+        book_name: 'Dream Atlas',
+        language: 'English',
+        category: 'Fiction',
+        status: 'published'
+      }
+    ];
+
+    const booksPayloadArchived = [
+      {
+        id: 1,
+        publisher: 'Dream Press',
+        book_name: 'Dream Atlas',
+        language: 'English',
+        category: 'Fiction',
+        status: 'archived'
+      }
+    ];
+
+    const emptyTree = { path: 'macos/', type: 'folder', children: [] };
+    let bookFetchCount = 0;
+
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      const method = (init?.method ?? 'GET').toUpperCase();
+
+      if (url.endsWith('/books') && method === 'GET') {
+        bookFetchCount += 1;
+        const payload = bookFetchCount === 1 ? booksPayloadInitial : booksPayloadArchived;
+        return Promise.resolve(createJsonResponse(payload));
+      }
+
+      if (url.toLowerCase().includes('/storage/apps/')) {
+        return Promise.resolve(createJsonResponse(emptyTree));
+      }
+
+      if (url.endsWith('/books/1') && method === 'DELETE') {
+        const headers = new Headers(init?.headers as HeadersInit);
+        expect(headers.get('Authorization')).toBe('Bearer test-token');
+        return Promise.resolve(createJsonResponse(booksPayloadArchived[0]));
+      }
+
+      throw new Error(`Unexpected request to ${url}`);
+    });
+
+    renderDashboard();
+
+    const booksTable = await screen.findByRole('table', { name: /books table/i });
+    const cell = await within(booksTable).findByText(/dream atlas/i);
+    const row = cell.closest('tr');
+    expect(row).not.toBeNull();
+
+    const deleteButton = within(row as HTMLTableRowElement).getByRole('button', {
+      name: /soft-delete book dream atlas/i
+    });
+
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(deleteButton);
+    });
+
+    const confirmButton = await screen.findByRole('button', { name: /^delete$/i });
+    await act(async () => {
+      await user.click(confirmButton);
+    });
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringMatching(/\/books\/1$/),
+        expect.objectContaining({ method: 'DELETE' })
+      )
+    );
+
+    await waitFor(() => expect(bookFetchCount).toBeGreaterThanOrEqual(2));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: /confirm soft delete/i })).not.toBeInTheDocument()
+    );
+  });
+
+  it('surfaces errors when application build deletion fails', async () => {
+    authenticateTestUser();
+
+    const booksPayload: unknown[] = [];
+    const macAppTree = {
+      path: 'macos/',
+      type: 'folder',
+      children: [
+        {
+          path: 'macos/1.0.0/',
+          type: 'folder',
+          children: [
+            {
+              path: 'macos/1.0.0/app.zip',
+              type: 'file',
+              size: 1024
+            }
+          ]
+        }
+      ]
+    };
+
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      const method = (init?.method ?? 'GET').toUpperCase();
+
+      if (url.endsWith('/books') && method === 'GET') {
+        return Promise.resolve(createJsonResponse(booksPayload));
+      }
+
+      if (url.toLowerCase().includes('/storage/apps/macos') && method === 'GET') {
+        return Promise.resolve(createJsonResponse(macAppTree));
+      }
+
+      if (url.toLowerCase().includes('/storage/apps/windows') && method === 'GET') {
+        return Promise.resolve(createJsonResponse({ path: 'windows/', type: 'folder', children: [] }));
+      }
+
+      if (url.endsWith('/apps/macos') && method === 'DELETE') {
+        return Promise.resolve(new Response('failure', { status: 502 }));
+      }
+
+      throw new Error(`Unexpected request to ${url}`);
+    });
+
+    renderDashboard();
+
+    const buildsTable = await screen.findByRole('table', { name: /application builds table/i });
+    const buildRow = within(buildsTable).getAllByRole('row')[1];
+
+    const deleteButton = within(buildRow).getByRole('button', {
+      name: /soft-delete build macos\/1\.0\.0/i
+    });
+
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(deleteButton);
+    });
+
+    const confirmButton = await screen.findByRole('button', { name: /^delete$/i });
+    await act(async () => {
+      await user.click(confirmButton);
+    });
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringMatching(/\/apps\/macos$/),
+        expect.objectContaining({ method: 'DELETE' })
+      )
+    );
+
+    expect(await screen.findByText(/unable to complete delete request/i)).toBeInTheDocument();
+  });
 });

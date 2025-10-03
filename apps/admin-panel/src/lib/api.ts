@@ -11,6 +11,7 @@ export interface ApiClient {
   get: <T = unknown>(path: string, init?: RequestOptions) => Promise<T>;
   post: <T = unknown, TBody = unknown>(path: string, body?: TBody, init?: RequestOptions) => Promise<T>;
   postForm: <T = unknown>(path: string, formData: FormData, init?: RequestOptions) => Promise<T>;
+  delete: <T = unknown, TBody = unknown>(path: string, body?: TBody, init?: RequestOptions) => Promise<T>;
 }
 
 const parseResponse = async <T>(response: Response): Promise<T> => {
@@ -71,11 +72,27 @@ export const createApiClient = (baseUrl: string = appConfig.apiBaseUrl): ApiClie
       body: formData
     });
 
+  const destroy = <T, TBody = unknown>(path: string, body?: TBody, init?: RequestOptions) => {
+    const headers = new Headers(init?.headers ?? {});
+
+    if (body !== undefined && !headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+
+    return request<T>(path, {
+      ...init,
+      method: 'DELETE',
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : init?.body
+    });
+  };
+
   return {
     request,
     get,
     post,
-    postForm
+    postForm,
+    delete: destroy
   };
 };
 

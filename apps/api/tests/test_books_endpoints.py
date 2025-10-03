@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,8 +15,9 @@ from app.core.security import create_access_token
 from app.db import get_db
 from app.db.base import Base
 from app.main import app
-from app.models.book import Book
+from app.models.book import Book, BookStatusEnum
 from app.models.user import User
+from app.services import RelocationError, RelocationReport
 
 TEST_DATABASE_URL = "sqlite+pysqlite:///:memory:"
 engine = create_engine(
@@ -141,3 +143,84 @@ def test_invalid_token_is_rejected() -> None:
     client = TestClient(app)
     response = client.get("/books", headers=headers)
     assert response.status_code == 401
+
+
+def test_soft_delete_book_archives_and_moves_assets(monkeypatch) -> None:
+    headers = _create_admin_token()
+    client = TestClient(app)
+
+    create_response = client.post(
+        "/books",
+        json={
+            "publisher": "DreamPress",
+            "book_name": "SkyTales",
+            "language": "en",
+            "category": "fiction",
+            "status": "draft",
+        },
+        headers=headers,
+    )
+    book_id = create_response.json()["id"]
+
+    from app.routers import books as books_router
+
+    captured = {}
+
+    def fake_move_prefix_to_trash(**kwargs):
+        captured["prefix"] = kwargs["prefix"]
+        return RelocationReport(
+            source_bucket="books",
+            destination_bucket="trash",
+            source_prefix=f"DreamPress/SkyTales/",
+            destination_prefix="books/DreamPress/SkyTales/",
+            objects_moved=2,
+        )
+
+    monkeypatch.setattr(books_router, "get_minio_client", lambda settings: MagicMock())
+    monkeypatch.setattr(books_router, "move_prefix_to_trash", fake_move_prefix_to_trash)
+
+    response = client.delete(f"/books/{book_id}", headers=headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "archived"
+    assert captured["prefix"] == "DreamPress/SkyTales/"
+
+    with TestingSessionLocal() as session:
+        stored = session.get(Book, book_id)
+        assert stored is not None
+        assert stored.status == BookStatusEnum.ARCHIVED
+
+
+def test_soft_delete_book_rolls_back_on_relocation_error(monkeypatch) -> None:
+    headers = _create_admin_token()
+    client = TestClient(app)
+
+    create_response = client.post(
+        "/books",
+        json={
+            "publisher": "DreamPress",
+            "book_name": "SkyTales",
+            "language": "en",
+            "category": "fiction",
+            "status": "draft",
+        },
+        headers=headers,
+    )
+    book_id = create_response.json()["id"]
+
+    from app.routers import books as books_router
+
+    monkeypatch.setattr(books_router, "get_minio_client", lambda settings: MagicMock())
+    monkeypatch.setattr(
+        books_router,
+        "move_prefix_to_trash",
+        MagicMock(side_effect=RelocationError("boom")),
+    )
+
+    response = client.delete(f"/books/{book_id}", headers=headers)
+    assert response.status_code == 502
+
+    with TestingSessionLocal() as session:
+        stored = session.get(Book, book_id)
+        assert stored is not None
+        assert stored.status == BookStatusEnum.DRAFT

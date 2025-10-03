@@ -4,17 +4,33 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel
 
 from app.core.config import get_settings
 from app.core.security import decode_access_token
-from app.services import UploadError, get_minio_client, upload_app_archive
+from app.services import (
+    RelocationError,
+    UploadError,
+    get_minio_client,
+    move_prefix_to_trash,
+    upload_app_archive,
+)
 
 router = APIRouter(prefix="/apps", tags=["Apps"])
 _bearer_scheme = HTTPBearer(auto_error=True)
 
 ALLOWED_PLATFORMS = {"macos", "windows"}
+logger = logging.getLogger(__name__)
+
+
+class AppDeleteRequest(BaseModel):
+    """Payload describing the application build to soft-delete."""
+
+    path: str
 
 
 def _require_admin(credentials: HTTPAuthorizationCredentials) -> int:
@@ -75,3 +91,71 @@ async def upload_application_build(
         "version": version,
         "files": manifest,
     }
+
+
+@router.delete("/{platform}", status_code=status.HTTP_204_NO_CONTENT)
+def soft_delete_application_build(
+    platform: str,
+    payload: AppDeleteRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+) -> Response:
+    """Soft-delete an application build by moving its assets into the trash bucket."""
+
+    admin_id = _require_admin(credentials)
+
+    normalized_platform = platform.lower()
+    if normalized_platform not in ALLOWED_PLATFORMS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported platform")
+
+    trimmed_path = payload.path.strip()
+    if not trimmed_path:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Path is required")
+
+    normalized_path = trimmed_path.strip("/")
+    segments = [segment for segment in normalized_path.split("/") if segment]
+    if not segments:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Path is invalid")
+
+    if segments[0].lower() != normalized_platform:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Path must begin with the provided platform",
+        )
+
+    if len(segments) == 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Path must include a version or folder under the platform",
+        )
+
+    relative_segments = segments[1:]
+    prefix = "/".join([normalized_platform, *relative_segments])
+    if trimmed_path.endswith("/"):
+        prefix = f"{prefix}/"
+
+    settings = get_settings()
+    client = get_minio_client(settings)
+
+    try:
+        report = move_prefix_to_trash(
+            client=client,
+            source_bucket=settings.minio_apps_bucket,
+            prefix=prefix,
+            trash_bucket=settings.minio_trash_bucket,
+        )
+    except RelocationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to relocate application build",
+        ) from exc
+
+    logger.info(
+        "User %s soft-deleted app build prefix '%s'; moved %s objects to %s/%s",
+        admin_id,
+        report.source_prefix,
+        report.objects_moved,
+        report.destination_bucket,
+        report.destination_prefix,
+    )
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
