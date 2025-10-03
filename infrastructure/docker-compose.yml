@@ -47,6 +47,35 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
+  prometheus:
+    image: prom/prometheus:latest
+    depends_on:
+      - api
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command: --config.file=/etc/prometheus/prometheus.yml
+    ports:
+      - "9091:9090"
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:10.4.3
+    depends_on:
+      - prometheus
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/dashboards:/var/lib/grafana/dashboards:ro
+    profiles:
+      - monitoring
+
 volumes:
   postgres_data:
   minio_data:
+  grafana_data:

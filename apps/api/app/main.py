@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.routers import apps, auth, books, health, storage
 from app.services import ensure_buckets, get_minio_client
+from app.monitoring import MetricsMiddleware, router as monitoring_router
 
 
 settings = get_settings()
@@ -20,6 +21,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=lifespan)
 
+app.add_middleware(MetricsMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.resolved_cors_allowed_origins,
@@ -33,6 +36,7 @@ app.include_router(books.router)
 app.include_router(apps.router)
 app.include_router(storage.router)
 app.include_router(health.router)
+app.include_router(monitoring_router)
 
 
 @app.get("/health", tags=["Health"])
