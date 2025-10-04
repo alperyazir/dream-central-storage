@@ -239,12 +239,23 @@ describe('Dashboard', () => {
   it('opens the upload dialog and shows contextual instructions', async () => {
     authenticateTestUser();
 
+    const booksPayload = [
+      {
+        id: 1,
+        publisher: 'Dream Press',
+        book_name: 'Dream Atlas',
+        language: 'English',
+        category: 'Fiction',
+        status: 'published'
+      }
+    ];
+
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
       if (url.endsWith('/books')) {
         const headers = new Headers(init?.headers as HeadersInit);
         expect(headers.get('Authorization')).toBe('Bearer test-token');
-        return Promise.resolve(createJsonResponse([]));
+        return Promise.resolve(createJsonResponse(booksPayload));
       }
 
       if (url.includes('/storage/apps/')) {
@@ -265,9 +276,16 @@ describe('Dashboard', () => {
 
     const dialog = screen.getByRole('dialog', { name: /upload content/i });
     expect(dialog).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /book/i })).toHaveAttribute('aria-selected', 'true');
-    expect(within(dialog).getByText(/zipped book data folder/i)).toBeInTheDocument();
-    expect(within(dialog).getByText(/metadata\.json/i)).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^book$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(within(dialog).getByRole('tab', { name: /new book/i })).toHaveAttribute('aria-selected', 'true');
+    expect(within(dialog).getByText(/includes config\.json/i)).toBeInTheDocument();
+
+    await act(async () => {
+      await user.click(within(dialog).getByRole('tab', { name: /update existing/i }));
+    });
+
+    expect(within(dialog).getByRole('tab', { name: /update existing/i })).toHaveAttribute('aria-selected', 'true');
+    expect(within(dialog).getByText(/select the catalog entry to update/i)).toBeInTheDocument();
 
     await act(async () => {
       await user.click(screen.getByRole('tab', { name: /application/i }));
@@ -334,6 +352,10 @@ describe('Dashboard', () => {
     const fileInput = within(dialog).getByTestId('upload-archive-input');
 
     await act(async () => {
+      await user.click(within(dialog).getByRole('tab', { name: /update existing/i }));
+    });
+
+    await act(async () => {
       await user.click(within(dialog).getByLabelText(/target book/i));
     });
     const bookOption = await screen.findByRole('option', { name: /dream atlas/i });
@@ -350,8 +372,74 @@ describe('Dashboard', () => {
       await user.click(within(dialog).getByRole('button', { name: /^upload$/i }));
     });
 
-    expect(within(dialog).getByText(/uploaded 1 file/i)).toBeInTheDocument();
+    await within(dialog).findByText(/uploaded 1 file/i);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(7));
+  });
+
+  it('uploads a new book archive without requiring a target selection', async () => {
+    authenticateTestUser();
+
+    const booksPayload: unknown[] = [];
+
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      const method = (init?.method ?? 'GET').toUpperCase();
+
+      if (url.endsWith('/books') && method === 'GET') {
+        return Promise.resolve(createJsonResponse(booksPayload));
+      }
+
+      if (url.includes('/storage/apps/') && method === 'GET') {
+        return Promise.resolve(createJsonResponse({ path: 'macOS/', type: 'folder', children: [] }));
+      }
+
+      if (url.endsWith('/books/upload') && method === 'POST') {
+        const formData = init?.body as FormData;
+        expect(formData.get('file')).toBeInstanceOf(File);
+        return Promise.resolve(
+          createJsonResponse({
+            book: {
+              id: 42,
+              publisher: 'Aurora Press',
+              book_name: 'Aurora Atlas',
+              language: 'English',
+              category: 'Fiction',
+              status: 'published'
+            },
+            files: [{ path: 'Aurora Press/Aurora Atlas/chapter1.txt', size: 256 }]
+          })
+        );
+      }
+
+      throw new Error(`Unexpected request to ${url}`);
+    });
+
+    renderDashboard();
+
+    await screen.findByRole('table', { name: /books table/i });
+
+    const user = userEvent.setup();
+
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /upload/i }));
+    });
+
+    const dialog = screen.getByRole('dialog', { name: /upload content/i });
+    const fileInput = within(dialog).getByTestId('upload-archive-input');
+
+    await act(async () => {
+      const archive = new File(['dummy'], 'book.zip', { type: 'application/zip' });
+      await user.upload(fileInput, archive);
+    });
+
+    await act(async () => {
+      await user.click(within(dialog).getByRole('button', { name: /^upload$/i }));
+    });
+
+    await within(dialog).findByText(/Aurora Atlas/);
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/books\/upload$/), expect.any(Object))
+    );
   });
 
   it('uploads an application archive and displays success feedback', async () => {
@@ -468,6 +556,9 @@ describe('Dashboard', () => {
       });
 
       const dialog = screen.getByRole('dialog', { name: /upload content/i });
+      await act(async () => {
+        await user.click(within(dialog).getByRole('tab', { name: /update existing/i }));
+      });
       await act(async () => {
         await user.click(within(dialog).getByLabelText(/target book/i));
       });

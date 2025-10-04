@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import io
+import json
 import logging
+import zipfile
+from collections.abc import Iterable
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -177,7 +182,6 @@ async def upload_book(
     db: Session = Depends(get_db),
 ):
     """Upload a zipped book folder to MinIO for the specified book."""
-
     _require_admin(credentials, db)
     book = _book_repository.get_by_id(db, book_id)
     if book is None:
@@ -205,3 +209,217 @@ async def upload_book(
         ) from exc
 
     return {"book_id": book_id, "files": manifest}
+
+
+@router.post("/upload", status_code=status.HTTP_201_CREATED)
+async def upload_new_book(
+    file: UploadFile,
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    db: Session = Depends(get_db),
+):
+    """Upload a zipped book folder and create new metadata from the archive."""
+
+    admin_id = _require_admin(credentials, db)
+
+    contents = await file.read()
+
+    try:
+        create_payload = _extract_book_metadata(contents)
+    except UploadError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    existing = _book_repository.get_by_publisher_and_name(
+        db,
+        publisher=create_payload.publisher,
+        book_name=create_payload.book_name,
+    )
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Book already exists; please use update mode to upload new content.",
+        )
+
+    book_data = create_payload.model_dump()
+    for field in ("publisher", "book_name", "language", "category", "version"):
+        value = book_data.get(field)
+        if isinstance(value, str):
+            book_data[field] = value.strip()
+    # Default new uploads to published status so they appear immediately in listings.
+    if book_data.get("status") is None or book_data["status"] == BookStatusEnum.DRAFT:
+        book_data["status"] = BookStatusEnum.PUBLISHED
+
+    settings = get_settings()
+    client = get_minio_client(settings)
+    object_prefix = f"{book_data['publisher']}/{book_data['book_name']}/"
+
+    try:
+        manifest = upload_book_archive(
+            client=client,
+            archive_bytes=contents,
+            bucket=settings.minio_books_bucket,
+            object_prefix=object_prefix,
+            content_type="application/octet-stream",
+        )
+    except UploadError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - defensive guard
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to upload book archive",
+        ) from exc
+
+    book = _book_repository.create(db, data=book_data)
+    book_read = BookRead.model_validate(book)
+
+    logger.info(
+        "User %s uploaded new book %s under prefix %s with %s files",
+        admin_id,
+        book_read.id,
+        object_prefix,
+        len(manifest),
+    )
+
+    return {"book": book_read.model_dump(), "files": manifest}
+
+
+_CONFIG_ALIASES: dict[str, tuple[str, ...]] = {
+    "publisher": ("publisher", "publisher_name", "publisherName"),
+    "book_name": ("book_name", "book_title", "bookTitle", "title"),
+    "language": ("language", "lang"),
+    "category": ("category", "subject", "book_category", "bookCategory"),
+    "version": ("version", "book_version", "bookVersion"),
+    "status": ("status", "book_status", "bookStatus"),
+}
+
+
+def _extract_book_metadata(archive_bytes: bytes) -> BookCreate:
+    """Return book metadata parsed from ``config.json`` with legacy fallbacks."""
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+            names = archive.namelist()
+            config_path = _first_matching(names, "config.json")
+            metadata_path = _first_matching(names, "metadata.json")
+
+            if config_path is None:
+                raise UploadError("config.json is missing from the archive")
+
+            config_payload = _read_json_from_archive(
+                archive, config_path, label="config.json", required=True
+            )
+            metadata_payload = None
+            if metadata_path is not None:
+                try:
+                    metadata_payload = _read_json_from_archive(
+                        archive,
+                        metadata_path,
+                        label="metadata.json",
+                        required=False,
+                    )
+                except UploadError:
+                    metadata_payload = None
+
+    except zipfile.BadZipFile as exc:
+        raise UploadError("Uploaded file is not a valid ZIP archive") from exc
+
+    try:
+        payload, used_metadata = _coalesce_metadata(config_payload, metadata_payload)
+        if metadata_payload is not None:
+            logger.warning(
+                "metadata.json detected in upload archive; this file is deprecated%s",
+                " and was used to fill missing fields" if used_metadata else "",
+            )
+        return BookCreate.model_validate(payload)
+    except ValidationError as exc:
+        missing = {
+            error["loc"][-1] for error in exc.errors() if error.get("type") == "missing"
+        }
+        if missing:
+            missing_fields = ", ".join(sorted(str(field) for field in missing))
+            message = f"config.json is missing required fields: {missing_fields}"
+        else:
+            message = "config.json contains invalid values"
+        raise UploadError(message) from exc
+
+
+def _first_matching(names: Iterable[str], suffix: str) -> str | None:
+    suffix_lower = suffix.lower()
+    return next((name for name in names if name.lower().endswith(suffix_lower)), None)
+
+
+def _read_json_from_archive(
+    archive: zipfile.ZipFile,
+    path: str,
+    *,
+    label: str,
+    required: bool,
+) -> dict[str, object]:
+    try:
+        with archive.open(path) as file_handle:
+            try:
+                raw_text = file_handle.read().decode("utf-8")
+            except UnicodeDecodeError as exc:
+                message = f"{label} must be UTF-8 encoded"
+                if required:
+                    raise UploadError(message) from exc
+                raise UploadError(message) from exc
+    except KeyError as exc:
+        if required:
+            raise UploadError(f"{label} could not be opened") from exc
+        raise UploadError(f"{label} could not be opened") from exc
+
+    try:
+        payload = json.loads(raw_text)
+    except json.JSONDecodeError as exc:
+        message = f"{label} is not valid JSON"
+        if required:
+            raise UploadError(message) from exc
+        raise UploadError(message) from exc
+
+    if not isinstance(payload, dict):
+        message = f"{label} must contain a JSON object"
+        if required:
+            raise UploadError(message)
+        raise UploadError(message)
+
+    return payload
+
+
+def _coalesce_metadata(
+    config_payload: dict[str, object],
+    metadata_payload: dict[str, object] | None,
+) -> tuple[dict[str, object], bool]:
+    result: dict[str, object] = {}
+    metadata_used = False
+
+    for target, aliases in _CONFIG_ALIASES.items():
+        value = _first_non_empty(config_payload, aliases)
+        if value is None and metadata_payload is not None:
+            value = _first_non_empty(metadata_payload, aliases)
+            if value is not None:
+                metadata_used = True
+
+        if isinstance(value, str):
+            normalized = value.strip()
+            if normalized:
+                result[target] = normalized
+            elif target in {"version", "status"}:
+                # Preserve empty optional values as omitted.
+                continue
+        elif value is not None:
+            result[target] = value
+
+    return result, metadata_used
+
+
+def _first_non_empty(payload: dict[str, object], aliases: Iterable[str]) -> object | None:
+    for alias in aliases:
+        if alias in payload:
+            candidate = payload[alias]
+            if isinstance(candidate, str):
+                stripped = candidate.strip()
+                if stripped:
+                    return stripped
+            elif candidate is not None:
+                return candidate
+    return None

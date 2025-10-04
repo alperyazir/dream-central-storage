@@ -46,11 +46,24 @@ across LMS and admin panel.
 - **id** (auto)
 - **publisher** (who owns the book)
 - **book_name** (title)
-- **language** (e.g. en, tr)
-- **category** (e.g. Math, English, Science)
+- **language** (e.g. en, tr)
+- **category** (e.g. Math, English, Science)
 - **version** (optional, future use)
 - **status** (draft, published, archived)
 - **created_at / updated_at**
+
+### `config.json` Requirements
+
+- Required to be present in every uploaded archive; files missing
+  `config.json` are rejected.
+- Accepted keys map to canonical metadata automatically. For example,
+  `publisher_name` → `publisher`, `book_title` → `book_name`, and
+  `subject` → `category`.
+- Values are trimmed of whitespace; empty required values trigger
+  actionable errors that reference `config.json`.
+- Legacy `metadata.json` files may still be included to supply missing
+  optional fields during the transition, but a deprecation warning is
+  logged and the file will be ignored once config adoption is complete.
 
 ---
 

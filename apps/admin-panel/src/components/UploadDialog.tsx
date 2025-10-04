@@ -19,7 +19,7 @@ import {
   Typography
 } from '@mui/material';
 
-import { uploadAppArchive, uploadBookArchive } from '../lib/uploads';
+import { uploadAppArchive, uploadBookArchive, uploadNewBookArchive } from '../lib/uploads';
 
 interface UploadBookOption {
   id: number;
@@ -40,6 +40,7 @@ interface UploadDialogProps {
 const FILE_ACCEPT = '.zip';
 
 type UploadMode = 'book' | 'app';
+type BookUploadFlow = 'new' | 'update';
 
 type FeedbackState = {
   type: 'success' | 'error';
@@ -54,6 +55,15 @@ const deriveErrorMessage = (error: unknown): string => {
 
     if (/^upload failed/i.test(error.message)) {
       return error.message;
+    }
+
+    const detailMatch = error.message.match(/"detail":"(?<detail>.+?)"/i);
+    if (detailMatch?.groups?.detail) {
+      return detailMatch.groups.detail.replace(/\\"/g, '"');
+    }
+
+    if (/^request failed/i.test(error.message)) {
+      return 'Upload failed. Please check the archive and try again.';
     }
   }
 
@@ -75,6 +85,7 @@ const UploadDialog = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
+  const [bookUploadFlow, setBookUploadFlow] = useState<BookUploadFlow>('new');
 
   const normalizedTokenType = tokenType ?? 'Bearer';
   const isAuthenticated = Boolean(token);
@@ -92,6 +103,7 @@ const UploadDialog = ({
       setSelectedFile(null);
       setIsSubmitting(false);
       setFeedback(null);
+      setBookUploadFlow('new');
     }
   }, [open, platforms]);
 
@@ -99,6 +111,17 @@ const UploadDialog = ({
     setMode(value);
     setFeedback(null);
     setSelectedFile(null);
+  };
+
+  const handleBookUploadFlowChange = (_: unknown, value: BookUploadFlow | null) => {
+    if (!value) {
+      return;
+    }
+    setBookUploadFlow(value);
+    setFeedback(null);
+    if (value === 'new') {
+      setSelectedBookId('');
+    }
   };
 
   const handleBookChange = (event: SelectChangeEvent<string>) => {
@@ -119,7 +142,7 @@ const UploadDialog = ({
     event.target.value = '';
   };
 
-  const selectedBook = mode === 'book' && selectedBookId
+  const selectedBook = mode === 'book' && bookUploadFlow === 'update' && selectedBookId
     ? sortedBooks.find((book) => book.id === selectedBookId)
     : undefined;
 
@@ -127,7 +150,9 @@ const UploadDialog = ({
     isAuthenticated &&
     selectedFile !== null &&
     !isSubmitting &&
-    (mode === 'book' ? selectedBookId !== '' : Boolean(selectedPlatform));
+    (mode === 'book'
+      ? bookUploadFlow === 'new' || selectedBookId !== ''
+      : Boolean(selectedPlatform));
 
   const handleUpload = async () => {
     if (!token || !selectedFile) {
@@ -139,16 +164,25 @@ const UploadDialog = ({
 
     try {
       if (mode === 'book') {
-        if (!selectedBookId) {
-          throw new Error('Please select a book to upload.');
-        }
+        if (bookUploadFlow === 'update') {
+          if (!selectedBookId) {
+            throw new Error('Please select a book to upload.');
+          }
 
-        const response = await uploadBookArchive(selectedBookId, selectedFile, token, normalizedTokenType);
-        const fileLabel = response.files.length === 1 ? 'file' : 'files';
-        setFeedback({
-          type: 'success',
-          message: `Uploaded ${response.files.length} ${fileLabel} for “${selectedBook?.title ?? 'book'}”.`
-        });
+          const response = await uploadBookArchive(selectedBookId, selectedFile, token, normalizedTokenType);
+          const fileLabel = response.files.length === 1 ? 'file' : 'files';
+          setFeedback({
+            type: 'success',
+            message: `Uploaded ${response.files.length} ${fileLabel} for “${selectedBook?.title ?? 'book'}”.`
+          });
+        } else {
+          const response = await uploadNewBookArchive(selectedFile, token, normalizedTokenType);
+          const fileLabel = response.files.length === 1 ? 'file' : 'files';
+          setFeedback({
+            type: 'success',
+            message: `Uploaded ${response.files.length} ${fileLabel} for “${response.book.book_name}”.`
+          });
+        }
       } else {
         if (!selectedPlatform) {
           throw new Error('Please select a platform to upload.');
@@ -162,6 +196,9 @@ const UploadDialog = ({
       }
 
       setSelectedFile(null);
+      if (bookUploadFlow === 'update') {
+        setSelectedBookId('');
+      }
       onSuccess();
     } catch (error) {
       console.error('Upload failed', error);
@@ -179,32 +216,50 @@ const UploadDialog = ({
 
   const renderBookForm = () => (
     <Stack spacing={2} sx={{ mt: 2 }}>
+      <Tabs
+        value={bookUploadFlow}
+        onChange={handleBookUploadFlowChange}
+        aria-label="Book upload mode"
+        variant="fullWidth"
+      >
+        <Tab value="new" label="New Book" id="upload-book-mode-new" aria-controls="upload-book-mode-new-panel" />
+        <Tab
+          value="update"
+          label="Update Existing"
+          id="upload-book-mode-update"
+          aria-controls="upload-book-mode-update-panel"
+          disabled={sortedBooks.length === 0}
+        />
+      </Tabs>
       <Typography variant="body2" color="text.secondary">
-        Select a zipped Book Data folder (metadata, content assets, etc.) and target the catalog entry it belongs to.
-        The archive is unpacked into the publisher and book path automatically.
+        {bookUploadFlow === 'new'
+          ? 'Upload a zipped Book Data folder that includes config.json at the archive root (publisher_name, book_title, and similar keys are mapped automatically). A new catalog entry is created once metadata is ingested.'
+          : 'Select the catalog entry to update. Files are unpacked into the existing publisher/book path.'}
       </Typography>
-      <FormControl fullWidth size="small" disabled={sortedBooks.length === 0}>
-        <InputLabel id="upload-book-select-label">Target Book</InputLabel>
-        <Select
-          id="upload-book-select"
-          labelId="upload-book-select-label"
-          value={selectedBookId === '' ? '' : String(selectedBookId)}
-          label="Target Book"
-          onChange={handleBookChange}
-        >
-          {sortedBooks.length === 0 ? (
-            <MenuItem value="" disabled>
-              No books available
-            </MenuItem>
-          ) : (
-            sortedBooks.map((book) => (
-              <MenuItem key={book.id} value={book.id}>
-                {book.title} — {book.publisher}
+      {bookUploadFlow === 'update' ? (
+        <FormControl fullWidth size="small" disabled={sortedBooks.length === 0}>
+          <InputLabel id="upload-book-select-label">Target Book</InputLabel>
+          <Select
+            id="upload-book-select"
+            labelId="upload-book-select-label"
+            value={selectedBookId === '' ? '' : String(selectedBookId)}
+            label="Target Book"
+            onChange={handleBookChange}
+          >
+            {sortedBooks.length === 0 ? (
+              <MenuItem value="" disabled>
+                No books available
               </MenuItem>
-            ))
-          )}
-        </Select>
-      </FormControl>
+            ) : (
+              sortedBooks.map((book) => (
+                <MenuItem key={book.id} value={book.id}>
+                  {book.title} — {book.publisher}
+                </MenuItem>
+              ))
+            )}
+          </Select>
+        </FormControl>
+      ) : null}
     </Stack>
   );
 
@@ -279,7 +334,7 @@ const UploadDialog = ({
           </Stack>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
             {mode === 'book'
-              ? 'Expected layout: metadata.json at the root with content/ assets inside the archive.'
+              ? 'Expected layout: config.json at the root with content/assets folders inside the archive.'
               : 'Expected layout: {platform}/{version}/build files packaged inside the archive.'}
           </Typography>
         </Box>
