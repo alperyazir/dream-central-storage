@@ -9,6 +9,8 @@ The UX vision for the Dream Central Storage Admin Panel is a clean, efficient, a
 * **Dashboard-centric:** A central dashboard will serve as the main entry point, providing an at-a-glance overview and access to all key areas.
 * **Table/List-based Data Display:** Books and applications will be presented in sortable and filterable tables or lists for easy navigation.
 * **Modal-driven Actions:** Actions like editing metadata or confirming deletions will use modals to keep the user within their current context.
+* **Contextual Upload Modes:** Upload dialogs provide explicit "New" vs "Update" modes so administrators can create fresh catalog entries without additional inputs while still targeting existing items when needed.
+* **Version-aware Uploads:** Archives must include a `data/version` manifest; the UI confirms the resolved version, surfaces conflicts, and lets administrators explicitly override when re-uploading an existing release.
 * **Direct Manipulation:** Users will interact directly with items, for example, by clicking a "delete" icon on a specific book entry.
 
 ## **Core Screens and Views**

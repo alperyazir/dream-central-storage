@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import uuid
-
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
@@ -14,7 +12,10 @@ from app.core.config import get_settings
 from app.core.security import decode_access_token
 from app.services import (
     RelocationError,
+    UploadConflictError,
     UploadError,
+    ensure_version_target,
+    extract_manifest_version,
     get_minio_client,
     move_prefix_to_trash,
     upload_app_archive,
@@ -23,7 +24,7 @@ from app.services import (
 router = APIRouter(prefix="/apps", tags=["Apps"])
 _bearer_scheme = HTTPBearer(auto_error=True)
 
-ALLOWED_PLATFORMS = {"macos", "windows"}
+ALLOWED_PLATFORMS = {"linux", "macos", "windows"}
 logger = logging.getLogger(__name__)
 
 
@@ -54,6 +55,10 @@ def _require_admin(credentials: HTTPAuthorizationCredentials) -> int:
 async def upload_application_build(
     platform: str,
     file: UploadFile,
+    override: bool = Query(
+        False,
+        description="When true, replace an existing version folder if one already exists.",
+    ),
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
 ):
     """Upload an application build archive to the apps bucket."""
@@ -66,9 +71,52 @@ async def upload_application_build(
 
     settings = get_settings()
     client = get_minio_client(settings)
-    version = uuid.uuid4().hex
 
     archive_bytes = await file.read()
+    try:
+        version = extract_manifest_version(archive_bytes)
+    except UploadError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    prefix = f"{normalized_platform}/{version}/"
+
+    try:
+        existing_prefix = ensure_version_target(
+            client=client,
+            bucket=settings.minio_apps_bucket,
+            prefix=prefix,
+            version=version,
+            override=override,
+        )
+    except UploadConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": str(exc),
+                "code": "VERSION_EXISTS",
+                "version": exc.version,
+            },
+        ) from exc
+    except UploadError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Unable to verify existing application builds",
+        ) from exc
+
+    if existing_prefix and override:
+        try:
+            move_prefix_to_trash(
+                client=client,
+                source_bucket=settings.minio_apps_bucket,
+                prefix=prefix,
+                trash_bucket=settings.minio_trash_bucket,
+            )
+        except RelocationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to relocate existing version before override",
+            ) from exc
+
     try:
         manifest = upload_app_archive(
             client=client,
@@ -85,6 +133,14 @@ async def upload_application_build(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to upload application build",
         ) from exc
+
+    logger.info(
+        "Uploaded application build for %s version %s (override=%s, files=%s)",
+        normalized_platform,
+        version,
+        bool(existing_prefix and override),
+        len(manifest),
+    )
 
     return {
         "platform": normalized_platform,

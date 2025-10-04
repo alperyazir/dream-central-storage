@@ -2,11 +2,14 @@
 
 from .minio import ensure_buckets, get_minio_client
 from .storage import (
+    UploadConflictError,
     UploadError,
     RelocationError,
     RelocationReport,
     RestorationError,
     TrashEntry,
+    ensure_version_target,
+    extract_manifest_version,
     list_objects_tree,
     list_trash_entries,
     move_prefix_to_trash,
@@ -21,7 +24,10 @@ __all__ = [
     "upload_book_archive",
     "upload_app_archive",
     "list_objects_tree",
+    "extract_manifest_version",
+    "ensure_version_target",
     "UploadError",
+    "UploadConflictError",
     "move_prefix_to_trash",
     "RelocationError",
     "RelocationReport",

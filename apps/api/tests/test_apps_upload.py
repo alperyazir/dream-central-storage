@@ -14,10 +14,11 @@ from app.main import app
 from app.services import RelocationError, RelocationReport
 
 
-def _make_zip_bytes() -> bytes:
+def _make_zip_bytes(version: str = "1.0.0") -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
         archive.writestr("app.exe", "binarydata")
+        archive.writestr("data/version", version)
     return buffer.getvalue()
 
 
@@ -35,11 +36,12 @@ def patch_upload(monkeypatch):
 
     monkeypatch.setattr(apps, "upload_app_archive", fake_upload)
     monkeypatch.setattr(apps, "get_minio_client", lambda settings: MagicMock())
+    monkeypatch.setattr(apps, "ensure_version_target", lambda **kwargs: False)
 
     yield
 
 
-def test_upload_app_success():
+def test_upload_app_success_macos():
     client = TestClient(app)
     response = client.post(
         "/apps/macos/upload",
@@ -51,6 +53,22 @@ def test_upload_app_success():
     body = response.json()
     assert body["platform"] == "macos"
     assert len(body["files"]) == 1
+    assert body["version"] == "1.0.0"
+
+
+def test_upload_app_success_linux():
+    client = TestClient(app)
+    response = client.post(
+        "/apps/linux/upload",
+        files={"file": ("build.zip", _make_zip_bytes("2.0.0"), "application/zip")},
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["platform"] == "linux"
+    assert len(body["files"]) == 1
+    assert body["version"] == "2.0.0"
 
 
 def test_upload_app_requires_authentication():
@@ -85,7 +103,53 @@ def test_upload_app_handles_upload_error(monkeypatch):
         headers=_auth_headers(),
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "bad archive"
+    assert response.json()["detail"] == "Uploaded file is not a valid ZIP archive"
+
+
+def test_upload_app_conflict(monkeypatch):
+    from app.routers import apps
+
+    def raise_conflict(**kwargs):
+        raise apps.UploadConflictError("1.0.0")
+
+    monkeypatch.setattr(apps, "ensure_version_target", raise_conflict)
+
+    client = TestClient(app)
+    response = client.post(
+        "/apps/macos/upload",
+        files={"file": ("build.zip", _make_zip_bytes(), "application/zip")},
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 409
+    body = response.json()["detail"]
+    assert body["code"] == "VERSION_EXISTS"
+    assert body["version"] == "1.0.0"
+
+
+def test_upload_app_override_moves_existing(monkeypatch):
+    from app.routers import apps
+
+    monkeypatch.setattr(apps, "ensure_version_target", lambda **kwargs: True)
+
+    captured = {}
+
+    def fake_move_prefix_to_trash(**kwargs):
+        captured["prefix"] = kwargs["prefix"]
+        return None
+
+    monkeypatch.setattr(apps, "move_prefix_to_trash", fake_move_prefix_to_trash)
+
+    client = TestClient(app)
+    response = client.post(
+        "/apps/macos/upload",
+        params={"override": "true"},
+        files={"file": ("build.zip", _make_zip_bytes("3.1.4"), "application/zip")},
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 201
+    assert captured["prefix"] == "macos/3.1.4/"
 
 
 def test_delete_app_requires_authentication() -> None:
@@ -102,8 +166,8 @@ def test_delete_app_validates_platform(monkeypatch) -> None:
     client = TestClient(app)
     response = client.request(
         "DELETE",
-        "/apps/linux",
-        json={"path": "linux/1.0/"},
+        "/apps/plan9",
+        json={"path": "plan9/1.0/"},
         headers=_auth_headers(),
     )
     assert response.status_code == 400
@@ -165,6 +229,34 @@ def test_delete_app_success(monkeypatch) -> None:
     )
     assert response.status_code == 204
     assert captured["prefix"] == "macos/1.0/"
+
+
+def test_delete_app_success_linux(monkeypatch) -> None:
+    from app.routers import apps as apps_router
+
+    captured = {}
+
+    def fake_move_prefix_to_trash(**kwargs):
+        captured["prefix"] = kwargs["prefix"]
+        return RelocationReport(
+            source_bucket="apps",
+            destination_bucket="trash",
+            source_prefix="linux/9.9/",
+            destination_prefix="apps/linux/9.9/",
+            objects_moved=2,
+        )
+
+    monkeypatch.setattr(apps_router, "move_prefix_to_trash", fake_move_prefix_to_trash)
+
+    client = TestClient(app)
+    response = client.request(
+        "DELETE",
+        "/apps/linux",
+        json={"path": "linux/9.9/"},
+        headers=_auth_headers(),
+    )
+    assert response.status_code == 204
+    assert captured["prefix"] == "linux/9.9/"
 
 
 def test_delete_app_handles_relocation_error(monkeypatch) -> None:

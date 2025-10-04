@@ -31,6 +31,14 @@ const createJsonResponse = (data: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json' }
   });
 
+const formatPlatformPath = (slug: string) => (slug === 'macos' ? 'macOS' : slug);
+
+const emptyAppTreeFor = (slug: string) => ({
+  path: `${formatPlatformPath(slug)}/`,
+  type: 'folder',
+  children: []
+});
+
 describe('Dashboard', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -118,6 +126,24 @@ describe('Dashboard', () => {
       ]
     };
 
+    const linuxAppTree = {
+      path: 'linux/',
+      type: 'folder',
+      children: [
+        {
+          path: 'linux/3.0.0/',
+          type: 'folder',
+          children: [
+            {
+              path: 'linux/3.0.0/app.tar.gz',
+              type: 'file',
+              size: 1_572_864
+            }
+          ]
+        }
+      ]
+    };
+
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
       const normalized = url.toLowerCase();
@@ -127,13 +153,17 @@ describe('Dashboard', () => {
         expect(headers.get('Authorization')).toBe('Bearer test-token');
         return Promise.resolve(createJsonResponse(booksPayload));
       }
-      if (normalized.includes('/storage/apps/macos')) {
+      const appMatch = normalized.match(/\/storage\/apps\/(macos|windows|linux)/);
+      if (appMatch) {
+        const slug = appMatch[1];
         const headers = new Headers(init?.headers as HeadersInit);
         expect(headers.get('Authorization')).toBe('Bearer test-token');
-        return Promise.resolve(createJsonResponse(macAppTree));
-      }
-      if (normalized.includes('/storage/apps/windows')) {
-        return Promise.resolve(createJsonResponse(windowsAppTree));
+        const trees: Record<string, unknown> = {
+          macos: macAppTree,
+          windows: windowsAppTree,
+          linux: linuxAppTree
+        };
+        return Promise.resolve(createJsonResponse(trees[slug]!));
       }
 
       throw new Error(`Unexpected request to ${url}`);
@@ -147,13 +177,13 @@ describe('Dashboard', () => {
 
     const buildsTable = await screen.findByRole('table', { name: /application builds table/i });
     const buildRows = within(buildsTable).getAllByRole('row').slice(1);
-    expect(buildRows).toHaveLength(2);
-    expect(buildRows[0]).toHaveTextContent(/macos/i);
-    expect(buildRows[0]).toHaveTextContent(/1\.0\.0/i);
-    expect(buildRows[0]).toHaveTextContent(/2 files/i);
-    expect(buildRows[1]).toHaveTextContent(/windows/i);
+    expect(buildRows).toHaveLength(3);
+    const rowTexts = buildRows.map((row) => row.textContent ?? '');
+    expect(rowTexts.some((text) => /macos/i.test(text) && /1\.0\.0/i.test(text))).toBe(true);
+    expect(rowTexts.some((text) => /windows/i.test(text))).toBe(true);
+    expect(rowTexts.some((text) => /linux/i.test(text) && /3\.0\.0/i.test(text))).toBe(true);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
   });
 
   it('filters books by publisher and toggles sorting', async () => {
@@ -178,14 +208,14 @@ describe('Dashboard', () => {
       }
     ];
 
-    const emptyTree = { path: 'macOS/', type: 'folder', children: [] };
-
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url = input.toString();
       if (url.endsWith('/books')) {
         return Promise.resolve(createJsonResponse(booksPayload));
       }
-      return Promise.resolve(createJsonResponse(emptyTree));
+      const slugMatch = url.toLowerCase().match(/\/storage\/apps\/([^/?]+)/);
+      const slug = slugMatch ? slugMatch[1] : 'macos';
+      return Promise.resolve(createJsonResponse(emptyAppTreeFor(slug)));
     });
 
     renderDashboard();
@@ -228,7 +258,9 @@ describe('Dashboard', () => {
       if (url.endsWith('/books')) {
         return Promise.reject(new Error('boom'));
       }
-      return Promise.resolve(createJsonResponse({ path: 'macOS/', type: 'folder', children: [] }));
+      const slugMatch = url.toLowerCase().match(/\/storage\/apps\/([^/?]+)/);
+      const slug = slugMatch ? slugMatch[1] : 'macos';
+      return Promise.resolve(createJsonResponse(emptyAppTreeFor(slug)));
     });
 
     renderDashboard();
@@ -309,8 +341,6 @@ describe('Dashboard', () => {
       }
     ];
 
-    const buildTree = { path: 'macOS/', type: 'folder', children: [] };
-
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
       const method = (init?.method ?? 'GET').toUpperCase();
@@ -322,7 +352,9 @@ describe('Dashboard', () => {
       }
 
       if (url.includes('/storage/apps/') && method === 'GET') {
-        return Promise.resolve(createJsonResponse(buildTree));
+        const slugMatch = url.toLowerCase().match(/\/storage\/apps\/([^/?]+)/);
+        const slug = slugMatch ? slugMatch[1] : 'macos';
+        return Promise.resolve(createJsonResponse(emptyAppTreeFor(slug)));
       }
 
       if (url.endsWith('/books/1/upload') && method === 'POST') {
@@ -333,7 +365,13 @@ describe('Dashboard', () => {
         const file = formData.get('file');
         expect(file).toBeInstanceOf(File);
         expect((file as File).name).toBe('book.zip');
-        return Promise.resolve(createJsonResponse({ book_id: 1, files: [{ path: 'dream/file.json', size: 128 }] }));
+        return Promise.resolve(
+          createJsonResponse({
+            book_id: 1,
+            version: '2.5.0',
+            files: [{ path: 'dream/file.json', size: 128 }]
+          })
+        );
       }
 
       throw new Error(`Unexpected request to ${url}`);
@@ -373,7 +411,7 @@ describe('Dashboard', () => {
     });
 
     await within(dialog).findByText(/uploaded 1 file/i);
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(7));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(9));
   });
 
   it('uploads a new book archive without requiring a target selection', async () => {
@@ -390,7 +428,9 @@ describe('Dashboard', () => {
       }
 
       if (url.includes('/storage/apps/') && method === 'GET') {
-        return Promise.resolve(createJsonResponse({ path: 'macOS/', type: 'folder', children: [] }));
+        const slugMatch = url.toLowerCase().match(/\/storage\/apps\/([^/?]+)/);
+        const slug = slugMatch ? slugMatch[1] : 'macos';
+        return Promise.resolve(createJsonResponse(emptyAppTreeFor(slug)));
       }
 
       if (url.endsWith('/books/upload') && method === 'POST') {
@@ -406,6 +446,7 @@ describe('Dashboard', () => {
               category: 'Fiction',
               status: 'published'
             },
+            version: '1.0.0',
             files: [{ path: 'Aurora Press/Aurora Atlas/chapter1.txt', size: 256 }]
           })
         );
@@ -465,7 +506,9 @@ describe('Dashboard', () => {
       }
 
       if (url.includes('/storage/apps/') && method === 'GET') {
-        return Promise.resolve(createJsonResponse({ path: 'macOS/', type: 'folder', children: [] }));
+        const slugMatch = url.toLowerCase().match(/\/storage\/apps\/([^/?]+)/);
+        const slug = slugMatch ? slugMatch[1] : 'macos';
+        return Promise.resolve(createJsonResponse(emptyAppTreeFor(slug)));
       }
 
       if (url.endsWith('/apps/macos/upload') && method === 'POST') {
@@ -506,7 +549,186 @@ describe('Dashboard', () => {
     });
 
     expect(within(dialog).getByText(/uploaded build version/i)).toBeInTheDocument();
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/apps\/macos\/upload$/), expect.any(Object)));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/apps\/macos\/upload$/), expect.any(Object))
+    );
+  });
+
+  it('uploads a Linux application archive when the platform is selected', async () => {
+    authenticateTestUser();
+
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      const method = (init?.method ?? 'GET').toUpperCase();
+      const normalized = url.toLowerCase();
+
+      if (url.endsWith('/books') && method === 'GET') {
+        return Promise.resolve(createJsonResponse([]));
+      }
+
+      if (normalized.includes('/storage/apps/') && method === 'GET') {
+        const slugMatch = normalized.match(/\/storage\/apps\/([^/?]+)/);
+        const slug = slugMatch ? slugMatch[1] : 'macos';
+        return Promise.resolve(createJsonResponse(emptyAppTreeFor(slug)));
+      }
+
+      if (normalized.endsWith('/apps/linux/upload') && method === 'POST') {
+        const formData = init?.body as FormData;
+        expect(formData.get('file')).toBeInstanceOf(File);
+        return Promise.resolve(createJsonResponse({ platform: 'linux', version: 'lin-build', files: [] }));
+      }
+
+      throw new Error(`Unexpected request to ${url}`);
+    });
+
+    renderDashboard();
+
+    await screen.findByRole('table', { name: /books table/i });
+
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /upload/i }));
+    });
+
+    const dialog = screen.getByRole('dialog', { name: /upload content/i });
+
+    await act(async () => {
+      await user.click(within(dialog).getByRole('tab', { name: /application/i }));
+    });
+
+    const platformSelect = within(dialog).getByLabelText(/platform/i);
+    await act(async () => {
+      await user.click(platformSelect);
+    });
+
+    const linuxOption = await screen.findByRole('option', { name: /linux/i });
+    await act(async () => {
+      await user.click(linuxOption);
+    });
+
+    const fileInput = within(dialog).getByTestId('upload-archive-input');
+    await act(async () => {
+      const archive = new File(['dummy'], 'app-linux.zip', { type: 'application/zip' });
+      await user.upload(fileInput, archive);
+    });
+
+    await act(async () => {
+      await user.click(within(dialog).getByRole('button', { name: /^upload$/i }));
+    });
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/apps\/linux\/upload$/), expect.any(Object))
+    );
+    await within(dialog).findByText(/uploaded build version/i);
+  });
+
+  it('offers an override path when a book upload version conflict occurs', async () => {
+    authenticateTestUser();
+
+    const booksPayload = [
+      {
+        id: 1,
+        publisher: 'Dream Press',
+        book_name: 'Dream Atlas',
+        language: 'English',
+        category: 'Fiction',
+        status: 'published'
+      }
+    ];
+
+    let uploadAttempts = 0;
+
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      const method = (init?.method ?? 'GET').toUpperCase();
+
+      if (url.endsWith('/books') && method === 'GET') {
+        return Promise.resolve(createJsonResponse(booksPayload));
+      }
+
+      if (url.includes('/storage/apps/') && method === 'GET') {
+        const slugMatch = url.toLowerCase().match(/\/storage\/apps\/([^/?]+)/);
+        const slug = slugMatch ? slugMatch[1] : 'macos';
+        return Promise.resolve(createJsonResponse(emptyAppTreeFor(slug)));
+      }
+
+      if (url.includes('/books/1/upload') && method === 'POST') {
+        uploadAttempts += 1;
+
+        if (uploadAttempts === 1) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                detail: {
+                  message: "Version '1.0.0' already exists; re-run with override to replace it.",
+                  code: 'VERSION_EXISTS',
+                  version: '1.0.0'
+                }
+              }),
+              {
+                status: 409,
+                headers: { 'content-type': 'application/json' }
+              }
+            )
+          );
+        }
+
+        expect(url).toMatch(/\?override=true$/);
+        return Promise.resolve(
+          createJsonResponse({ book_id: 1, version: '1.0.0', files: [{ path: 'Dream/Sky/1.0.0/file.txt', size: 10 }] })
+        );
+      }
+
+      throw new Error(`Unexpected request to ${url}`);
+    });
+
+    renderDashboard();
+
+    await screen.findByRole('table', { name: /books table/i });
+
+    const user = userEvent.setup();
+
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /upload/i }));
+    });
+
+    const dialog = screen.getByRole('dialog', { name: /upload content/i });
+
+    await act(async () => {
+      await user.click(within(dialog).getByRole('tab', { name: /update existing/i }));
+    });
+
+    await act(async () => {
+      await user.click(within(dialog).getByLabelText(/target book/i));
+    });
+
+    const bookOption = await screen.findByRole('option', { name: /dream atlas/i });
+    await act(async () => {
+      await user.click(bookOption);
+    });
+
+    const fileInput = within(dialog).getByTestId('upload-archive-input');
+    await act(async () => {
+      const archive = new File(['dummy'], 'book.zip', { type: 'application/zip' });
+      await user.upload(fileInput, archive);
+    });
+
+    await act(async () => {
+      await user.click(within(dialog).getByRole('button', { name: /^upload$/i }));
+    });
+
+    const overrideButton = await within(dialog).findByRole('button', { name: /override upload/i });
+    expect(overrideButton).toBeInTheDocument();
+    expect(within(dialog).getByText(/version '1\.0\.0' already exists/i)).toBeInTheDocument();
+
+    await act(async () => {
+      await user.click(overrideButton);
+    });
+
+    await within(dialog).findByText(/version 1\.0\.0/i);
+    expect(within(dialog).queryByRole('button', { name: /override upload/i })).not.toBeInTheDocument();
+    expect(uploadAttempts).toBe(2);
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/books\/1\/upload\?override=true$/), expect.any(Object));
   });
 
   it('sanitizes backend error details when an upload fails', async () => {
@@ -535,7 +757,9 @@ describe('Dashboard', () => {
         }
 
         if (url.includes('/storage/apps/') && method === 'GET') {
-          return Promise.resolve(createJsonResponse({ path: 'macOS/', type: 'folder', children: [] }));
+          const slugMatch = url.toLowerCase().match(/\/storage\/apps\/([^/?]+)/);
+          const slug = slugMatch ? slugMatch[1] : 'macos';
+          return Promise.resolve(createJsonResponse(emptyAppTreeFor(slug)));
         }
 
         if (url.endsWith('/books/1/upload') && method === 'POST') {
@@ -578,7 +802,7 @@ describe('Dashboard', () => {
         await user.click(within(dialog).getByRole('button', { name: /^upload$/i }));
       });
 
-      expect(within(dialog).getByText(/upload failed\. please check the archive and try again\./i)).toBeInTheDocument();
+      expect(within(dialog).getByText(/internal server error/i)).toBeInTheDocument();
     } finally {
       errorSpy.mockRestore();
     }
@@ -609,7 +833,6 @@ describe('Dashboard', () => {
       }
     ];
 
-    const emptyTree = { path: 'macos/', type: 'folder', children: [] };
     let bookFetchCount = 0;
 
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
@@ -623,7 +846,9 @@ describe('Dashboard', () => {
       }
 
       if (url.toLowerCase().includes('/storage/apps/')) {
-        return Promise.resolve(createJsonResponse(emptyTree));
+        const slugMatch = url.toLowerCase().match(/\/storage\/apps\/([^/?]+)/);
+        const slug = slugMatch ? slugMatch[1] : 'macos';
+        return Promise.resolve(createJsonResponse(emptyAppTreeFor(slug)));
       }
 
       if (url.endsWith('/books/1') && method === 'DELETE') {
@@ -699,12 +924,13 @@ describe('Dashboard', () => {
         return Promise.resolve(createJsonResponse(booksPayload));
       }
 
-      if (url.toLowerCase().includes('/storage/apps/macos') && method === 'GET') {
-        return Promise.resolve(createJsonResponse(macAppTree));
-      }
-
-      if (url.toLowerCase().includes('/storage/apps/windows') && method === 'GET') {
-        return Promise.resolve(createJsonResponse({ path: 'windows/', type: 'folder', children: [] }));
+      if (url.toLowerCase().includes('/storage/apps/') && method === 'GET') {
+        const slugMatch = url.toLowerCase().match(/\/storage\/apps\/([^/?]+)/);
+        const slug = slugMatch ? slugMatch[1] : 'macos';
+        if (slug === 'macos') {
+          return Promise.resolve(createJsonResponse(macAppTree));
+        }
+        return Promise.resolve(createJsonResponse(emptyAppTreeFor(slug)));
       }
 
       if (url.endsWith('/apps/macos') && method === 'DELETE') {

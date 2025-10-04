@@ -1,5 +1,6 @@
 import { ApiClient, apiClient } from './api';
 import { buildAuthHeaders } from './http';
+import type { BookRecord } from './books';
 
 export interface UploadManifestEntry {
   path: string;
@@ -9,6 +10,13 @@ export interface UploadManifestEntry {
 export interface BookUploadResponse {
   book_id: number;
   files: UploadManifestEntry[];
+  version: string;
+}
+
+export interface NewBookUploadResponse {
+  book: BookRecord;
+  files: UploadManifestEntry[];
+  version: string;
 }
 
 export interface AppUploadResponse {
@@ -16,6 +24,13 @@ export interface AppUploadResponse {
   version: string;
   files: UploadManifestEntry[];
 }
+
+interface UploadOptions {
+  override?: boolean;
+}
+
+const appendOverrideParam = (path: string, override?: boolean) =>
+  override ? `${path}${path.includes('?') ? '&' : '?'}override=true` : path;
 
 const appendArchive = (formData: FormData, file: File) => {
   formData.append('file', file, file.name);
@@ -27,10 +42,24 @@ export const uploadBookArchive = async (
   file: File,
   token: string,
   tokenType: string = 'Bearer',
-  client: ApiClient = apiClient
+  client: ApiClient = apiClient,
+  options: UploadOptions = {}
 ): Promise<BookUploadResponse> => {
   const formData = appendArchive(new FormData(), file);
-  return client.postForm<BookUploadResponse>(`/books/${bookId}/upload`, formData, {
+  return client.postForm<BookUploadResponse>(appendOverrideParam(`/books/${bookId}/upload`, options.override), formData, {
+    headers: buildAuthHeaders(token, tokenType)
+  });
+};
+
+export const uploadNewBookArchive = async (
+  file: File,
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient,
+  options: UploadOptions = {}
+): Promise<NewBookUploadResponse> => {
+  const formData = appendArchive(new FormData(), file);
+  return client.postForm<NewBookUploadResponse>(appendOverrideParam('/books/upload', options.override), formData, {
     headers: buildAuthHeaders(token, tokenType)
   });
 };
@@ -40,11 +69,12 @@ export const uploadAppArchive = async (
   file: File,
   token: string,
   tokenType: string = 'Bearer',
-  client: ApiClient = apiClient
+  client: ApiClient = apiClient,
+  options: UploadOptions = {}
 ): Promise<AppUploadResponse> => {
   const normalizedPlatform = platform.toLowerCase();
   const formData = appendArchive(new FormData(), file);
-  return client.postForm<AppUploadResponse>(`/apps/${normalizedPlatform}/upload`, formData, {
+  return client.postForm<AppUploadResponse>(appendOverrideParam(`/apps/${normalizedPlatform}/upload`, options.override), formData, {
     headers: buildAuthHeaders(token, tokenType)
   });
 };

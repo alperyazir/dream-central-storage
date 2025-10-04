@@ -14,6 +14,18 @@ export interface ApiClient {
   delete: <T = unknown, TBody = unknown>(path: string, body?: TBody, init?: RequestOptions) => Promise<T>;
 }
 
+export class ApiError extends Error {
+  status: number;
+  body: unknown;
+
+  constructor(status: number, body: unknown, message?: string) {
+    super(message ? `Request failed (${status} ${message})` : `Request failed (${status})`);
+    this.status = status;
+    this.body = body;
+    Object.setPrototypeOf(this, ApiError.prototype);
+  }
+}
+
 const parseResponse = async <T>(response: Response): Promise<T> => {
   if (response.status === 204 || response.status === 205) {
     return undefined as T;
@@ -40,9 +52,20 @@ export const createApiClient = (baseUrl: string = appConfig.apiBaseUrl): ApiClie
     const response = await fetch(resolveUrl(baseUrl, path), init);
 
     if (!response.ok) {
-      const details = await response.text();
-      const message = details ? `${response.status}: ${details}` : `${response.status}: ${response.statusText}`;
-      throw new Error(`Request failed (${message})`);
+      let body: unknown = null;
+      const contentType = response.headers.get('content-type') ?? '';
+
+      if (contentType.includes('application/json')) {
+        try {
+          body = await response.json();
+        } catch (error) {
+          body = await response.text();
+        }
+      } else {
+        body = await response.text();
+      }
+
+      throw new ApiError(response.status, body, response.statusText || undefined);
     }
 
     return parseResponse<T>(response);

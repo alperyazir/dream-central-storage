@@ -8,10 +8,10 @@ import logging
 import zipfile
 from collections.abc import Iterable
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import ValidationError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app.core.config import get_settings
 from app.core.security import decode_access_token
@@ -21,7 +21,10 @@ from app.repositories.user import UserRepository
 from app.schemas.book import BookCreate, BookRead, BookUpdate
 from app.services import (
     RelocationError,
+    UploadConflictError,
     UploadError,
+    ensure_version_target,
+    extract_manifest_version,
     get_minio_client,
     move_prefix_to_trash,
     upload_book_archive,
@@ -178,6 +181,10 @@ def soft_delete_book(
 async def upload_book(
     book_id: int,
     file: UploadFile,
+    override: bool = Query(
+        False,
+        description="When true, replace an existing version folder if present instead of raising a conflict.",
+    ),
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
 ):
@@ -187,11 +194,54 @@ async def upload_book(
     if book is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
 
+    contents = await file.read()
+    try:
+        version = extract_manifest_version(contents)
+    except UploadError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
     settings = get_settings()
     client = get_minio_client(settings)
-    prefix = f"{book.publisher}/{book.book_name}/"
 
-    contents = await file.read()
+    prefix = f"{book.publisher}/{book.book_name}/{version}/"
+
+    try:
+        existing_prefix = ensure_version_target(
+            client=client,
+            bucket=settings.minio_books_bucket,
+            prefix=prefix,
+            version=version,
+            override=override,
+        )
+    except UploadConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": str(exc),
+                "code": "VERSION_EXISTS",
+                "version": exc.version,
+            },
+        ) from exc
+    except UploadError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Unable to verify existing book assets",
+        ) from exc
+
+    if existing_prefix and override:
+        try:
+            move_prefix_to_trash(
+                client=client,
+                source_bucket=settings.minio_books_bucket,
+                prefix=prefix,
+                trash_bucket=settings.minio_trash_bucket,
+            )
+        except RelocationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to relocate existing version before override",
+            ) from exc
+
     try:
         manifest = upload_book_archive(
             client=client,
@@ -208,12 +258,31 @@ async def upload_book(
             detail="Failed to upload book archive",
         ) from exc
 
-    return {"book_id": book_id, "files": manifest}
+    if book.version != version:
+        session_obj = object_session(book)
+        if session_obj is not None:
+            _book_repository.update(db, book, data={"version": version})
+        else:
+            book.version = version
+
+    logger.info(
+        "Uploaded book assets for book_id=%s version %s (override=%s, files=%s)",
+        book_id,
+        version,
+        bool(existing_prefix and override),
+        len(manifest),
+    )
+
+    return {"book_id": book_id, "version": version, "files": manifest}
 
 
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
 async def upload_new_book(
     file: UploadFile,
+    override: bool = Query(
+        False,
+        description="When true, replace an existing version folder if present instead of raising a conflict.",
+    ),
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
 ):
@@ -222,6 +291,11 @@ async def upload_new_book(
     admin_id = _require_admin(credentials, db)
 
     contents = await file.read()
+
+    try:
+        version = extract_manifest_version(contents)
+    except UploadError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     try:
         create_payload = _extract_book_metadata(contents)
@@ -239,18 +313,62 @@ async def upload_new_book(
             detail="Book already exists; please use update mode to upload new content.",
         )
 
+    if create_payload.version and create_payload.version.strip() and create_payload.version.strip() != version:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="config.json version must match data/version",
+        )
+
     book_data = create_payload.model_dump()
     for field in ("publisher", "book_name", "language", "category", "version"):
         value = book_data.get(field)
         if isinstance(value, str):
             book_data[field] = value.strip()
+    book_data["version"] = version
     # Default new uploads to published status so they appear immediately in listings.
     if book_data.get("status") is None or book_data["status"] == BookStatusEnum.DRAFT:
         book_data["status"] = BookStatusEnum.PUBLISHED
 
     settings = get_settings()
     client = get_minio_client(settings)
-    object_prefix = f"{book_data['publisher']}/{book_data['book_name']}/"
+    object_prefix = f"{book_data['publisher']}/{book_data['book_name']}/{version}/"
+
+    try:
+        existing_prefix = ensure_version_target(
+            client=client,
+            bucket=settings.minio_books_bucket,
+            prefix=object_prefix,
+            version=version,
+            override=override,
+        )
+    except UploadConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": str(exc),
+                "code": "VERSION_EXISTS",
+                "version": exc.version,
+            },
+        ) from exc
+    except UploadError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Unable to verify existing book assets",
+        ) from exc
+
+    if existing_prefix and override:
+        try:
+            move_prefix_to_trash(
+                client=client,
+                source_bucket=settings.minio_books_bucket,
+                prefix=object_prefix,
+                trash_bucket=settings.minio_trash_bucket,
+            )
+        except RelocationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to relocate existing version before override",
+            ) from exc
 
     try:
         manifest = upload_book_archive(
@@ -272,14 +390,15 @@ async def upload_new_book(
     book_read = BookRead.model_validate(book)
 
     logger.info(
-        "User %s uploaded new book %s under prefix %s with %s files",
+        "User %s uploaded new book %s version %s under prefix %s with %s files",
         admin_id,
         book_read.id,
+        version,
         object_prefix,
         len(manifest),
     )
 
-    return {"book": book_read.model_dump(), "files": manifest}
+    return {"book": book_read.model_dump(), "version": version, "files": manifest}
 
 
 _CONFIG_ALIASES: dict[str, tuple[str, ...]] = {

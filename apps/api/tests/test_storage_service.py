@@ -14,7 +14,10 @@ from minio.error import S3Error
 from app.services.storage import (
     RelocationError,
     RestorationError,
+    UploadConflictError,
     UploadError,
+    ensure_version_target,
+    extract_manifest_version,
     iter_zip_entries,
     list_trash_entries,
     move_prefix_to_trash,
@@ -74,6 +77,33 @@ def test_upload_book_archive_raises_for_invalid_zip() -> None:
             bucket="books",
             object_prefix="dream/sky/",
         )
+
+
+def test_extract_manifest_version_returns_trimmed_value() -> None:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("data/version", "  v1.2.3 \n")
+
+    version = extract_manifest_version(buffer.getvalue())
+    assert version == "v1.2.3"
+
+
+def test_extract_manifest_version_requires_semver() -> None:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("data/version", "one.two")
+
+    with pytest.raises(UploadError):
+        extract_manifest_version(buffer.getvalue())
+
+
+def test_extract_manifest_version_requires_file() -> None:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("content.txt", "hi")
+
+    with pytest.raises(UploadError):
+        extract_manifest_version(buffer.getvalue())
 
 
 def test_move_prefix_to_trash_relocates_objects() -> None:
@@ -157,6 +187,35 @@ def test_move_prefix_to_trash_raises_when_listing_fails() -> None:
             prefix="dream/sky/",
             trash_bucket="trash",
         )
+
+
+def test_ensure_version_target_detects_conflict() -> None:
+    client = MagicMock()
+    client.list_objects.return_value = iter([SimpleNamespace(object_name="dream/sky/1.0.0/file.txt")])
+
+    with pytest.raises(UploadConflictError):
+        ensure_version_target(
+            client=client,
+            bucket="books",
+            prefix="dream/sky/1.0.0/",
+            version="1.0.0",
+            override=False,
+        )
+
+
+def test_ensure_version_target_allows_override() -> None:
+    client = MagicMock()
+    client.list_objects.return_value = iter([SimpleNamespace(object_name="dream/sky/1.0.0/file.txt")])
+
+    result = ensure_version_target(
+        client=client,
+        bucket="books",
+        prefix="dream/sky/1.0.0/",
+        version="1.0.0",
+        override=True,
+    )
+
+    assert result is True
 
 
 def test_restore_prefix_from_trash_restores_objects() -> None:

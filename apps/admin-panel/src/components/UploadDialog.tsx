@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 
 import { uploadAppArchive, uploadBookArchive, uploadNewBookArchive } from '../lib/uploads';
+import { ApiError } from '../lib/api';
 
 interface UploadBookOption {
   id: number;
@@ -47,7 +48,26 @@ type FeedbackState = {
   message: string;
 } | null;
 
+type OverrideContext =
+  | { kind: 'app'; version: string }
+  | { kind: 'book-update'; version: string }
+  | { kind: 'book-new'; version: string };
+
 const deriveErrorMessage = (error: unknown): string => {
+  if (error instanceof ApiError) {
+    const detail = (error.body as { detail?: unknown } | null)?.detail;
+    if (typeof detail === 'string') {
+      return detail;
+    }
+    if (typeof error.body === 'string' && error.body.trim()) {
+      return error.body;
+    }
+    if (detail && typeof detail === 'object' && 'message' in detail && typeof (detail as { message: unknown }).message === 'string') {
+      return (detail as { message: string }).message;
+    }
+    return `Upload failed (${error.status}). Please try again.`;
+  }
+
   if (error instanceof Error) {
     if (/^please select/i.test(error.message)) {
       return error.message;
@@ -55,11 +75,6 @@ const deriveErrorMessage = (error: unknown): string => {
 
     if (/^upload failed/i.test(error.message)) {
       return error.message;
-    }
-
-    const detailMatch = error.message.match(/"detail":"(?<detail>.+?)"/i);
-    if (detailMatch?.groups?.detail) {
-      return detailMatch.groups.detail.replace(/\\"/g, '"');
     }
 
     if (/^request failed/i.test(error.message)) {
@@ -86,6 +101,7 @@ const UploadDialog = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
   const [bookUploadFlow, setBookUploadFlow] = useState<BookUploadFlow>('new');
+  const [overrideContext, setOverrideContext] = useState<OverrideContext | null>(null);
 
   const normalizedTokenType = tokenType ?? 'Bearer';
   const isAuthenticated = Boolean(token);
@@ -104,6 +120,7 @@ const UploadDialog = ({
       setIsSubmitting(false);
       setFeedback(null);
       setBookUploadFlow('new');
+      setOverrideContext(null);
     }
   }, [open, platforms]);
 
@@ -111,6 +128,7 @@ const UploadDialog = ({
     setMode(value);
     setFeedback(null);
     setSelectedFile(null);
+    setOverrideContext(null);
   };
 
   const handleBookUploadFlowChange = (_: unknown, value: BookUploadFlow | null) => {
@@ -119,6 +137,7 @@ const UploadDialog = ({
     }
     setBookUploadFlow(value);
     setFeedback(null);
+    setOverrideContext(null);
     if (value === 'new') {
       setSelectedBookId('');
     }
@@ -127,16 +146,19 @@ const UploadDialog = ({
   const handleBookChange = (event: SelectChangeEvent<string>) => {
     const value = event.target.value;
     setSelectedBookId(value ? Number(value) : '');
+    setOverrideContext(null);
   };
 
   const handlePlatformChange = (event: SelectChangeEvent<string>) => {
     setSelectedPlatform(event.target.value);
+    setOverrideContext(null);
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null;
     setSelectedFile(file);
     setFeedback(null);
+    setOverrideContext(null);
 
     // Reset the underlying input so users can re-select the same archive consecutively.
     event.target.value = '';
@@ -154,13 +176,14 @@ const UploadDialog = ({
       ? bookUploadFlow === 'new' || selectedBookId !== ''
       : Boolean(selectedPlatform));
 
-  const handleUpload = async () => {
+  const executeUpload = async (override: boolean) => {
     if (!token || !selectedFile) {
       return;
     }
 
     setIsSubmitting(true);
     setFeedback(null);
+    setOverrideContext(null);
 
     try {
       if (mode === 'book') {
@@ -169,18 +192,31 @@ const UploadDialog = ({
             throw new Error('Please select a book to upload.');
           }
 
-          const response = await uploadBookArchive(selectedBookId, selectedFile, token, normalizedTokenType);
+          const response = await uploadBookArchive(
+            selectedBookId,
+            selectedFile,
+            token,
+            normalizedTokenType,
+            undefined,
+            { override }
+          );
           const fileLabel = response.files.length === 1 ? 'file' : 'files';
           setFeedback({
             type: 'success',
-            message: `Uploaded ${response.files.length} ${fileLabel} for “${selectedBook?.title ?? 'book'}”.`
+            message: `Uploaded ${response.files.length} ${fileLabel} for “${selectedBook?.title ?? 'book'}” (version ${response.version}).`
           });
         } else {
-          const response = await uploadNewBookArchive(selectedFile, token, normalizedTokenType);
+          const response = await uploadNewBookArchive(
+            selectedFile,
+            token,
+            normalizedTokenType,
+            undefined,
+            { override }
+          );
           const fileLabel = response.files.length === 1 ? 'file' : 'files';
           setFeedback({
             type: 'success',
-            message: `Uploaded ${response.files.length} ${fileLabel} for “${response.book.book_name}”.`
+            message: `Uploaded ${response.files.length} ${fileLabel} for “${response.book.book_name}” (version ${response.version}).`
           });
         }
       } else {
@@ -188,24 +224,54 @@ const UploadDialog = ({
           throw new Error('Please select a platform to upload.');
         }
 
-        const response = await uploadAppArchive(selectedPlatform, selectedFile, token, normalizedTokenType);
+        const response = await uploadAppArchive(
+          selectedPlatform,
+          selectedFile,
+          token,
+          normalizedTokenType,
+          undefined,
+          { override }
+        );
         setFeedback({
           type: 'success',
           message: `Uploaded build version ${response.version} for ${response.platform}.`
         });
       }
 
+      setOverrideContext(null);
       setSelectedFile(null);
-      if (bookUploadFlow === 'update') {
+      if (mode === 'book' && bookUploadFlow === 'update') {
         setSelectedBookId('');
       }
       onSuccess();
     } catch (error) {
       console.error('Upload failed', error);
-      setFeedback({ type: 'error', message: deriveErrorMessage(error) });
+      if (error instanceof ApiError && error.status === 409) {
+        const detail = (error.body as { detail?: unknown } | null)?.detail as
+          | { message?: string; version?: string }
+          | undefined;
+        const conflictVersion = detail?.version ?? 'unknown';
+        const message = detail?.message ?? deriveErrorMessage(error);
+        const nextOverride: OverrideContext =
+          mode === 'book'
+            ? { kind: bookUploadFlow === 'update' ? 'book-update' : 'book-new', version: conflictVersion }
+            : { kind: 'app', version: conflictVersion };
+        setOverrideContext(nextOverride);
+        setFeedback({ type: 'error', message });
+      } else {
+        setFeedback({ type: 'error', message: deriveErrorMessage(error) });
+      }
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleUpload = () => {
+    void executeUpload(false);
+  };
+
+  const handleOverrideUpload = () => {
+    void executeUpload(true);
   };
 
   const handleClose = () => {
@@ -306,7 +372,21 @@ const UploadDialog = ({
         {isSubmitting && <LinearProgress sx={{ mt: 2 }} />}
 
         {feedback && (
-          <Alert severity={feedback.type} sx={{ mt: 2 }} onClose={() => setFeedback(null)}>
+          <Alert
+            severity={feedback.type}
+            sx={{ mt: 2 }}
+            onClose={() => {
+              setFeedback(null);
+              setOverrideContext(null);
+            }}
+            action={
+              feedback.type === 'error' && overrideContext ? (
+                <Button color="inherit" size="small" onClick={handleOverrideUpload} disabled={isSubmitting}>
+                  Override Upload
+                </Button>
+              ) : undefined
+            }
+          >
             {feedback.message}
           </Alert>
         )}

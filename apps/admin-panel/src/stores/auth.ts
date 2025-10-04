@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import { login as requestLogin, LoginPayload, TokenResponse } from '../lib/auth';
+import { ApiError } from '../lib/api';
 
 const baseData = {
   token: null as string | null,
@@ -11,6 +12,20 @@ const baseData = {
 };
 
 const deriveErrorMessage = (error: unknown) => {
+  if (error instanceof ApiError) {
+    const detail = (error.body as { detail?: unknown } | null)?.detail;
+    if (typeof detail === 'string') {
+      return detail;
+    }
+    if (typeof error.body === 'string' && error.body.trim()) {
+      const message = error.body.trim();
+      if (/invalid credentials/i.test(message)) {
+        return 'Invalid email or password.';
+      }
+      return message;
+    }
+  }
+
   if (error instanceof Error) {
     if (/invalid credentials/i.test(error.message)) {
       return 'Invalid email or password.';

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 import zipfile
+import os
+
 from dataclasses import dataclass
 from typing import Iterable
 
@@ -17,6 +20,14 @@ class UploadError(Exception):
     """Raised when an upload archive cannot be processed."""
 
 
+class UploadConflictError(UploadError):
+    """Raised when an upload targets an existing version without override."""
+
+    def __init__(self, version: str) -> None:
+        super().__init__(f"Version '{version}' already exists; re-run with override to replace it.")
+        self.version = version
+
+
 class RelocationError(Exception):
     """Raised when stored objects cannot be moved between buckets."""
 
@@ -26,6 +37,10 @@ class RestorationError(Exception):
 
 
 logger = logging.getLogger(__name__)
+
+_VERSION_FILE_PATH = "data/version"
+_VERSION_PATTERN = re.compile(r"^v?(?:0|[1-9]\d*)(?:\.(?:0|[1-9]\d*)){1,2}(?:[-+][0-9A-Za-z\-.]+)?$")
+_MAX_VERSION_LENGTH = 64
 
 
 @dataclass(slots=True)
@@ -116,6 +131,139 @@ def upload_app_archive(
         object_prefix=prefix,
         content_type=content_type,
     )
+
+
+def extract_manifest_version(archive_bytes: bytes) -> str:
+    """Return the version string declared in ``data/version`` within the archive."""
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+            version_path = _locate_version_entry(archive)
+            print("version_path:", version_path)
+            if version_path is None:
+                raise UploadError("Archive is missing required data/version file")
+
+            try:
+                with archive.open(version_path) as file_handle:
+                    raw_value = file_handle.read().decode("utf-8").strip()
+            except UnicodeDecodeError as exc:
+                raise UploadError("data/version must be UTF-8 encoded") from exc
+    except zipfile.BadZipFile as exc:
+        raise UploadError("Uploaded file is not a valid ZIP archive") from exc
+
+    if not raw_value:
+        raise UploadError("data/version must contain a version value")
+
+    if len(raw_value) > _MAX_VERSION_LENGTH:
+        raise UploadError("data/version exceeds the maximum length of 64 characters")
+
+    if not _VERSION_PATTERN.match(raw_value):
+        raise UploadError("data/version must use semantic versioning (e.g., 1.2.3 or 1.2.3-beta)")
+
+    return raw_value
+
+
+def ensure_version_target(
+    *,
+    client: Minio,
+    bucket: str,
+    prefix: str,
+    version: str,
+    override: bool,
+) -> bool:
+    """Ensure the ``prefix`` is available for writing, handling conflicts.
+
+    Returns ``True`` if an existing prefix was detected (callers may remove it when overriding).
+    """
+
+    try:
+        exists = _prefix_exists(client, bucket, prefix)
+    except S3Error as exc:  # pragma: no cover - propagated to caller
+        logger.error(
+            "Failed to validate existing objects for prefix '%s' in bucket '%s': %s",
+            prefix,
+            bucket,
+            exc,
+        )
+        raise UploadError("Unable to inspect storage for existing version") from exc
+
+    if exists and not override:
+        raise UploadConflictError(version)
+
+    return exists
+
+
+# def _locate_version_entry(archive: zipfile.ZipFile) -> str | None:
+#     """Return the archive member path for ``data/version`` if present."""
+
+#     target =  archive.namelist()[0] +_VERSION_FILE_PATH.lower()
+#     print("1", target)
+#     print("2", archive.namelist())
+#     for name in archive.namelist():
+#         print("3", name)
+#         normalized = name.replace("\\", "/").rstrip("/")
+#         if normalized.lower() == target:
+#             return name
+#     return None
+
+
+def _locate_version_entry(archive: zipfile.ZipFile) -> str | None:
+    """
+    Return the archive member path for 'data/version' if present.
+    Supports both:
+      - data/version
+      - <any_top_folder>/data/version
+    Skips macOS resource entries like __MACOSX and ._* files.
+    """
+
+    def norm(p: str) -> str:
+        return p.replace("\\", "/").rstrip("/")
+
+    candidates: list[str] = []
+
+    for name in archive.namelist():
+        # Exact name from namelist -> safe for getinfo
+        info = archive.getinfo(name)
+
+        # Skip directories
+        if hasattr(info, "is_dir") and info.is_dir():
+            continue
+
+        n = norm(name)
+        ln = n.lower()
+
+        # Skip macOS resource forks and __MACOSX
+        if ln.startswith("__macosx/"):
+            continue
+        if os.path.basename(n).startswith("._"):
+            continue
+
+        # Match data/version at root or under any top-level folder
+        if ln == "data/version" or ln.endswith("/data/version"):
+            candidates.append(name)
+
+    if not candidates:
+        return None
+
+    # Prefer the "simplest" path (fewest segments, then shortest length)
+    def key_fn(p: str):
+        parts = norm(p).split("/")
+        return (len(parts), len(p))
+
+    candidates.sort(key=key_fn)
+    chosen = candidates[0]
+    print("Matched version entry:", chosen)
+    return chosen
+
+
+def _prefix_exists(client: Minio, bucket: str, prefix: str) -> bool:
+    """Return True if at least one object exists under ``prefix`` within ``bucket``."""
+
+    objects = client.list_objects(bucket, prefix=prefix, recursive=True)
+    for obj in objects:
+        if obj.object_name:
+            return True
+    return False
 
 
 def list_objects_tree(client: Minio, bucket: str, prefix: str) -> dict[str, object]:

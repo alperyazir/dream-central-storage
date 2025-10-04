@@ -14,7 +14,8 @@ const createJsonResponse = (data: unknown, status = 200) =>
 
 const stubDashboardRequests = () => ({
   mac: { path: 'macOS/', type: 'folder', children: [] },
-  windows: { path: 'windows/', type: 'folder', children: [] }
+  windows: { path: 'windows/', type: 'folder', children: [] },
+  linux: { path: 'linux/', type: 'folder', children: [] }
 });
 
 const renderApp = (initialEntries: string[]) =>
@@ -47,7 +48,7 @@ describe('Authentication flows', () => {
   });
 
   it('successfully signs in and navigates to the dashboard', async () => {
-    const { mac, windows } = stubDashboardRequests();
+    const { mac, windows, linux } = stubDashboardRequests();
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
       const normalized = url.toLowerCase();
@@ -70,6 +71,10 @@ describe('Authentication flows', () => {
         return Promise.resolve(createJsonResponse(windows));
       }
 
+      if (normalized.includes('/storage/apps/linux')) {
+        return Promise.resolve(createJsonResponse(linux));
+      }
+
       if (url.endsWith('/storage/trash')) {
         return Promise.resolve(createJsonResponse([]));
       }
@@ -86,7 +91,7 @@ describe('Authentication flows', () => {
       await user.click(screen.getByRole('button', { name: /sign in/i }));
     });
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
 
     const [loginUrl, requestInit] = fetchMock.mock.calls[0];
     expect(loginUrl.toString()).toMatch(/\/auth\/login$/);
@@ -99,7 +104,7 @@ describe('Authentication flows', () => {
   });
 
   it('shows an error message when authentication fails', async () => {
-    const { mac, windows } = stubDashboardRequests();
+    const { mac, windows, linux } = stubDashboardRequests();
 
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url = input.toString();
@@ -124,6 +129,10 @@ describe('Authentication flows', () => {
 
       if (normalized.includes('/storage/apps/windows')) {
         return Promise.resolve(createJsonResponse(windows));
+      }
+
+      if (normalized.includes('/storage/apps/linux')) {
+        return Promise.resolve(createJsonResponse(linux));
       }
 
       if (url.endsWith('/storage/trash')) {
