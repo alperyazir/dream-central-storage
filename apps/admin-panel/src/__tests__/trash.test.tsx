@@ -19,6 +19,8 @@ const authenticate = () => {
       tokenType: 'Bearer',
       isAuthenticated: true,
       isAuthenticating: false,
+      isHydrated: true,
+      isHydrating: false,
       error: null
     });
   });

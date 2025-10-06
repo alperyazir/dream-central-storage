@@ -17,3 +17,11 @@ class TokenResponse(BaseModel):
 
     access_token: str
     token_type: str = "bearer"
+
+
+class SessionResponse(BaseModel):
+    """Details about the currently authenticated administrator."""
+
+    user_id: int
+    email: str
+    token_type: str = "bearer"

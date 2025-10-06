@@ -1,9 +1,14 @@
 import { create } from 'zustand';
 
-import { login as requestLogin, LoginPayload, TokenResponse } from '../lib/auth';
+import { login as requestLogin, LoginPayload, TokenResponse, validateSession } from '../lib/auth';
 import { ApiError } from '../lib/api';
+import {
+  clearPersistedAuth,
+  loadPersistedAuth,
+  persistAuthSession
+} from '../lib/auth-storage';
 
-const baseData = {
+const baseAuthState = {
   token: null as string | null,
   tokenType: null as string | null,
   isAuthenticated: false,
@@ -42,14 +47,25 @@ export interface AuthState {
   tokenType: string | null;
   isAuthenticated: boolean;
   isAuthenticating: boolean;
+  isHydrating: boolean;
+  isHydrated: boolean;
   error: string | null;
   login: (payload: LoginPayload) => Promise<TokenResponse>;
   logout: () => void;
   clearError: () => void;
+  hydrate: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  ...baseData,
+const buildPersistedPayload = (response: TokenResponse) => ({
+  token: response.access_token,
+  tokenType: response.token_type ?? 'bearer',
+  savedAt: new Date().toISOString()
+});
+
+export const useAuthStore = create<AuthState>((set, get) => ({
+  ...baseAuthState,
+  isHydrating: false,
+  isHydrated: false,
   login: async (payload) => {
     set({ isAuthenticating: true, error: null });
 
@@ -64,28 +80,72 @@ export const useAuthStore = create<AuthState>((set) => ({
         token_type: token_type ?? 'bearer'
       };
 
+      persistAuthSession(buildPersistedPayload(response));
+
       set({
         token: response.access_token,
         tokenType: response.token_type,
         isAuthenticated: true,
         isAuthenticating: false,
+        isHydrated: true,
         error: null
       });
 
       return response;
     } catch (error) {
       set({
-        ...baseData,
+        ...baseAuthState,
+        isHydrating: false,
+        isHydrated: true,
         error: deriveErrorMessage(error)
       });
 
       throw error;
     }
   },
-  logout: () => set({ ...baseData }),
-  clearError: () => set({ error: null })
+  logout: () => {
+    clearPersistedAuth();
+    set({ ...baseAuthState, isHydrated: true, isHydrating: false });
+  },
+  clearError: () => set({ error: null }),
+  hydrate: async () => {
+    if (get().isHydrated || get().isHydrating) {
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      set({ ...baseAuthState, isHydrated: true, isHydrating: false });
+      return;
+    }
+
+    const persisted = loadPersistedAuth();
+    if (!persisted) {
+      set({ ...baseAuthState, isHydrated: true, isHydrating: false });
+      return;
+    }
+
+    set({ isHydrating: true, error: null });
+
+    try {
+      await validateSession(persisted.token, persisted.tokenType);
+      set({
+        token: persisted.token,
+        tokenType: persisted.tokenType,
+        isAuthenticated: true,
+        isAuthenticating: false,
+        isHydrating: false,
+        isHydrated: true,
+        error: null
+      });
+    } catch (error) {
+      console.warn('Persisted session validation failed', error);
+      clearPersistedAuth();
+      set({ ...baseAuthState, isHydrating: false, isHydrated: true });
+    }
+  }
 }));
 
 export const resetAuthStore = () => {
-  useAuthStore.setState({ ...baseData });
+  clearPersistedAuth();
+  useAuthStore.setState({ ...baseAuthState, isHydrated: true, isHydrating: false });
 };

@@ -53,6 +53,8 @@ const authenticateTestUser = () => {
       tokenType: 'bearer',
       isAuthenticated: true,
       isAuthenticating: false,
+      isHydrated: true,
+      isHydrating: false,
       error: null
     });
   });

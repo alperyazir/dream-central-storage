@@ -1,6 +1,6 @@
 """Pydantic schemas used by the FastAPI application."""
 
-from .auth import LoginRequest, TokenResponse
+from .auth import LoginRequest, SessionResponse, TokenResponse
 from .book import BookBase, BookCreate, BookRead, BookUpdate
 from .storage import RestoreRequest, RestoreResponse, TrashEntryRead
 
@@ -14,4 +14,5 @@ __all__ = [
     "TrashEntryRead",
     "LoginRequest",
     "TokenResponse",
+    "SessionResponse",
 ]
