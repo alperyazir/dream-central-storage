@@ -75,6 +75,14 @@ services:
     profiles:
       - monitoring
 
+  admin-panel:
+    build:
+      context: ../apps/admin-panel
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+
 volumes:
   postgres_data:
   minio_data:

@@ -24,7 +24,9 @@ def test_decode_access_token_rejects_tampered_signature() -> None:
     settings = get_settings()
     token = create_access_token(subject="42", settings=settings, expires_delta=timedelta(minutes=5))
 
-    tampered = token[:-1] + ("a" if token[-1] != "a" else "b")
+    header_segment, payload_segment, signature_segment = token.split(".")
+    tampered_payload = payload_segment[:-1] + ("a" if payload_segment[-1] != "a" else "b")
+    tampered = ".".join([header_segment, tampered_payload, signature_segment])
 
     with pytest.raises(ValueError, match="Token signature mismatch"):
         decode_access_token(tampered, settings=settings)

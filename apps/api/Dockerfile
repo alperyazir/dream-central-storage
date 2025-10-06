@@ -6,8 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY pyproject.toml README.md ./
-RUN pip install --upgrade pip && pip install '.[dev]'
-
 COPY app ./app
+RUN pip install --upgrade pip && pip install '.[dev]'
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

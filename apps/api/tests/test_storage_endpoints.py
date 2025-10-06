@@ -75,6 +75,27 @@ def test_list_app_contents() -> None:
     assert body["children"][0]["path"].endswith("1.0/")
 
 
+def test_list_app_contents_linux() -> None:
+    from app.routers import storage
+
+    fake_client = MagicMock()
+    fake_client.list_objects.return_value = [
+        SimpleNamespace(object_name="linux/2.0/app.tar.gz", size=150)
+    ]
+    storage.get_minio_client = lambda settings: fake_client
+
+    client = TestClient(app)
+    response = client.get(
+        "/storage/apps/linux",
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["path"] == "linux/"
+    assert body["children"][0]["path"].endswith("2.0/")
+
+
 def test_list_app_contents_with_version() -> None:
     from app.routers import storage
 

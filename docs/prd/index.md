@@ -12,5 +12,6 @@
   - [Epic 2: Storage Service Integration](#epic-2-storage-service-integration)
   - [Epic 3: Admin Panel MVP](#epic-3-admin-panel-mvp)
   - [Epic 4: Advanced Features & Production Readiness](#epic-4-advanced-features-production-readiness)
+  - [Epic 5: Storage UX & Stability Upgrades](#epic-5-storage-ux--stability-upgrades)
   - [Checklist Results Report](#checklist-results-report)
   - [Next Steps](#next-steps)

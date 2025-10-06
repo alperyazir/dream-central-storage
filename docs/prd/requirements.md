@@ -11,6 +11,7 @@
 * **FR7**: All operations that modify data must be logged to create an audit trail.
 * **FR8**: The system must support direct streaming of audio and video files via HTTP range requests.
 * **FR9**: The Admin Panel must allow for viewing and editing of book metadata stored in the database.
+* **FR10**: The Admin Panel must support uploading, listing, and managing Linux application builds alongside macOS and Windows releases.
 
 ## **Non-Functional**
 

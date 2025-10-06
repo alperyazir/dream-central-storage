@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -9,13 +11,45 @@ from app.services import ensure_buckets, get_minio_client
 from app.monitoring import MetricsMiddleware, router as monitoring_router
 
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
+
+MINIO_MAX_ATTEMPTS = 5
+MINIO_INITIAL_DELAY_SECONDS = 1.0
+
+
+async def wait_for_minio() -> None:
+    """Ensure MinIO buckets exist, retrying while the service starts up."""
+
+    delay = MINIO_INITIAL_DELAY_SECONDS
+    for attempt in range(1, MINIO_MAX_ATTEMPTS + 1):
+        client = get_minio_client(settings)
+        try:
+            ensure_buckets(client, settings.minio_buckets)
+            if attempt > 1:
+                logger.info("Connected to MinIO after %d attempts", attempt)
+            return
+        except Exception as exc:  # pragma: no cover - network/service dependent
+            if attempt == MINIO_MAX_ATTEMPTS:
+                logger.error(
+                    "Failed to connect to MinIO after %d attempts: %s",
+                    attempt,
+                    exc,
+                )
+                raise
+            logger.warning(
+                "MinIO not ready (attempt %d/%d): %s",
+                attempt,
+                MINIO_MAX_ATTEMPTS,
+                exc,
+            )
+            await asyncio.sleep(delay)
+            delay *= 2
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    client = get_minio_client(settings)
-    ensure_buckets(client, settings.minio_buckets)
+    await wait_for_minio()
     yield
 
 
