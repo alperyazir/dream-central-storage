@@ -65,3 +65,9 @@ class BookRepository(BaseRepository[Book]):
         session.refresh(book)
         session.commit()
         return book
+
+    def delete(self, session: Session, book: Book) -> None:
+        """Permanently remove a book record from the database."""
+
+        session.delete(book)
+        session.commit()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -15,9 +16,19 @@ from app.db import get_db
 from app.repositories.book import BookRepository
 from app.repositories.user import UserRepository
 from app.schemas.book import BookRead
-from app.schemas.storage import RestoreRequest, RestoreResponse, TrashEntryRead
+from app.schemas.storage import (
+    RestoreRequest,
+    RestoreResponse,
+    TrashDeleteRequest,
+    TrashDeleteResponse,
+    TrashEntryRead,
+)
 from app.services import (
     RestorationError,
+    TrashDeletionError,
+    TrashEntryNotFoundError,
+    TrashRetentionError,
+    delete_prefix_from_trash,
     get_minio_client,
     list_objects_tree,
     list_trash_entries,
@@ -196,4 +207,65 @@ def restore_item(
         objects_moved=report.objects_moved,
         item_type=item_type,
         book=book_read,
+    )
+
+
+@router.delete("/trash", response_model=TrashDeleteResponse)
+def delete_trash_entry(
+    payload: TrashDeleteRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    db: Session = Depends(get_db),
+):
+    """Permanently delete a trash entry after retention checks succeed."""
+
+    admin_id = _require_admin(credentials, db)
+    bucket, path_parts = _parse_trash_key(payload.key)
+
+    settings = get_settings()
+    client = get_minio_client(settings)
+
+    key_with_bucket = f"{bucket}/{'/'.join(path_parts)}/"
+    retention_period = timedelta(days=settings.trash_retention_days)
+
+    try:
+        report = delete_prefix_from_trash(
+            client=client,
+            trash_bucket=settings.minio_trash_bucket,
+            key=key_with_bucket,
+            retention=retention_period,
+            force=payload.force,
+        )
+    except TrashEntryNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except TrashRetentionError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except TrashDeletionError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    item_type: Literal["book", "app", "unknown"] = "unknown"
+    if bucket == "books":
+        item_type = "book"
+        publisher, book_name = _extract_book_identifiers(path_parts)
+        book = _book_repository.get_by_publisher_and_name(
+            db,
+            publisher=publisher,
+            book_name=book_name,
+        )
+        if book is not None:
+            _book_repository.delete(db, book)
+    elif bucket == "apps":
+        item_type = "app"
+
+    logger.info(
+        "User %s permanently deleted trash key '%s'; removed %s objects (force=%s)",
+        admin_id,
+        key_with_bucket,
+        report.objects_removed,
+        payload.force,
+    )
+
+    return TrashDeleteResponse(
+        deleted_key=key_with_bucket,
+        objects_removed=report.objects_removed,
+        item_type=item_type,
     )

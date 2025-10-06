@@ -36,8 +36,25 @@ class RestoreResponse(BaseModel):
     book: BookRead | None = None
 
 
+class TrashDeleteRequest(BaseModel):
+    """Request payload for permanently deleting a trash entry."""
+
+    key: str = Field(..., description="Key identifying the trash entry to delete")
+    force: bool = Field(default=False, description="Bypass retention checks when true")
+
+
+class TrashDeleteResponse(BaseModel):
+    """Response returned after a successful permanent deletion."""
+
+    deleted_key: str
+    objects_removed: int
+    item_type: Literal["book", "app", "unknown"]
+
+
 __all__ = [
     "TrashEntryRead",
     "RestoreRequest",
     "RestoreResponse",
+    "TrashDeleteRequest",
+    "TrashDeleteResponse",
 ]

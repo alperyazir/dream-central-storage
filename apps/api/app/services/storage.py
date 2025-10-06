@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 import re
 import zipfile
-import os
-
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Iterable
 
 from minio import Minio
@@ -34,6 +34,18 @@ class RelocationError(Exception):
 
 class RestorationError(Exception):
     """Raised when objects cannot be restored from the trash bucket."""
+
+
+class TrashDeletionError(Exception):
+    """Raised when permanent deletion from the trash bucket fails."""
+
+
+class TrashRetentionError(TrashDeletionError):
+    """Raised when attempting to delete an entry before the retention window elapses."""
+
+
+class TrashEntryNotFoundError(TrashDeletionError):
+    """Raised when a requested trash entry has no underlying objects."""
 
 
 logger = logging.getLogger(__name__)
@@ -65,6 +77,15 @@ class TrashEntry:
     object_count: int
     total_size: int
     metadata: dict[str, str] | None = None
+
+
+@dataclass(slots=True)
+class DeletionReport:
+    """Summary of a permanent deletion from the trash bucket."""
+
+    trash_bucket: str
+    key: str
+    objects_removed: int
 
 
 def iter_zip_entries(archive: zipfile.ZipFile) -> Iterable[zipfile.ZipInfo]:
@@ -518,3 +539,73 @@ def restore_prefix_from_trash(
     )
 
     return report
+
+
+def delete_prefix_from_trash(
+    *,
+    client: Minio,
+    trash_bucket: str,
+    key: str,
+    retention: timedelta,
+    force: bool = False,
+) -> DeletionReport:
+    """Permanently delete a trash entry if it satisfies the retention policy."""
+
+    normalized_key = key if key.endswith("/") else f"{key}/"
+
+    try:
+        objects = list(client.list_objects(trash_bucket, prefix=normalized_key, recursive=True))
+    except S3Error as exc:  # pragma: no cover - depends on MinIO responses
+        logger.error("Failed listing trash objects for deletion '%s': %s", normalized_key, exc)
+        raise TrashDeletionError(f"Unable to list trash entry '{normalized_key}'") from exc
+
+    if not objects:
+        raise TrashEntryNotFoundError(f"No trash objects found for key '{normalized_key}'")
+
+    now = datetime.now(UTC)
+    if not force:
+        youngest: datetime | None = None
+        for obj in objects:
+            modified = getattr(obj, "last_modified", None)
+            if modified is None:
+                continue
+            if youngest is None or modified > youngest:
+                youngest = modified
+
+        if youngest is not None and now - youngest < retention:
+            logger.warning(
+                "Deletion blocked for '%s'; youngest object age %s below retention %s",
+                normalized_key,
+                now - youngest,
+                retention,
+            )
+            raise TrashRetentionError(
+                "Trash entry is still within the mandatory retention window"
+            )
+
+    removed = 0
+    for obj in objects:
+        object_name = obj.object_name
+        if not object_name:
+            continue
+        try:
+            client.remove_object(trash_bucket, object_name)
+        except S3Error as exc:  # pragma: no cover - depends on MinIO responses
+            logger.error(
+                "Failed removing trash object '%s/%s': %s",
+                trash_bucket,
+                object_name,
+                exc,
+            )
+            raise TrashDeletionError(f"Unable to remove trash object '{object_name}'") from exc
+        removed += 1
+
+    logger.info(
+        "Deleted %s trash objects under %s/%s (force=%s)",
+        removed,
+        trash_bucket,
+        normalized_key,
+        force,
+    )
+
+    return DeletionReport(trash_bucket=trash_bucket, key=normalized_key, objects_removed=removed)

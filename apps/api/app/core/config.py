@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     minio_books_bucket: str = "books"
     minio_apps_bucket: str = "apps"
     minio_trash_bucket: str = "trash"
+    trash_retention_days: int = 7
 
     jwt_secret_key: str = "CHANGE_ME"
     jwt_algorithm: str = "HS256"

@@ -17,7 +17,7 @@
 
 * **NFR1**: The API service must be stateless to allow for future horizontal scaling.
 * **NFR2**: All API endpoints must be protected using JWT authentication.
-* **NFR3**: Items in the `trash` bucket must be retained for a 7-day period before being eligible for permanent deletion.
+* **NFR3**: Items in the `trash` bucket must be retained for a 7-day period before being eligible for permanent deletion, and hard-delete workflows must enforce this window (allowing explicit overrides when authorised) while recording deletions in the audit log.
 * **NFR4**: A daily or weekly backup of the storage system must be synced to a secondary location.
 * **NFR5**: System health (disk usage, network, errors) must be monitored, for example with Prometheus/Grafana.
 * **NFR6**: Consistency between the file system and database metadata must be maintained by ensuring all operations are performed via the API.

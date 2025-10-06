@@ -20,8 +20,10 @@ import {
   Typography
 } from '@mui/material';
 import RestoreFromTrashIcon from '@mui/icons-material/RestoreFromTrash';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 
-import { restoreTrashEntry, listTrashEntries, TrashEntry } from '../lib/storage';
+import { ApiError } from '../lib/api';
+import { deleteTrashEntry, restoreTrashEntry, listTrashEntries, TrashEntry } from '../lib/storage';
 import { useAuthStore } from '../stores/auth';
 
 import '../styles/page.css';
@@ -70,9 +72,13 @@ const TrashPage = () => {
   const [entries, setEntries] = useState<TrashEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedEntry, setSelectedEntry] = useState<TrashEntry | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<TrashEntry | null>(null);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<TrashEntry | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [notification, setNotification] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
   const [refreshIndex, setRefreshIndex] = useState(0);
 
   useEffect(() => {
@@ -117,35 +123,47 @@ const TrashPage = () => {
     };
   }, [isAuthenticated, token, tokenType, refreshIndex]);
 
-  const openDialog = (entry: TrashEntry) => {
-    setSelectedEntry(entry);
-    setActionError(null);
+  const openRestoreDialog = (entry: TrashEntry) => {
+    setRestoreTarget(entry);
+    setRestoreError(null);
   };
 
-  const closeDialog = () => {
+  const closeRestoreDialog = () => {
     if (isRestoring) {
       return;
     }
-    setSelectedEntry(null);
+    setRestoreTarget(null);
+  };
+
+  const openDeleteDialog = (entry: TrashEntry) => {
+    setDeleteTarget(entry);
+    setDeleteError(null);
+  };
+
+  const closeDeleteDialog = () => {
+    if (isDeleting) {
+      return;
+    }
+    setDeleteTarget(null);
   };
 
   const performRestore = async () => {
-    if (!selectedEntry || !token) {
+    if (!restoreTarget || !token) {
       return;
     }
 
     setIsRestoring(true);
-    setActionError(null);
+    setRestoreError(null);
 
     try {
-      await restoreTrashEntry(selectedEntry.key, token, tokenType);
-      setSelectedEntry(null);
+      await restoreTrashEntry(restoreTarget.key, token, tokenType);
+      setRestoreTarget(null);
       setRefreshIndex((value) => value + 1);
     } catch (requestError) {
       if (requestError instanceof Error) {
         console.error('Failed to restore trash entry', requestError);
       }
-      setActionError('Unable to restore the selected item.');
+      setRestoreError('Unable to restore the selected item.');
     } finally {
       setIsRestoring(false);
     }
@@ -155,32 +173,98 @@ const TrashPage = () => {
     return [...entries].sort((a, b) => getEntryLabel(a).localeCompare(getEntryLabel(b), undefined, { sensitivity: 'base' }));
   }, [entries]);
 
-  const dialog = (
+  const performPermanentDelete = async () => {
+    if (!deleteTarget || !token) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const label = getEntryLabel(deleteTarget);
+      await deleteTrashEntry(deleteTarget.key, token, tokenType);
+      setDeleteTarget(null);
+      setNotification({ severity: 'success', message: `Permanently deleted "${label}".` });
+      setRefreshIndex((value) => value + 1);
+    } catch (requestError) {
+      if (requestError instanceof Error) {
+        console.error('Failed to permanently delete trash entry', requestError);
+      }
+
+      let message = 'Unable to permanently delete the selected item.';
+      if (requestError instanceof ApiError) {
+        const detail = (requestError.body as { detail?: string } | null)?.detail;
+        if (typeof detail === 'string' && detail.trim().length > 0) {
+          message = detail;
+        }
+      } else if (requestError instanceof Error && requestError.message) {
+        message = requestError.message;
+      }
+
+      setDeleteError(message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const restoreDialog = (
     <Dialog
-      open={Boolean(selectedEntry)}
-      onClose={closeDialog}
+      open={Boolean(restoreTarget)}
+      onClose={closeRestoreDialog}
       aria-labelledby="trash-restore-dialog-title"
       aria-describedby="trash-restore-dialog-description"
     >
       <DialogTitle id="trash-restore-dialog-title">Confirm Restore</DialogTitle>
       <DialogContent>
         <DialogContentText id="trash-restore-dialog-description">
-          {selectedEntry
-            ? `Restore "${getEntryLabel(selectedEntry)}" to ${selectedEntry.bucket} / ${selectedEntry.path}?`
+          {restoreTarget
+            ? `Restore "${getEntryLabel(restoreTarget)}" to ${restoreTarget.bucket} / ${restoreTarget.path}?`
             : ''}
         </DialogContentText>
-        {actionError ? (
+        {restoreError ? (
           <Alert severity="error" sx={{ mt: 2 }}>
-            {actionError}
+            {restoreError}
           </Alert>
         ) : null}
       </DialogContent>
       <DialogActions>
-        <Button onClick={closeDialog} disabled={isRestoring}>
+        <Button onClick={closeRestoreDialog} disabled={isRestoring}>
           Cancel
         </Button>
-        <Button onClick={performRestore} color="primary" disabled={isRestoring}>
+        <Button onClick={performRestore} color="primary" disabled={isRestoring || isDeleting}>
           {isRestoring ? 'Restoring…' : 'Restore'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
+  const deleteDialog = (
+    <Dialog
+      open={Boolean(deleteTarget)}
+      onClose={closeDeleteDialog}
+      aria-labelledby="trash-delete-dialog-title"
+      aria-describedby="trash-delete-dialog-description"
+    >
+      <DialogTitle id="trash-delete-dialog-title">Delete Permanently</DialogTitle>
+      <DialogContent>
+        <DialogContentText id="trash-delete-dialog-description">
+          {deleteTarget
+            ? `Permanently delete "${getEntryLabel(deleteTarget)}"? This action cannot be undone.`
+            : ''}
+        </DialogContentText>
+        {deleteError ? (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {deleteError}
+          </Alert>
+        ) : null}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={closeDeleteDialog} disabled={isDeleting}>
+          Cancel
+        </Button>
+        <Button onClick={performPermanentDelete} color="error" disabled={isDeleting || isRestoring}>
+          {isDeleting ? 'Deleting…' : 'Delete'}
         </Button>
       </DialogActions>
     </Dialog>
@@ -207,6 +291,12 @@ const TrashPage = () => {
       {error ? (
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}
+        </Alert>
+      ) : null}
+
+      {notification ? (
+        <Alert severity={notification.severity} sx={{ mb: 3 }} onClose={() => setNotification(null)}>
+          {notification.message}
         </Alert>
       ) : null}
 
@@ -245,19 +335,35 @@ const TrashPage = () => {
                   <TableCell align="right">{entry.object_count}</TableCell>
                   <TableCell align="right">{formatBytes(entry.total_size)}</TableCell>
                   <TableCell align="right">
-                    <Tooltip title="Restore item">
-                      <span>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          startIcon={<RestoreFromTrashIcon fontSize="small" />}
-                          onClick={() => openDialog(entry)}
-                          disabled={isRestoring}
-                        >
-                          Restore
-                        </Button>
-                      </span>
-                    </Tooltip>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                      <Tooltip title="Restore item">
+                        <span>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<RestoreFromTrashIcon fontSize="small" />}
+                            onClick={() => openRestoreDialog(entry)}
+                            disabled={isRestoring || isDeleting}
+                          >
+                            Restore
+                          </Button>
+                        </span>
+                      </Tooltip>
+                      <Tooltip title="Delete permanently">
+                        <span>
+                          <Button
+                            variant="contained"
+                            color="error"
+                            size="small"
+                            startIcon={<DeleteForeverIcon fontSize="small" />}
+                            onClick={() => openDeleteDialog(entry)}
+                            disabled={isDeleting || isRestoring}
+                          >
+                            Delete
+                          </Button>
+                        </span>
+                      </Tooltip>
+                    </Box>
                   </TableCell>
                 </TableRow>
               ))}
@@ -266,7 +372,8 @@ const TrashPage = () => {
         </TableContainer>
       ) : null}
 
-      {dialog}
+      {restoreDialog}
+      {deleteDialog}
     </section>
   );
 };
