@@ -1,18 +1,22 @@
+
 .layout {
   display: grid;
   grid-template-columns: 240px 1fr;
   min-height: 100vh;
+  background: var(--color-surface-muted);
 }
 
 .layout__sidebar {
   display: flex;
-  background-color: #111827;
-  color: #f9fafb;
+  background: var(--color-sidebar-bg);
+  color: var(--color-sidebar-text);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.12);
 }
 
 .layout__content {
-  padding: 1.5rem;
-  background-color: #f9fafb;
+  padding: 2.5rem;
+  background: var(--color-surface-muted);
+  transition: background-color 0.3s ease;
 }
 
 @media (max-width: 768px) {
@@ -25,5 +29,6 @@
     position: sticky;
     top: 0;
     z-index: 10;
+    box-shadow: none;
   }
 }
