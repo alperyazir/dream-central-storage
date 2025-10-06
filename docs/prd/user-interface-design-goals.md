@@ -17,6 +17,8 @@ The UX vision for the Dream Central Storage Admin Panel is a clean, efficient, a
 
 * **Login Screen:** A secure page for administrator authentication.
 * **Dashboard:** Main landing page showing lists of books and app builds, possibly with filtering by publisher.
+  * Book table highlights `Title`, `Publisher`, `Language`, and `Category` for quick scanning; storage locations stay behind the scenes.
+  * App build table focuses on `Platform`, `Version`, `File`, and `Size`, keeping raw storage paths hidden while still surfacing the facts administrators act on.
 * **Book Management View:** A detailed view for managing all books from a specific publisher.
 * **App Build Management View:** A view for managing all application builds for each platform (macOS, Linux, Windows).
 * **Metadata Edit Modal/Page:** A form for viewing and editing the metadata associated with a book.

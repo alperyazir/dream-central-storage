@@ -946,7 +946,7 @@ describe('Dashboard', () => {
     const buildRow = within(buildsTable).getAllByRole('row')[1];
 
     const deleteButton = within(buildRow).getByRole('button', {
-      name: /soft-delete build macos\/1\.0\.0/i
+      name: /soft-delete build macos 1\.0\.0/i
     });
 
     const user = userEvent.setup();

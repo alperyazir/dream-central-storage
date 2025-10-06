@@ -43,7 +43,7 @@ type SortDirection = 'asc' | 'desc';
 
 type BookSortField = 'title' | 'publisher' | 'language' | 'category';
 
-type AppSortField = 'platform' | 'version' | 'fileName' | 'path' | 'size';
+type AppSortField = 'platform' | 'version' | 'fileName' | 'size';
 
 type DeleteTarget =
   | { kind: 'book'; record: BookRow }
@@ -62,7 +62,6 @@ interface AppBuildRow {
   platformSlug: string;
   version: string;
   fileName: string;
-  path: string;
   storagePath: string;
   size?: number;
 }
@@ -82,6 +81,18 @@ const formatBytes = (size?: number) => {
   const exponent = Math.min(Math.floor(Math.log(size) / Math.log(1024)), units.length - 1);
   const value = size / Math.pow(1024, exponent);
   return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
+};
+
+const formatBuildLabel = (build: AppBuildRow) => {
+  if (!build) {
+    return '';
+  }
+
+  if (build.version) {
+    return `${build.platform} ${build.version}`;
+  }
+
+  return build.fileName || build.platform;
 };
 
 const mapBookRecords = (records: BookRecord[]): BookRow[] =>
@@ -138,7 +149,6 @@ const collectAppBuildRows = (
     platformSlug,
     version: entry.display,
     fileName: `${entry.display}${entry.fileCount > 1 ? ` (${entry.fileCount} files)` : ''}`,
-    path: `${platformSlug}/${entry.display}`,
     storagePath: `${platformSlug}/${entry.display}/`,
     size: entry.totalSize || undefined
   }));
@@ -332,8 +342,6 @@ const DashboardPage = () => {
           return compareStrings(a.version, b.version) * direction;
         case 'fileName':
           return compareStrings(a.fileName, b.fileName) * direction;
-        case 'path':
-          return compareStrings(a.path, b.path) * direction;
         case 'size':
           return ((a.size ?? 0) - (b.size ?? 0)) * direction;
         default:
@@ -368,7 +376,7 @@ const DashboardPage = () => {
         <DialogContentText id="delete-confirmation-description">
           {deleteTarget?.kind === 'book'
             ? `Soft-delete "${deleteTarget.record.title}"? Its metadata will be archived and associated files moved to the trash bucket.`
-            : `Soft-delete application build "${deleteTarget?.record.path}"? Assets will be moved to the trash bucket for restoration later.`}
+            : `Soft-delete application build "${deleteTarget ? formatBuildLabel(deleteTarget.record) : ''}"? Assets will be moved to the trash bucket for restoration later.`}
         </DialogContentText>
         {actionError ? (
           <Alert severity="error" sx={{ mt: 2 }}>
@@ -557,7 +565,7 @@ const DashboardPage = () => {
                   Version
                 </TableSortLabel>
               </TableCell>
-              <TableCell sortDirection={appSort.field === 'fileName' ? appSort.direction : false}>
+              <TableCell sortDirection={appSort.field === 'fileName' ? appSort.direction : false} sx={{ minWidth: 200 }}>
                 <TableSortLabel
                   active={appSort.field === 'fileName'}
                   direction={appSort.field === 'fileName' ? appSort.direction : 'asc'}
@@ -575,40 +583,32 @@ const DashboardPage = () => {
                   Size
                 </TableSortLabel>
               </TableCell>
-              <TableCell sortDirection={appSort.field === 'path' ? appSort.direction : false}>
-                <TableSortLabel
-                  active={appSort.field === 'path'}
-                  direction={appSort.field === 'path' ? appSort.direction : 'asc'}
-                  onClick={() => toggleAppSort('path')}
-                >
-                  Storage Path
-                </TableSortLabel>
+              <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                Actions
               </TableCell>
-              <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {sortedAppBuilds.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} align="center">
+                <TableCell colSpan={5} align="center">
                   No application builds found.
                 </TableCell>
               </TableRow>
             ) : (
               sortedAppBuilds.map((build) => (
-                <TableRow key={`${build.platform}-${build.path}`} hover>
+                <TableRow key={build.storagePath} hover>
                   <TableCell>{build.platform}</TableCell>
                   <TableCell>{build.version || '—'}</TableCell>
                   <TableCell>{build.fileName || '—'}</TableCell>
-                  <TableCell>{formatBytes(build.size)}</TableCell>
-                  <TableCell>{build.path}</TableCell>
-                  <TableCell align="right">
+                  <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatBytes(build.size)}</TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                     <Tooltip title="Soft-delete application build">
                       <span>
                         <IconButton
                           size="small"
                           color="error"
-                          aria-label={`Soft-delete build ${build.path}`}
+                          aria-label={`Soft-delete build ${formatBuildLabel(build)}`}
                           onClick={() => promptAppDelete(build)}
                           disabled={isDeleting}
                         >
