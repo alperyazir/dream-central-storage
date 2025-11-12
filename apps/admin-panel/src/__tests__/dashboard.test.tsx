@@ -6,6 +6,25 @@ import { vi } from 'vitest';
 import App from '../App';
 import { resetAuthStore, useAuthStore } from '../stores/auth';
 
+const createObjectURLMock = vi.fn(() => 'blob:mock-url');
+const revokeObjectURLMock = vi.fn();
+const clipboardWriteTextMock = vi.fn();
+
+beforeAll(() => {
+  Object.defineProperty(URL, 'createObjectURL', {
+    value: createObjectURLMock,
+    configurable: true
+  });
+  Object.defineProperty(URL, 'revokeObjectURL', {
+    value: revokeObjectURLMock,
+    configurable: true
+  });
+  Object.defineProperty(navigator, 'clipboard', {
+    value: { writeText: clipboardWriteTextMock },
+    configurable: true
+  });
+});
+
 const authenticateTestUser = () => {
   act(() => {
     useAuthStore.setState({
@@ -42,19 +61,34 @@ const emptyAppTreeFor = (slug: string) => ({
 });
 
 describe('Dashboard', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    act(() => {
-      resetAuthStore();
-    });
+beforeEach(() => {
+  vi.restoreAllMocks();
+  createObjectURLMock.mockReset();
+  revokeObjectURLMock.mockReset();
+  clipboardWriteTextMock.mockReset();
+  Object.defineProperty(URL, 'createObjectURL', {
+    value: createObjectURLMock,
+    configurable: true
   });
+  Object.defineProperty(URL, 'revokeObjectURL', {
+    value: revokeObjectURLMock,
+    configurable: true
+  });
+  Object.defineProperty(navigator, 'clipboard', {
+    value: { writeText: clipboardWriteTextMock },
+    configurable: true
+  });
+  act(() => {
+    resetAuthStore();
+  });
+});
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-    act(() => {
-      resetAuthStore();
-    });
+afterEach(() => {
+  vi.restoreAllMocks();
+  act(() => {
+    resetAuthStore();
   });
+});
 
   it('redirects unauthenticated users without issuing data requests', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
@@ -969,5 +1003,262 @@ describe('Dashboard', () => {
     );
 
     expect(await screen.findByText(/unable to complete delete request/i)).toBeInTheDocument();
+  });
+
+  it('opens the book explorer drawer and enables preview actions', async () => {
+    authenticateTestUser();
+
+    const booksPayload = [
+      {
+        id: 1,
+        publisher: 'Dream Press',
+        book_name: 'Dream Atlas',
+        language: 'English',
+        category: 'Fiction',
+        status: 'published',
+        version: '1.0.0',
+        created_at: '2025-10-01T12:00:00Z',
+        updated_at: '2025-10-02T12:00:00Z'
+      }
+    ];
+
+    const bookTree = {
+      path: 'Dream Press/Dream Atlas/',
+      type: 'folder',
+      children: [
+        {
+          path: 'Dream Press/Dream Atlas/config.json',
+          type: 'file',
+          size: 180
+        },
+        {
+          path: 'Dream Press/Dream Atlas/chapters/',
+          type: 'folder',
+          children: [
+            {
+              path: 'Dream Press/Dream Atlas/chapters/01-intro.txt',
+              type: 'file',
+              size: 2048
+            }
+          ]
+        }
+      ]
+    };
+
+    const configPayload = {
+      publisher: 'Dream Press',
+      book_name: 'Dream Atlas',
+      language: 'English',
+      category: 'Fiction',
+      version: '1.0.0',
+      status: 'published'
+    };
+
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = input.toString();
+        const normalized = url.toLowerCase();
+
+        if (url.endsWith('/books')) {
+          return Promise.resolve(createJsonResponse(booksPayload));
+        }
+
+        if (normalized.includes('/storage/apps/')) {
+          const slugMatch = normalized.match(/\/storage\/apps\/(macos|windows|linux)/);
+          if (slugMatch) {
+            return Promise.resolve(createJsonResponse(emptyAppTreeFor(slugMatch[1])));
+          }
+        }
+
+        if (url.includes('/storage/books/Dream%20Press/Dream%20Atlas/object')) {
+          expect(init?.headers && new Headers(init.headers).get('Authorization')).toBe('Bearer test-token');
+          return Promise.resolve(new Response('file-contents', { status: 200 }));
+        }
+
+        if (url.endsWith('/storage/books/Dream%20Press/Dream%20Atlas')) {
+          return Promise.resolve(createJsonResponse(bookTree));
+        }
+
+        if (url.endsWith('/storage/books/Dream%20Press/Dream%20Atlas/config')) {
+          return Promise.resolve(createJsonResponse(configPayload));
+        }
+
+        throw new Error(`Unexpected request to ${url}`);
+      });
+
+    renderDashboard();
+
+    const booksTable = await screen.findByRole('table', { name: /books table/i });
+    const viewButton = within(booksTable).getByRole('button', { name: /view contents/i });
+
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(viewButton);
+    });
+
+    const metadataHeading = await screen.findByRole('heading', { name: /metadata/i });
+    expect(metadataHeading).toBeInTheDocument();
+    expect(screen.getByText(/config\.json\s+•\s+180\s?b/i)).toBeInTheDocument();
+    expect(screen.getByText(/chapters\/01-intro\.txt/i)).toBeInTheDocument();
+    expect(screen.getByText(/dream press/i)).toBeInTheDocument();
+    expect(screen.getByText(/1\.0\.0/)).toBeInTheDocument();
+
+    const configRow = await screen.findByText(/config\.json/i);
+    await act(async () => {
+      await user.click(configRow);
+    });
+
+    const copyButton = await screen.findByLabelText(/copy storage path/i);
+    await act(async () => {
+      await user.click(copyButton);
+    });
+    expect(clipboardWriteTextMock).toHaveBeenCalledWith('Dream Press/Dream Atlas/config.json');
+
+    const downloadButton = await screen.findByLabelText(/download file/i);
+    await act(async () => {
+      await user.click(downloadButton);
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/storage/books/Dream%20Press/Dream%20Atlas/object'),
+      expect.objectContaining({ method: 'GET' })
+    );
+    expect(createObjectURLMock).toHaveBeenCalled();
+    expect(revokeObjectURLMock).toHaveBeenCalled();
+
+    await waitFor(() => expect(screen.getByText(/downloading/i)).toBeInTheDocument());
+  });
+
+  it('shows inline error feedback when the book listing request fails', async () => {
+    authenticateTestUser();
+
+    const booksPayload = [
+      {
+        id: 1,
+        publisher: 'Dream Press',
+        book_name: 'Dream Atlas',
+        language: 'English',
+        category: 'Fiction',
+        status: 'published'
+      }
+    ];
+
+    const configPayload = {
+      publisher: 'Dream Press',
+      book_name: 'Dream Atlas',
+      language: 'English'
+    };
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      const method = (init?.method ?? 'GET').toUpperCase();
+      const normalized = url.toLowerCase();
+
+      if (url.endsWith('/books') && method === 'GET') {
+        return Promise.resolve(createJsonResponse(booksPayload));
+      }
+
+      if (normalized.includes('/storage/apps/')) {
+        const slugMatch = normalized.match(/\/storage\/apps\/([^/?]+)/);
+        const slug = slugMatch ? slugMatch[1] : 'macos';
+        return Promise.resolve(createJsonResponse(emptyAppTreeFor(slug)));
+      }
+
+      if (url.endsWith('/storage/books/Dream%20Press/Dream%20Atlas')) {
+        return Promise.resolve(new Response('listing error', { status: 500 }));
+      }
+
+      if (url.endsWith('/storage/books/Dream%20Press/Dream%20Atlas/config')) {
+        return Promise.resolve(createJsonResponse(configPayload));
+      }
+
+      throw new Error(`Unexpected request to ${url}`);
+    });
+
+    renderDashboard();
+
+    const booksTable = await screen.findByRole('table', { name: /books table/i });
+    const viewButton = within(booksTable).getByRole('button', { name: /view contents/i });
+
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(viewButton);
+    });
+
+    expect(await screen.findByText(/unable to load book contents/i)).toBeInTheDocument();
+    const metadataHeading = screen.getByRole('heading', { name: /metadata/i });
+    expect(metadataHeading).toBeInTheDocument();
+    expect(screen.getByText(/dream press/i)).toBeInTheDocument();
+  });
+
+  it('falls back to book metadata when config.json fetch fails', async () => {
+    authenticateTestUser();
+
+    const booksPayload = [
+      {
+        id: 1,
+        publisher: 'Dream Press',
+        book_name: 'Dream Atlas',
+        language: 'English',
+        category: 'Fiction',
+        status: 'published',
+        version: null
+      }
+    ];
+
+    const bookTree = {
+      path: 'Dream Press/Dream Atlas/',
+      type: 'folder',
+      children: [
+        {
+          path: 'Dream Press/Dream Atlas/manuscript.pdf',
+          type: 'file',
+          size: 4096
+        }
+      ]
+    };
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      const method = (init?.method ?? 'GET').toUpperCase();
+      const normalized = url.toLowerCase();
+
+      if (url.endsWith('/books') && method === 'GET') {
+        return Promise.resolve(createJsonResponse(booksPayload));
+      }
+
+      if (normalized.includes('/storage/apps/')) {
+        const slugMatch = normalized.match(/\/storage\/apps\/([^/?]+)/);
+        const slug = slugMatch ? slugMatch[1] : 'macos';
+        return Promise.resolve(createJsonResponse(emptyAppTreeFor(slug)));
+      }
+
+      if (url.endsWith('/storage/books/Dream%20Press/Dream%20Atlas')) {
+        return Promise.resolve(createJsonResponse(bookTree));
+      }
+
+      if (url.endsWith('/storage/books/Dream%20Press/Dream%20Atlas/config')) {
+        return Promise.resolve(new Response('config failure', { status: 500 }));
+      }
+
+      throw new Error(`Unexpected request to ${url}`);
+    });
+
+    renderDashboard();
+
+    const booksTable = await screen.findByRole('table', { name: /books table/i });
+    const viewButton = within(booksTable).getByRole('button', { name: /view contents/i });
+
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(viewButton);
+    });
+
+    expect(await screen.findByText(/unable to load config\.json metadata/i)).toBeInTheDocument();
+    const metadataHeading = screen.getByRole('heading', { name: /metadata/i });
+    const metadataSection = metadataHeading.parentElement as HTMLElement;
+    const versionRow = within(metadataSection).getByText(/version/i).parentElement as HTMLElement;
+    expect(within(versionRow).getByText(/unknown/i)).toBeInTheDocument();
+    expect(screen.getByText(/manuscript\.pdf/i)).toBeInTheDocument();
   });
 });

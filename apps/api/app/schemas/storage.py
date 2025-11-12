@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -19,6 +20,18 @@ class TrashEntryRead(BaseModel):
     object_count: int = Field(..., ge=0)
     total_size: int = Field(..., ge=0)
     metadata: dict[str, str] | None = None
+    youngest_last_modified: datetime | None = Field(
+        default=None,
+        description="UTC timestamp for the most recently modified object within this entry",
+    )
+    eligible_at: datetime | None = Field(
+        default=None,
+        description="UTC timestamp when the entry exits the enforced retention window",
+    )
+    eligible_for_deletion: bool = Field(
+        default=False,
+        description="Indicates whether the entry can be deleted without a retention override",
+    )
 
 
 class RestoreRequest(BaseModel):
@@ -41,6 +54,11 @@ class TrashDeleteRequest(BaseModel):
 
     key: str = Field(..., description="Key identifying the trash entry to delete")
     force: bool = Field(default=False, description="Bypass retention checks when true")
+    override_reason: str | None = Field(
+        default=None,
+        description="Justification recorded when bypassing retention checks",
+        max_length=500,
+    )
 
 
 class TrashDeleteResponse(BaseModel):

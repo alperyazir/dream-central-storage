@@ -24,7 +24,8 @@ import {
   TableRow,
   TableSortLabel,
   Tooltip,
-  Typography
+  Typography,
+  Stack
 } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 
@@ -34,6 +35,8 @@ import { listAppContents, StorageNode } from '../lib/storage';
 import { softDeleteAppBuild } from '../lib/apps';
 import { useAuthStore } from '../stores/auth';
 import UploadDialog from '../components/UploadDialog';
+import BookExplorerDrawer from '../features/books/BookExplorerDrawer';
+import type { BookListRow } from '../features/books/types';
 
 import '../styles/page.css';
 
@@ -41,21 +44,13 @@ const APP_PLATFORMS = SUPPORTED_APP_PLATFORMS;
 
 type SortDirection = 'asc' | 'desc';
 
-type BookSortField = 'title' | 'publisher' | 'language' | 'category';
+type BookSortField = 'bookName' | 'publisher' | 'language' | 'category';
 
 type AppSortField = 'platform' | 'version' | 'fileName' | 'size';
 
 type DeleteTarget =
-  | { kind: 'book'; record: BookRow }
+  | { kind: 'book'; record: BookListRow }
   | { kind: 'app'; record: AppBuildRow };
-
-interface BookRow {
-  id: number;
-  title: string;
-  publisher: string;
-  language: string;
-  category: string;
-}
 
 interface AppBuildRow {
   platform: string;
@@ -95,13 +90,17 @@ const formatBuildLabel = (build: AppBuildRow) => {
   return build.fileName || build.platform;
 };
 
-const mapBookRecords = (records: BookRecord[]): BookRow[] =>
+const mapBookRecords = (records: BookRecord[]): BookListRow[] =>
   records.map((record) => ({
     id: record.id,
-    title: record.book_name,
+    bookName: record.book_name,
     publisher: record.publisher,
     language: record.language,
-    category: record.category
+    category: record.category,
+    status: record.status,
+    version: record.version,
+    createdAt: record.created_at,
+    updatedAt: record.updated_at
   }));
 
 const collectAppBuildRows = (
@@ -161,11 +160,11 @@ const DashboardPage = () => {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [books, setBooks] = useState<BookRow[]>([]);
+  const [books, setBooks] = useState<BookListRow[]>([]);
   const [appBuilds, setAppBuilds] = useState<AppBuildRow[]>([]);
   const [publisherFilter, setPublisherFilter] = useState<string>('all');
   const [bookSort, setBookSort] = useState<{ field: BookSortField; direction: SortDirection }>(
-    { field: 'title', direction: 'asc' }
+    { field: 'bookName', direction: 'asc' }
   );
   const [appSort, setAppSort] = useState<{ field: AppSortField; direction: SortDirection }>(
     { field: 'platform', direction: 'asc' }
@@ -175,6 +174,7 @@ const DashboardPage = () => {
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [explorerBook, setExplorerBook] = useState<BookListRow | null>(null);
   const platformCount = APP_PLATFORMS.length as number;
 
   useEffect(() => {
@@ -251,7 +251,7 @@ const DashboardPage = () => {
     }));
   };
 
-  const promptBookDelete = (record: BookRow) => {
+  const promptBookDelete = (record: BookListRow) => {
     setActionError(null);
     setDeleteTarget({ kind: 'book', record });
   };
@@ -316,8 +316,8 @@ const DashboardPage = () => {
     const sorted = [...data].sort((a, b) => {
       const direction = bookSort.direction === 'asc' ? 1 : -1;
       switch (bookSort.field) {
-        case 'title':
-          return compareStrings(a.title, b.title) * direction;
+        case 'bookName':
+          return compareStrings(a.bookName, b.bookName) * direction;
         case 'publisher':
           return compareStrings(a.publisher, b.publisher) * direction;
         case 'language':
@@ -352,11 +352,21 @@ const DashboardPage = () => {
     return sorted;
   }, [appBuilds, appSort]);
 
+  const uploadBookOptions = useMemo(
+    () =>
+      books.map((book) => ({
+        id: book.id,
+        title: book.bookName,
+        publisher: book.publisher
+      })),
+    [books]
+  );
+
   const uploadDialog = (
     <UploadDialog
       open={isUploadOpen}
       onClose={() => setIsUploadOpen(false)}
-      books={books}
+      books={uploadBookOptions}
       platforms={APP_PLATFORMS}
       token={token}
       tokenType={tokenType}
@@ -375,7 +385,7 @@ const DashboardPage = () => {
       <DialogContent>
         <DialogContentText id="delete-confirmation-description">
           {deleteTarget?.kind === 'book'
-            ? `Soft-delete "${deleteTarget.record.title}"? Its metadata will be archived and associated files moved to the trash bucket.`
+            ? `Soft-delete "${deleteTarget.record.bookName}"? Its metadata will be archived and associated files moved to the trash bucket.`
             : `Soft-delete application build "${deleteTarget ? formatBuildLabel(deleteTarget.record) : ''}"? Assets will be moved to the trash bucket for restoration later.`}
         </DialogContentText>
         {actionError ? (
@@ -461,11 +471,11 @@ const DashboardPage = () => {
         <Table aria-label="Books table">
           <TableHead>
             <TableRow>
-              <TableCell sortDirection={bookSort.field === 'title' ? bookSort.direction : false}>
+              <TableCell sortDirection={bookSort.field === 'bookName' ? bookSort.direction : false}>
                 <TableSortLabel
-                  active={bookSort.field === 'title'}
-                  direction={bookSort.field === 'title' ? bookSort.direction : 'asc'}
-                  onClick={() => toggleBookSort('title')}
+                  active={bookSort.field === 'bookName'}
+                  direction={bookSort.field === 'bookName' ? bookSort.direction : 'asc'}
+                  onClick={() => toggleBookSort('bookName')}
                 >
                   Title
                 </TableSortLabel>
@@ -510,24 +520,34 @@ const DashboardPage = () => {
             ) : (
               filteredBooks.map((book) => (
                 <TableRow key={book.id} hover>
-                  <TableCell>{book.title}</TableCell>
+                  <TableCell>{book.bookName}</TableCell>
                   <TableCell>{book.publisher}</TableCell>
                   <TableCell>{book.language}</TableCell>
                   <TableCell>{book.category}</TableCell>
                   <TableCell align="right">
-                    <Tooltip title="Soft-delete book">
-                      <span>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          aria-label={`Soft-delete book ${book.title}`}
-                          onClick={() => promptBookDelete(book)}
-                          disabled={isDeleting}
-                        >
-                          <DeleteOutlineIcon fontSize="small" />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
+                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => setExplorerBook(book)}
+                        disabled={!token}
+                      >
+                        View contents
+                      </Button>
+                      <Tooltip title="Soft-delete book">
+                        <span>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            aria-label={`Soft-delete book ${book.bookName}`}
+                            onClick={() => promptBookDelete(book)}
+                            disabled={isDeleting}
+                          >
+                            <DeleteOutlineIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </Stack>
                   </TableCell>
                 </TableRow>
               ))
@@ -626,6 +646,13 @@ const DashboardPage = () => {
 
       {uploadDialog}
       {deleteDialog}
+      <BookExplorerDrawer
+        open={Boolean(explorerBook)}
+        onClose={() => setExplorerBook(null)}
+        book={explorerBook}
+        token={token ?? null}
+        tokenType={tokenType}
+      />
     </section>
   );
 };

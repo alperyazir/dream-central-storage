@@ -42,6 +42,20 @@ sudo MINIO_BACKUP_LOG=/var/log/minio-backup.manual.log /usr/local/bin/dream-back
 
 Review `/var/log/minio-backup.manual.log` for success messages and JSON mirror events.
 
+## Retention Overrides
+
+- Permanent deletions normally require items to age seven days in the `trash` bucket.
+- When compliance approves an early purge, administrators must use the Admin Panel "Override retention" flow and provide the written justification captured in the audit log.
+- Overrides send `force=true` to the API and record the justification alongside the actor and target key; verify the log entry before closing the request.
+- The Trash table shows a retention countdown (e.g., “Eligible in 3 days” or “Eligible now”). The delete action stays disabled until the countdown reaches zero; use the Override button for approved early purges.
+
+## Book Content Explorer
+
+- From the Dashboard, use **View contents** on a book row to open the content explorer drawer.
+- The drawer loads `config.json` metadata and the complete MinIO folder tree so admins can verify uploads.
+- Selecting a file reveals inline actions for copying the storage path or downloading the asset; supported media (PNG/JPG/WebP images, MP3/WAV audio, MP4 video) render inline previews so you can validate uploads without leaving the drawer.
+- Errors are surfaced in the drawer; refresh or close/reopen if MinIO listings change during reviews.
+
 ## Monitoring & Logs
 
 - Primary log file: `/var/log/minio-backup.log` (configurable via `MINIO_BACKUP_LOG`).
@@ -65,4 +79,3 @@ Review `/var/log/minio-backup.manual.log` for success messages and JSON mirror e
 ## Configuration Changes
 
 Whenever adding or removing MinIO buckets, update `MINIO_BACKUP_BUCKETS` in the environment file and re-run the backup script once to establish destination paths.
-

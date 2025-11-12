@@ -77,7 +77,7 @@ def test_list_trash_returns_entries(monkeypatch) -> None:
     monkeypatch.setattr(
         storage_router,
         "list_trash_entries",
-        lambda client, bucket: [
+        lambda client, bucket, retention: [
             TrashEntry(
                 key="books/Press/Atlas/",
                 bucket="books",
@@ -102,6 +102,9 @@ def test_list_trash_returns_entries(monkeypatch) -> None:
             "object_count": 2,
             "total_size": 15,
             "metadata": {"publisher": "Press", "book_name": "Atlas"},
+            "youngest_last_modified": None,
+            "eligible_at": None,
+            "eligible_for_deletion": False,
         }
     ]
 

@@ -77,6 +77,9 @@ class TrashEntry:
     object_count: int
     total_size: int
     metadata: dict[str, str] | None = None
+    youngest_last_modified: datetime | None = None
+    eligible_at: datetime | None = None
+    eligible_for_deletion: bool = False
 
 
 @dataclass(slots=True)
@@ -339,7 +342,19 @@ def _normalize_tree(node: dict[str, object]) -> dict[str, object]:
     return node
 
 
-def list_trash_entries(client: Minio, trash_bucket: str) -> list[TrashEntry]:
+def _normalize_timestamp(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def list_trash_entries(
+    client: Minio,
+    trash_bucket: str,
+    retention: timedelta | None = None,
+) -> list[TrashEntry]:
     """Aggregate trash bucket contents into logical restore targets."""
 
     aggregates: dict[str, TrashEntry] = {}
@@ -397,8 +412,23 @@ def list_trash_entries(client: Minio, trash_bucket: str) -> list[TrashEntry]:
             if aggregate.metadata is None and metadata:
                 aggregate.metadata = metadata
 
+        last_modified = _normalize_timestamp(getattr(obj, "last_modified", None))
+        if last_modified is not None:
+            if aggregate.youngest_last_modified is None or last_modified > aggregate.youngest_last_modified:
+                aggregate.youngest_last_modified = last_modified
+
         aggregate.object_count += 1
         aggregate.total_size += obj.size or 0
+
+    retention_window = retention if retention is not None else timedelta(0)
+    now = datetime.now(UTC)
+    for aggregate in aggregates.values():
+        if aggregate.youngest_last_modified is not None:
+            aggregate.eligible_at = aggregate.youngest_last_modified + retention_window
+            aggregate.eligible_for_deletion = aggregate.eligible_at <= now
+        else:
+            aggregate.eligible_at = None if retention_window > timedelta(0) else now
+            aggregate.eligible_for_deletion = retention_window <= timedelta(0)
 
     return sorted(aggregates.values(), key=lambda entry: entry.key)
 
@@ -548,6 +578,7 @@ def delete_prefix_from_trash(
     key: str,
     retention: timedelta,
     force: bool = False,
+    override_reason: str | None = None,
 ) -> DeletionReport:
     """Permanently delete a trash entry if it satisfies the retention policy."""
 
@@ -601,11 +632,12 @@ def delete_prefix_from_trash(
         removed += 1
 
     logger.info(
-        "Deleted %s trash objects under %s/%s (force=%s)",
+        "Deleted %s trash objects under %s/%s (force=%s, override_reason=%s)",
         removed,
         trash_bucket,
         normalized_key,
         force,
+        override_reason if force else None,
     )
 
     return DeletionReport(trash_bucket=trash_bucket, key=normalized_key, objects_removed=removed)

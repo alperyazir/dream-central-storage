@@ -59,3 +59,36 @@
 4. Screenshots or prototypes illustrating the new look are added to the design documentation for stakeholder review.
 
 ---
+
+## **Story 5.9: Force Delete Overrides for Trash Items**
+**As an** administrator, **I want** an authorised override for trash deletions within the retention window, **so that** I can immediately remove sensitive or erroneous uploads when compliance approvals exist.
+**Acceptance Criteria:**
+1. The trash UI surfaces an override flow for retention conflicts that is restricted to authenticated administrators and requires an explicit justification before retrying the delete.
+2. Override attempts send `force=true` with the justification to the `DELETE /trash` API, bypassing the retention check while the default flow continues to enforce the seven-day window.
+3. Forced deletions emit structured audit logs that include administrator id, target key, timestamp, override flag, and justification, satisfying FR7/NFR3 logging requirements.
+4. UI feedback clearly differentiates forced deletions, refreshing the trash listing on success while showing the existing retention warning when the override is not used.
+5. Automated tests cover forced deletion success, justification validation, retention conflicts without override, and regression of the default retention guard across backend and frontend layers.
+
+## **Story 5.10: Trash Retention Visibility**
+**As an** administrator, **I want** the trash view to highlight retention timelines, **so that** I understand when items can be deleted or when overrides are required.
+**Acceptance Criteria:**
+1. Trash listings include retention metadata (youngest object timestamp, eligibility timestamp, eligibility flag) sourced from the storage API.
+2. UI surfaces countdown messaging for each entry, disabling default deletion until retention is satisfied while still allowing intentional overrides.
+3. API responses log retention context and follow existing audit/error handling patterns.
+4. Automated tests cover retention metadata serialization and UI messaging for both eligible and ineligible entries.
+
+## **Story 5.11: Book Content Explorer Drawer**
+**As an** administrator, **I want** to inspect a book’s folders and metadata in the admin panel, **so that** I can verify uploads and access key files without external tools.
+**Acceptance Criteria:**
+1. Book listings expose a content explorer panel that loads `config.json` metadata and the storage tree for the selected book.
+2. The explorer renders a collapsible tree with download actions and consistent error messaging.
+3. Metadata parsing reuses Story 5.8 logic and surfaces missing fields gracefully.
+4. Automated tests cover drawer interactions, listing errors, and download triggers.
+
+## **Story 5.12: Media Preview in Book Explorer**
+**As an** administrator, **I want** inline previews for media assets, **so that** I can validate audio, video, and image uploads directly in the explorer.
+**Acceptance Criteria:**
+1. Supported images display inline previews; unsupported formats retain download-only behaviour.
+2. Audio and video files stream through HTML5 players using the existing Range-enabled endpoints.
+3. Preview failures show actionable feedback and fallback download controls.
+4. Frontend tests exercise media selection, preview rendering, and error handling states.

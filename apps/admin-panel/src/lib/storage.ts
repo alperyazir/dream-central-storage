@@ -1,4 +1,4 @@
-import { ApiClient, apiClient } from './api';
+import { ApiClient, apiClient, resolveApiUrl } from './api';
 import { buildAuthHeaders } from './http';
 
 export interface StorageNode {
@@ -18,6 +18,9 @@ export interface TrashEntry {
   object_count: number;
   total_size: number;
   metadata?: Record<string, string>;
+  youngest_last_modified: string | null;
+  eligible_at: string | null;
+  eligible_for_deletion: boolean;
 }
 
 export interface RestoreResponse {
@@ -31,6 +34,19 @@ export interface TrashDeleteResponse {
   objects_removed: number;
   item_type: TrashItemType;
 }
+
+export interface DeleteTrashOptions {
+  force?: boolean;
+  overrideReason?: string;
+}
+
+const encodePathSegment = (segment: string) => encodeURIComponent(segment);
+
+const bookStorageBasePath = (publisher: string, bookName: string) =>
+  `/storage/books/${encodePathSegment(publisher)}/${encodePathSegment(bookName)}`;
+
+const buildBookObjectUrl = (publisher: string, bookName: string, objectPath: string) =>
+  `${bookStorageBasePath(publisher, bookName)}/object?path=${encodeURIComponent(objectPath)}`;
 
 export const listAppContents = (
   platform: string,
@@ -66,10 +82,163 @@ export const deleteTrashEntry = (
   key: string,
   token: string,
   tokenType: string = 'Bearer',
-  client: ApiClient = apiClient
-): Promise<TrashDeleteResponse> =>
-  client.delete<TrashDeleteResponse, { key: string }>(
+  client: ApiClient = apiClient,
+  options: DeleteTrashOptions = {}
+): Promise<TrashDeleteResponse> => {
+  const payload: {
+    key: string;
+    force: boolean;
+    override_reason?: string;
+  } = {
+    key,
+    force: options.force ?? false
+  };
+
+  if (options.overrideReason) {
+    payload.override_reason = options.overrideReason;
+  }
+
+  return client.delete<TrashDeleteResponse, typeof payload>(
     '/storage/trash',
-    { key },
+    payload,
     { headers: buildAuthHeaders(token, tokenType) }
   );
+};
+
+export const listBookContents = (
+  publisher: string,
+  bookName: string,
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient
+): Promise<StorageNode> =>
+  client.get<StorageNode>(bookStorageBasePath(publisher, bookName), {
+    headers: buildAuthHeaders(token, tokenType)
+  });
+
+export const fetchBookConfig = (
+  publisher: string,
+  bookName: string,
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient
+): Promise<Record<string, unknown>> =>
+  client.get<Record<string, unknown>>(`${bookStorageBasePath(publisher, bookName)}/config`, {
+    headers: buildAuthHeaders(token, tokenType)
+  });
+
+export interface BookExplorerFetchResult {
+  tree: StorageNode | null;
+  config: Record<string, unknown> | null;
+  treeError: Error | null;
+  configError: Error | null;
+}
+
+const toError = (reason: unknown): Error => {
+  if (reason instanceof Error) {
+    return reason;
+  }
+  if (typeof reason === 'string') {
+    return new Error(reason);
+  }
+  return new Error('Request failed');
+};
+
+export const fetchBookExplorerData = async (
+  publisher: string,
+  bookName: string,
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient
+): Promise<BookExplorerFetchResult> => {
+  const [treeResult, configResult] = await Promise.allSettled([
+    client.get<StorageNode>(bookStorageBasePath(publisher, bookName), {
+      headers: buildAuthHeaders(token, tokenType)
+    }),
+    client.get<Record<string, unknown>>(`${bookStorageBasePath(publisher, bookName)}/config`, {
+      headers: buildAuthHeaders(token, tokenType)
+    })
+  ]);
+
+  const tree = treeResult.status === 'fulfilled' ? treeResult.value : null;
+  const config = configResult.status === 'fulfilled' ? configResult.value : null;
+
+  return {
+    tree,
+    config,
+    treeError: treeResult.status === 'rejected' ? toError(treeResult.reason) : null,
+    configError: configResult.status === 'rejected' ? toError(configResult.reason) : null
+  };
+};
+
+export const downloadBookObject = async (
+  publisher: string,
+  bookName: string,
+  objectPath: string,
+  token: string,
+  tokenType: string = 'Bearer',
+  options: DownloadBookObjectOptions = {}
+): Promise<Blob> => {
+  const { url, init } = createBookObjectRequest(
+    publisher,
+    bookName,
+    objectPath,
+    token,
+    tokenType,
+    { range: options.range, cache: options.cache }
+  );
+
+  const response = await fetch(url, {
+    ...init,
+    signal: options.signal
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || 'Unable to download file');
+  }
+
+  return response.blob();
+};
+
+export interface DownloadBookObjectOptions {
+  range?: string;
+  signal?: AbortSignal;
+  cache?: RequestCache;
+}
+
+export interface BookObjectRequest {
+  url: string;
+  init: RequestInit;
+}
+
+export interface BookObjectRequestOptions {
+  range?: string;
+  cache?: RequestCache;
+}
+
+export const createBookObjectRequest = (
+  publisher: string,
+  bookName: string,
+  objectPath: string,
+  token: string,
+  tokenType: string = 'Bearer',
+  options: BookObjectRequestOptions = {}
+): BookObjectRequest => {
+  const headers: Record<string, string> = {
+    ...buildAuthHeaders(token, tokenType)
+  };
+
+  if (options.range) {
+    headers.Range = options.range;
+  }
+
+  return {
+    url: resolveApiUrl(buildBookObjectUrl(publisher, bookName, objectPath)),
+    init: {
+      method: 'GET',
+      headers,
+      cache: options.cache ?? 'no-store'
+    }
+  };
+};

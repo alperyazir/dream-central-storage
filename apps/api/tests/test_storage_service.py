@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import zipfile
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock
 
@@ -254,12 +255,24 @@ def test_restore_prefix_from_trash_raises_when_empty() -> None:
 def test_list_trash_entries_aggregates_books_and_apps() -> None:
     client = MagicMock()
     client.list_objects.return_value = [
-        SimpleNamespace(object_name="books/Press/Atlas/file1.txt", size=10),
-        SimpleNamespace(object_name="books/Press/Atlas/notes/file2.txt", size=5),
-        SimpleNamespace(object_name="apps/macos/1.0/app.zip", size=20),
+        SimpleNamespace(
+            object_name="books/Press/Atlas/file1.txt",
+            size=10,
+            last_modified=datetime.now(UTC) - timedelta(days=8),
+        ),
+        SimpleNamespace(
+            object_name="books/Press/Atlas/notes/file2.txt",
+            size=5,
+            last_modified=datetime.now(UTC) - timedelta(days=6),
+        ),
+        SimpleNamespace(
+            object_name="apps/macos/1.0/app.zip",
+            size=20,
+            last_modified=datetime.now(UTC) - timedelta(days=2),
+        ),
     ]
 
-    entries = list_trash_entries(client, "trash")
+    entries = list_trash_entries(client, "trash", timedelta(days=7))
 
     keys = {entry.key for entry in entries}
     assert keys == {"apps/macos/1.0/", "books/Press/Atlas/"}
@@ -267,3 +280,9 @@ def test_list_trash_entries_aggregates_books_and_apps() -> None:
     assert book_entry.object_count == 2
     assert book_entry.total_size == 15
     assert book_entry.metadata == {"publisher": "Press", "book_name": "Atlas"}
+    assert book_entry.youngest_last_modified is not None
+    assert book_entry.eligible_at is not None
+    assert book_entry.eligible_for_deletion is False
+
+    app_entry = next(entry for entry in entries if entry.item_type == "app")
+    assert app_entry.eligible_for_deletion is False
