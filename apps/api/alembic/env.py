@@ -18,7 +18,7 @@ from app.core.config import get_settings
 from app.db import base  # noqa: E402  # pylint: disable=wrong-import-position
 
 # Import models so Alembic picks them up for autogenerate
-from app.models import book, user  # noqa: F401  # pylint: disable=unused-import,wrong-import-position
+from app.models import api_key, book, user  # noqa: F401  # pylint: disable=unused-import,wrong-import-position
 
 config = context.config
 

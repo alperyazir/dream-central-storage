@@ -1,0 +1,47 @@
+"""Repository for API key database operations."""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models.api_key import ApiKey
+from app.repositories.base import BaseRepository
+
+
+class ApiKeyRepository(BaseRepository[ApiKey]):
+    """Manages API key persistence and retrieval."""
+
+    def __init__(self):
+        super().__init__(ApiKey)
+
+    def create(self, session: Session, data: dict) -> ApiKey:
+        """Create a new API key record."""
+        api_key = ApiKey(**data)
+        return self.add(session, api_key)
+
+    def get_by_hash(self, session: Session, key_hash: str) -> ApiKey | None:
+        """Retrieve an API key by its hash."""
+        stmt = select(ApiKey).where(ApiKey.key_hash == key_hash)
+        result = session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    def list_all_keys(self, session: Session) -> list[ApiKey]:
+        """Return all API keys."""
+        return self.list_all(session)
+
+    def update_last_used(self, session: Session, api_key: ApiKey) -> ApiKey:
+        """Update the last_used_at timestamp for an API key."""
+        api_key.last_used_at = datetime.now(timezone.utc)
+        session.flush()
+        session.refresh(api_key)
+        return api_key
+
+    def revoke(self, session: Session, api_key: ApiKey) -> ApiKey:
+        """Revoke an API key by setting is_active to False."""
+        api_key.is_active = False
+        session.flush()
+        session.refresh(api_key)
+        return api_key

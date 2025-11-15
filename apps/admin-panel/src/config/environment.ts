@@ -2,7 +2,7 @@ export interface AppConfig {
   apiBaseUrl: string;
 }
 
-const DEFAULT_API_BASE_URL = 'http://localhost:8000';
+const DEFAULT_API_BASE_URL = 'http://localhost:8081';
 
 const normalizeBaseUrl = (value: string) => {
   const normalized = value.trim().replace(/\/+$/, '');

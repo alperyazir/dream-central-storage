@@ -14,7 +14,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session, object_session
 
 from app.core.config import get_settings
-from app.core.security import decode_access_token
+from app.core.security import decode_access_token, verify_api_key_from_db
 from app.db import get_db
 from app.repositories.book import BookRepository
 from app.repositories.user import UserRepository
@@ -39,31 +39,38 @@ logger = logging.getLogger(__name__)
 
 
 def _require_admin(credentials: HTTPAuthorizationCredentials, db: Session) -> int:
-    """Validate JWT token and ensure the referenced administrator exists."""
+    """Validate JWT token or API key and ensure authentication is valid."""
 
     token = credentials.credentials
+
+    # Try JWT first
     try:
         payload = decode_access_token(token, settings=get_settings())
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        ) from exc
+        subject = payload.get("sub")
+        if subject is not None:
+            try:
+                user_id = int(subject)
+                user = _user_repository.get(db, user_id)
+                if user is not None:
+                    return user_id
+            except (TypeError, ValueError):
+                pass
+    except ValueError:
+        pass  # JWT failed, try API key
 
-    subject = payload.get("sub")
-    if subject is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    # Try API key
+    api_key_info = verify_api_key_from_db(token, db)
+    if api_key_info is not None:
+        # API key authentication successful
+        # Return a special value to indicate API key auth (or could return the api_key_id)
+        # For now, return -1 to indicate API key authentication (not a user_id)
+        return -1
 
-    try:
-        user_id = int(subject)
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
-
-    user = _user_repository.get(db, user_id)
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-
-    return user_id
+    # Both JWT and API key failed
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid token",
+    )
 
 
 @router.post("/", response_model=BookRead, status_code=status.HTTP_201_CREATED)

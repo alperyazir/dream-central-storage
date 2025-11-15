@@ -134,9 +134,20 @@ async def get_book_config(
     """Return the `config.json` payload for a stored book."""
 
     _require_admin(credentials, db)
+
+    # Look up the book to get the version
+    book = _book_repository.get_by_publisher_and_name(db, publisher=publisher, book_name=book_name)
+    if book is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Book not found")
+
+    if not book.version:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Book has no version information")
+
     settings = get_settings()
     client = get_minio_client(settings)
-    object_key = _build_book_object_key(publisher, book_name, "config.json")
+
+    # Build the correct path: {publisher}/{book_name}/{version}/{book_name}/config.json
+    object_key = f"{publisher}/{book_name}/{book.version}/{book_name}/config.json"
 
     try:
         stat = client.stat_object(settings.minio_books_bucket, object_key)

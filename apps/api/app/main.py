@@ -6,9 +6,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routers import apps, auth, books, health, storage
+from app.routers import api_keys, apps, auth, books, health, storage
 from app.services import ensure_buckets, get_minio_client
 from app.monitoring import MetricsMiddleware, router as monitoring_router
+from app.db import SessionLocal
+from app.repositories.user import UserRepository
+from app.scripts.create_admin import create_admin_user
 
 
 logger = logging.getLogger(__name__)
@@ -47,9 +50,40 @@ async def wait_for_minio() -> None:
             delay *= 2
 
 
+def ensure_default_admin() -> None:
+    """Create default admin user if no users exist."""
+
+    with SessionLocal() as session:
+        repository = UserRepository()
+        # Check if any users exist
+        existing_user = session.query(repository.model).first()
+
+        if existing_user is None:
+            # No users exist, create default admin
+            default_email = "admin@admin.com"
+            default_password = "admin"
+
+            try:
+                user = create_admin_user(
+                    session,
+                    email=default_email,
+                    password=default_password
+                )
+                logger.info(
+                    "Created default admin user (email: %s, id: %d)",
+                    default_email,
+                    user.id,
+                )
+            except Exception as exc:
+                logger.error("Failed to create default admin user: %s", exc)
+        else:
+            logger.info("Users already exist, skipping default admin creation")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await wait_for_minio()
+    ensure_default_admin()
     yield
 
 
@@ -66,6 +100,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(api_keys.router)
 app.include_router(books.router)
 app.include_router(apps.router)
 app.include_router(storage.router)

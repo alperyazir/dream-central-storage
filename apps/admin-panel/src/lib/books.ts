@@ -17,7 +17,7 @@ export const fetchBooks = (
   token: string,
   tokenType: string = 'Bearer',
   client: ApiClient = apiClient
-): Promise<BookRecord[]> => client.get<BookRecord[]>('/books', { headers: buildAuthHeaders(token, tokenType) });
+): Promise<BookRecord[]> => client.get<BookRecord[]>('/books/', { headers: buildAuthHeaders(token, tokenType) });
 
 export const softDeleteBook = (
   bookId: number,
