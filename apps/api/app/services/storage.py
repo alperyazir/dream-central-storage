@@ -91,13 +91,66 @@ class DeletionReport:
     objects_removed: int
 
 
-def iter_zip_entries(archive: zipfile.ZipFile) -> Iterable[zipfile.ZipInfo]:
-    """Yield only file entries from the archive, skipping directories."""
+def _detect_root_folder(archive: zipfile.ZipFile) -> str | None:
+    """Detect if ZIP contains a single root folder and return its name."""
+
+    root_folders = set()
+
+    for entry in archive.infolist():
+        normalized_path = entry.filename.replace("\\", "/").rstrip("/")
+
+        # Skip macOS metadata
+        if "/__MACOSX/" in normalized_path or normalized_path.startswith("__MACOSX/"):
+            continue
+        if os.path.basename(normalized_path) == ".DS_Store":
+            continue
+        if os.path.basename(normalized_path).startswith("._"):
+            continue
+
+        # Get root folder
+        parts = normalized_path.split("/")
+        if len(parts) > 0:
+            root_folders.add(parts[0])
+
+        # If more than one root folder, no single root exists
+        if len(root_folders) > 1:
+            return None
+
+    # Return the single root folder if exactly one exists
+    return root_folders.pop() if len(root_folders) == 1 else None
+
+
+def iter_zip_entries(archive: zipfile.ZipFile, strip_root: str | None = None) -> Iterable[tuple[zipfile.ZipInfo, str]]:
+    """Yield file entries from archive with optionally stripped paths.
+
+    Returns tuples of (entry, final_path) where final_path has the root folder stripped if specified.
+    """
 
     for entry in archive.infolist():
         if entry.is_dir():
             continue
-        yield entry
+
+        # Normalize path for consistent checking
+        normalized_path = entry.filename.replace("\\", "/")
+
+        # Skip __MACOSX folders (macOS resource forks)
+        if "/__MACOSX/" in normalized_path or normalized_path.startswith("__MACOSX/"):
+            continue
+
+        # Skip .DS_Store files (macOS folder metadata)
+        if os.path.basename(normalized_path) == ".DS_Store":
+            continue
+
+        # Skip macOS resource fork files (._*)
+        if os.path.basename(normalized_path).startswith("._"):
+            continue
+
+        # Strip root folder if specified
+        final_path = normalized_path
+        if strip_root and normalized_path.startswith(f"{strip_root}/"):
+            final_path = normalized_path[len(strip_root) + 1:]
+
+        yield entry, final_path
 
 
 def upload_book_archive(
@@ -107,8 +160,12 @@ def upload_book_archive(
     bucket: str,
     object_prefix: str,
     content_type: str | None = None,
+    strip_root_folder: bool = True,
 ) -> list[dict[str, object]]:
     """Upload the provided ZIP archive into MinIO under the given prefix.
+
+    If strip_root_folder is True and ZIP contains a single root folder, that folder is stripped.
+    For example: BRAINS/file.txt becomes file.txt in storage.
 
     Returns a manifest containing uploaded file paths and sizes.
     """
@@ -118,9 +175,14 @@ def upload_book_archive(
     except zipfile.BadZipFile as exc:  # pragma: no cover - handled in tests
         raise UploadError("Uploaded file is not a valid ZIP archive") from exc
 
+    # Detect and strip root folder if requested
+    root_to_strip = None
+    if strip_root_folder:
+        root_to_strip = _detect_root_folder(archive)
+
     manifest: list[dict[str, object]] = []
-    for entry in iter_zip_entries(archive):
-        file_path = f"{object_prefix}{entry.filename}"
+    for entry, final_path in iter_zip_entries(archive, strip_root=root_to_strip):
+        file_path = f"{object_prefix}{final_path}"
         with archive.open(entry) as file_obj:
             stream = io.BytesIO(file_obj.read())
             stream.seek(0)

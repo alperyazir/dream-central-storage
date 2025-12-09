@@ -3,6 +3,22 @@
   margin: 0 auto;
 }
 
+.page-container {
+  width: 100%;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.page-title {
+  margin-bottom: 0.5rem;
+}
+
 .page--centered {
   display: flex;
   flex-direction: column;

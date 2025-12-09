@@ -24,11 +24,11 @@ const revokeObjectURLMock = vi.fn();
 const baseBook: BookListRow = {
   id: 42,
   bookName: 'Dream Atlas',
+  bookTitle: 'Dream Atlas',
   publisher: 'Dream Press',
   language: 'English',
   category: 'Fiction',
   status: 'published',
-  version: '1.0.0',
   createdAt: '2025-10-01T12:00:00Z',
   updatedAt: '2025-10-05T13:30:00Z'
 };

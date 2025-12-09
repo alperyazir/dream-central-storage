@@ -1,15 +1,19 @@
-"""Endpoints for listing stored content and restoring items from trash."""
+"""Endpoints for listing stored content and restoring items from trash.
+
+Includes HTTP Range support for efficient audio/video streaming.
+"""
 
 from __future__ import annotations
 
 import logging
+import re
 from datetime import timedelta
 from pathlib import PurePosixPath
 from typing import Literal
 
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -45,6 +49,89 @@ _bearer_scheme = HTTPBearer(auto_error=True)
 _user_repository = UserRepository()
 _book_repository = BookRepository()
 logger = logging.getLogger(__name__)
+
+# Media MIME types for proper Content-Type headers
+MEDIA_MIME_TYPES = {
+    ".mp3": "audio/mpeg",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".ogg": "audio/ogg",
+    ".wav": "audio/wav",
+    ".m4a": "audio/mp4",
+    ".aac": "audio/aac",
+    ".flac": "audio/flac",
+    ".srt": "text/plain",
+    ".vtt": "text/vtt",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".svg": "image/svg+xml",
+    ".pdf": "application/pdf",
+    ".json": "application/json",
+}
+
+
+def _get_media_type(path: str, default: str | None = None) -> str:
+    """Get MIME type based on file extension."""
+    path_lower = path.lower()
+    for ext, mime_type in MEDIA_MIME_TYPES.items():
+        if path_lower.endswith(ext):
+            return mime_type
+    return default or "application/octet-stream"
+
+
+def _parse_range_header(range_header: str, file_size: int) -> tuple[int, int]:
+    """
+    Parse HTTP Range header and return (start, end) byte positions.
+
+    Supports formats:
+    - bytes=0-1023  (first 1024 bytes)
+    - bytes=1024-   (from byte 1024 to end)
+    - bytes=-500    (last 500 bytes)
+
+    Raises HTTPException with 416 status for invalid ranges.
+    """
+    range_match = re.match(r"bytes=(\d*)-(\d*)", range_header)
+    if not range_match:
+        raise HTTPException(
+            status_code=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE,
+            detail="Invalid Range header format",
+            headers={"Content-Range": f"bytes */{file_size}"},
+        )
+
+    range_start, range_end = range_match.groups()
+
+    # Handle different range formats
+    if range_start and range_end:
+        # bytes=0-1023
+        start = int(range_start)
+        end = int(range_end)
+    elif range_start:
+        # bytes=1024- (from start to end of file)
+        start = int(range_start)
+        end = file_size - 1
+    elif range_end:
+        # bytes=-500 (last 500 bytes)
+        start = max(0, file_size - int(range_end))
+        end = file_size - 1
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE,
+            detail="Invalid Range header",
+            headers={"Content-Range": f"bytes */{file_size}"},
+        )
+
+    # Validate range bounds
+    if start < 0 or start >= file_size or end >= file_size or start > end:
+        raise HTTPException(
+            status_code=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE,
+            detail="Range Not Satisfiable",
+            headers={"Content-Range": f"bytes */{file_size}"},
+        )
+
+    return start, end
 
 
 def _require_admin(credentials: HTTPAuthorizationCredentials, db: Session) -> int:
@@ -180,21 +267,81 @@ async def get_book_config(
     return payload
 
 
+@router.get("/books/{publisher}/{book_name}/cover")
+async def get_book_cover_url(
+    publisher: str,
+    book_name: str,
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    db: Session = Depends(get_db),
+):
+    """Generate a presigned URL for the book cover image."""
+
+    _require_admin(credentials, db)
+    settings = get_settings()
+    client = get_minio_client(settings)
+    object_key = _build_book_object_key(publisher, book_name, "images/book_cover.png")
+
+    try:
+        # Check if the file exists
+        client.stat_object(settings.minio_books_bucket, object_key)
+    except S3Error as exc:
+        if exc.code == "NoSuchKey":
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Book cover not found") from exc
+        logger.error("Failed statting book cover '%s': %s", object_key, exc)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to load book cover") from exc
+
+    # Generate presigned URL valid for 1 hour
+    try:
+        url = client.presigned_get_object(
+            settings.minio_books_bucket,
+            object_key,
+            expires=timedelta(hours=1)
+        )
+
+        # Replace internal endpoint with external URL for browser access
+        if settings.minio_endpoint in url:
+            protocol = "https://" if settings.minio_secure else "http://"
+            internal_base = f"{protocol}{settings.minio_endpoint}"
+            url = url.replace(internal_base, settings.minio_external_url)
+
+        return {"url": url}
+    except S3Error as exc:
+        logger.error("Failed generating presigned URL for '%s': %s", object_key, exc)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to generate URL") from exc
+
+
 @router.get("/books/{publisher}/{book_name}/object")
 async def download_book_object(
     publisher: str,
     book_name: str,
     path: str = Query(..., description="Relative path to the object within the book"),
+    range_header: str | None = Header(None, alias="Range"),
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
 ):
-    """Download a specific object stored under a book prefix."""
+    """
+    Download or stream a specific object stored under a book prefix.
 
+    Supports HTTP Range requests for efficient audio/video streaming.
+    This enables YouTube-style playback where users can seek without
+    downloading the entire file.
+
+    **Range Header Examples:**
+    - `Range: bytes=0-1023` - First 1024 bytes
+    - `Range: bytes=1024-` - From byte 1024 to end
+    - `Range: bytes=-500` - Last 500 bytes
+
+    **Response Codes:**
+    - `200 OK` - Full file (no Range header)
+    - `206 Partial Content` - Partial file (Range header present)
+    - `416 Range Not Satisfiable` - Invalid range requested
+    """
     _require_admin(credentials, db)
     settings = get_settings()
     client = get_minio_client(settings)
     object_key = _build_book_object_key(publisher, book_name, path)
 
+    # Get file metadata (size is required for Range support)
     try:
         stat = client.stat_object(settings.minio_books_bucket, object_key)
     except S3Error as exc:
@@ -203,32 +350,78 @@ async def download_book_object(
         logger.error("Failed statting book object '%s': %s", object_key, exc)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to load object metadata") from exc
 
-    try:
-        obj = client.get_object(settings.minio_books_bucket, object_key)
-    except S3Error as exc:
-        if exc.code == "NoSuchKey":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="File not found") from exc
-        logger.error("Failed downloading book object '%s': %s", object_key, exc)
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to download file") from exc
+    file_size = stat.size
+    if file_size is None:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to determine file size")
 
-    filename = PurePosixPath(object_key).name or "download"
-    media_type = getattr(stat, "content_type", None) or "application/octet-stream"
+    # Determine MIME type (prefer our mapping over MinIO's detection)
+    media_type = _get_media_type(path, getattr(stat, "content_type", None))
+
+    # Parse Range header if present
+    start = 0
+    end = file_size - 1
+    is_range_request = False
+
+    if range_header:
+        is_range_request = True
+        start, end = _parse_range_header(range_header, file_size)
+        logger.debug(
+            "Range request for '%s': bytes=%d-%d (total=%d)",
+            object_key, start, end, file_size
+        )
+
+    content_length = end - start + 1
 
     def iterator():
+        """Stream chunks from MinIO with optional offset/length for Range requests."""
         try:
-            for chunk in obj.stream(32 * 1024):
-                yield chunk
-        finally:
-            obj.close()
-            obj.release_conn()
+            # Use offset and length for partial reads (efficient streaming)
+            obj = client.get_object(
+                settings.minio_books_bucket,
+                object_key,
+                offset=start,
+                length=content_length,
+            )
+            try:
+                for chunk in obj.stream(32 * 1024):
+                    yield chunk
+            finally:
+                obj.close()
+                obj.release_conn()
+        except S3Error as exc:
+            logger.error("Failed streaming book object '%s': %s", object_key, exc)
+            raise
 
+    # Build response headers
+    filename = PurePosixPath(object_key).name or "download"
     headers = {
-        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(content_length),
+        "Content-Disposition": f'inline; filename="{filename}"',
     }
-    if getattr(stat, "size", None) is not None:
-        headers["Content-Length"] = str(stat.size)
 
-    return StreamingResponse(iterator(), media_type=media_type, headers=headers)
+    if is_range_request:
+        # 206 Partial Content for range requests
+        headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+        logger.info(
+            "Streaming range %d-%d/%d for '%s'",
+            start, end, file_size, object_key
+        )
+        return StreamingResponse(
+            iterator(),
+            status_code=status.HTTP_206_PARTIAL_CONTENT,
+            media_type=media_type,
+            headers=headers,
+        )
+    else:
+        # 200 OK for full file requests
+        logger.debug("Streaming full file '%s' (%d bytes)", object_key, file_size)
+        return StreamingResponse(
+            iterator(),
+            status_code=status.HTTP_200_OK,
+            media_type=media_type,
+            headers=headers,
+        )
 
 
 @router.get("/apps/{platform}")
@@ -379,15 +572,8 @@ def delete_trash_entry(
     admin_id = _require_admin(credentials, db)
     bucket, path_parts = _parse_trash_key(payload.key)
 
+    # Override reason is optional now - no longer required for force deletion
     override_reason = payload.override_reason.strip() if payload.override_reason else None
-    if payload.force:
-        if not override_reason:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="override_reason is required when force=true",
-            )
-    else:
-        override_reason = None
 
     settings = get_settings()
     client = get_minio_client(settings)

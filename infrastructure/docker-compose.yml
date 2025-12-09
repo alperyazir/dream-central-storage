@@ -32,15 +32,14 @@ services:
       - ../apps/api:/app
     command: >
       sh -c "alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+             uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload"
 
   minio:
     image: minio/minio:latest
     environment:
       MINIO_ROOT_USER: dream_minio
       MINIO_ROOT_PASSWORD: dream_minio_secret
+      MINIO_SERVER_URL: http://localhost:9000
     command: server /data --console-address ":9090"
     ports:
       - "9000:9000"

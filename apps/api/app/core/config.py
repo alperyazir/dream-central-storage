@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     database_name: str = "dream_central"
 
     minio_endpoint: str = "localhost:9000"
+    minio_external_url: str = "http://localhost:9000"  # Public URL for presigned URLs
     minio_access_key: str = "dream_minio"
     minio_secret_key: str = "dream_minio_secret"
     minio_secure: bool = False

@@ -303,6 +303,245 @@ def test_download_book_object_streams_content(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert response.content == data
-    assert response.headers["content-disposition"].startswith("attachment;")
+    assert response.headers["content-disposition"].startswith("inline;")
+    assert response.headers["accept-ranges"] == "bytes"
     fake_obj.close.assert_called_once()
     fake_obj.release_conn.assert_called_once()
+
+
+# ============================================================================
+# HTTP Range Request Tests (Streaming Support)
+# ============================================================================
+
+
+def test_download_book_object_range_request_partial_content(monkeypatch) -> None:
+    """Test that Range header returns 206 Partial Content with correct headers."""
+    from app.routers import storage
+
+    # Full file is 100 bytes, requesting bytes 0-9 (first 10 bytes)
+    full_data = b"x" * 100
+    partial_data = full_data[0:10]
+
+    fake_obj = MagicMock()
+    fake_obj.stream.return_value = iter([partial_data])
+    fake_obj.close = MagicMock()
+    fake_obj.release_conn = MagicMock()
+
+    fake_client = MagicMock()
+    fake_client.stat_object.return_value = SimpleNamespace(size=100, content_type="audio/mpeg")
+    fake_client.get_object.return_value = fake_obj
+
+    monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
+
+    client = TestClient(app)
+    headers = _auth_headers()
+    headers["Range"] = "bytes=0-9"
+
+    response = client.get(
+        "/storage/books/Dream/Sky/object",
+        params={"path": "audio/test.mp3"},
+        headers=headers,
+    )
+
+    assert response.status_code == 206
+    assert response.headers["content-range"] == "bytes 0-9/100"
+    assert response.headers["content-length"] == "10"
+    assert response.headers["accept-ranges"] == "bytes"
+    assert response.headers["content-type"] == "audio/mpeg"
+
+    # Verify MinIO was called with offset and length
+    fake_client.get_object.assert_called_once()
+    call_kwargs = fake_client.get_object.call_args
+    assert call_kwargs.kwargs.get("offset") == 0
+    assert call_kwargs.kwargs.get("length") == 10
+
+
+def test_download_book_object_range_request_open_end(monkeypatch) -> None:
+    """Test Range header with open end (bytes=50-)."""
+    from app.routers import storage
+
+    full_size = 100
+    partial_data = b"x" * 50  # bytes 50-99
+
+    fake_obj = MagicMock()
+    fake_obj.stream.return_value = iter([partial_data])
+    fake_obj.close = MagicMock()
+    fake_obj.release_conn = MagicMock()
+
+    fake_client = MagicMock()
+    fake_client.stat_object.return_value = SimpleNamespace(size=full_size, content_type="video/mp4")
+    fake_client.get_object.return_value = fake_obj
+
+    monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
+
+    client = TestClient(app)
+    headers = _auth_headers()
+    headers["Range"] = "bytes=50-"
+
+    response = client.get(
+        "/storage/books/Dream/Sky/object",
+        params={"path": "videos/intro.mp4"},
+        headers=headers,
+    )
+
+    assert response.status_code == 206
+    assert response.headers["content-range"] == "bytes 50-99/100"
+    assert response.headers["content-length"] == "50"
+
+    # Verify MinIO was called with offset=50, length=50
+    call_kwargs = fake_client.get_object.call_args
+    assert call_kwargs.kwargs.get("offset") == 50
+    assert call_kwargs.kwargs.get("length") == 50
+
+
+def test_download_book_object_range_request_suffix(monkeypatch) -> None:
+    """Test Range header with suffix (bytes=-20 means last 20 bytes)."""
+    from app.routers import storage
+
+    full_size = 100
+    partial_data = b"x" * 20  # bytes 80-99
+
+    fake_obj = MagicMock()
+    fake_obj.stream.return_value = iter([partial_data])
+    fake_obj.close = MagicMock()
+    fake_obj.release_conn = MagicMock()
+
+    fake_client = MagicMock()
+    fake_client.stat_object.return_value = SimpleNamespace(size=full_size, content_type="audio/mpeg")
+    fake_client.get_object.return_value = fake_obj
+
+    monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
+
+    client = TestClient(app)
+    headers = _auth_headers()
+    headers["Range"] = "bytes=-20"
+
+    response = client.get(
+        "/storage/books/Dream/Sky/object",
+        params={"path": "audio/test.mp3"},
+        headers=headers,
+    )
+
+    assert response.status_code == 206
+    assert response.headers["content-range"] == "bytes 80-99/100"
+    assert response.headers["content-length"] == "20"
+
+    # Verify MinIO was called with offset=80, length=20
+    call_kwargs = fake_client.get_object.call_args
+    assert call_kwargs.kwargs.get("offset") == 80
+    assert call_kwargs.kwargs.get("length") == 20
+
+
+def test_download_book_object_range_invalid_format(monkeypatch) -> None:
+    """Test that invalid Range header format returns 416."""
+    from app.routers import storage
+
+    fake_client = MagicMock()
+    fake_client.stat_object.return_value = SimpleNamespace(size=100, content_type="audio/mpeg")
+
+    monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
+
+    client = TestClient(app)
+    headers = _auth_headers()
+    headers["Range"] = "invalid-range-format"
+
+    response = client.get(
+        "/storage/books/Dream/Sky/object",
+        params={"path": "audio/test.mp3"},
+        headers=headers,
+    )
+
+    assert response.status_code == 416
+    assert "content-range" in response.headers
+    assert response.headers["content-range"] == "bytes */100"
+
+
+def test_download_book_object_range_out_of_bounds(monkeypatch) -> None:
+    """Test that out-of-bounds Range returns 416."""
+    from app.routers import storage
+
+    fake_client = MagicMock()
+    fake_client.stat_object.return_value = SimpleNamespace(size=100, content_type="audio/mpeg")
+
+    monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
+
+    client = TestClient(app)
+    headers = _auth_headers()
+    headers["Range"] = "bytes=150-200"  # Beyond file size
+
+    response = client.get(
+        "/storage/books/Dream/Sky/object",
+        params={"path": "audio/test.mp3"},
+        headers=headers,
+    )
+
+    assert response.status_code == 416
+
+
+def test_download_book_object_mime_type_detection(monkeypatch) -> None:
+    """Test that MIME types are correctly detected from file extension."""
+    from app.routers import storage
+
+    test_cases = [
+        ("audio/track.mp3", "audio/mpeg"),
+        ("videos/intro.mp4", "video/mp4"),
+        ("audio/sound.wav", "audio/wav"),
+        ("videos/clip.webm", "video/webm"),
+        ("subtitles/en.srt", "text/plain"),
+    ]
+
+    for path, expected_mime in test_cases:
+        data = b"test content"
+        fake_obj = MagicMock()
+        fake_obj.stream.return_value = iter([data])
+        fake_obj.close = MagicMock()
+        fake_obj.release_conn = MagicMock()
+
+        fake_client = MagicMock()
+        # MinIO returns generic type, but we should override based on extension
+        fake_client.stat_object.return_value = SimpleNamespace(
+            size=len(data), content_type="application/octet-stream"
+        )
+        fake_client.get_object.return_value = fake_obj
+
+        monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
+
+        client = TestClient(app)
+        response = client.get(
+            "/storage/books/Dream/Sky/object",
+            params={"path": path},
+            headers=_auth_headers(),
+        )
+
+        assert response.status_code == 200
+        # Content-Type may include charset for text types
+        assert response.headers["content-type"].startswith(expected_mime), f"Failed for {path}"
+
+
+def test_download_book_object_no_range_includes_accept_ranges(monkeypatch) -> None:
+    """Test that responses without Range header still include Accept-Ranges header."""
+    from app.routers import storage
+
+    data = b"full file content"
+    fake_obj = MagicMock()
+    fake_obj.stream.return_value = iter([data])
+    fake_obj.close = MagicMock()
+    fake_obj.release_conn = MagicMock()
+
+    fake_client = MagicMock()
+    fake_client.stat_object.return_value = SimpleNamespace(size=len(data), content_type="audio/mpeg")
+    fake_client.get_object.return_value = fake_obj
+
+    monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
+
+    client = TestClient(app)
+    response = client.get(
+        "/storage/books/Dream/Sky/object",
+        params={"path": "audio/test.mp3"},
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200
+    # This tells browsers that Range requests are supported
+    assert response.headers["accept-ranges"] == "bytes"
+    assert response.headers["content-length"] == str(len(data))

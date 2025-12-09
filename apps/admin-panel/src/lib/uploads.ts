@@ -78,3 +78,39 @@ export const uploadAppArchive = async (
     headers: buildAuthHeaders(token, tokenType)
   });
 };
+
+export interface BulkUploadResult {
+  filename: string;
+  success: boolean;
+  book_id: number | null;
+  book_name: string | null;
+  publisher: string | null;
+  error: string | null;
+}
+
+export interface BulkUploadResponse {
+  total: number;
+  successful: number;
+  failed: number;
+  results: BulkUploadResult[];
+}
+
+export const uploadBulkBookArchives = async (
+  files: File[],
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient,
+  options: UploadOptions = {}
+): Promise<BulkUploadResponse> => {
+  const formData = new FormData();
+  files.forEach((file) => {
+    formData.append('files', file, file.name);
+  });
+  return client.postForm<BulkUploadResponse>(
+    appendOverrideParam('/books/upload-bulk', options.override),
+    formData,
+    {
+      headers: buildAuthHeaders(token, tokenType)
+    }
+  );
+};

@@ -1,4 +1,4 @@
-import { createTheme } from '@mui/material/styles';
+import { createTheme, PaletteMode } from '@mui/material/styles';
 
 const turquoise = {
   50: '#f2fbf9',
@@ -19,9 +19,9 @@ const denim = {
   dark: '#12557c'
 };
 
-export const appTheme = createTheme({
+export const createAppTheme = (mode: PaletteMode) => createTheme({
   palette: {
-    mode: 'light',
+    mode,
     primary: {
       main: turquoise[500],
       light: turquoise[300],
@@ -34,15 +34,21 @@ export const appTheme = createTheme({
       dark: denim.dark,
       contrastText: '#ffffff'
     },
-    background: {
+    background: mode === 'light' ? {
       default: turquoise[50],
       paper: '#ffffff'
+    } : {
+      default: '#0a1929',
+      paper: '#132f4c'
     },
-    text: {
+    text: mode === 'light' ? {
       primary: '#04313d',
       secondary: '#0f5c65'
+    } : {
+      primary: '#e3f2fd',
+      secondary: '#b0bec5'
     },
-    divider: '#b4e1e4',
+    divider: mode === 'light' ? '#b4e1e4' : '#1e4976',
     success: {
       main: '#16836a'
     },
@@ -109,9 +115,9 @@ export const appTheme = createTheme({
     },
     MuiTableHead: {
       styleOverrides: {
-        root: {
-          backgroundColor: turquoise[100]
-        }
+        root: ({ theme }) => ({
+          backgroundColor: theme.palette.mode === 'light' ? turquoise[100] : theme.palette.background.paper
+        })
       }
     },
     MuiOutlinedInput: {
@@ -123,5 +129,7 @@ export const appTheme = createTheme({
     }
   }
 });
+
+export const appTheme = createAppTheme('light');
 
 export default appTheme;

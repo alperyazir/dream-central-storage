@@ -4,21 +4,29 @@ import { Box, CircularProgress, Typography } from '@mui/material';
 
 import MainLayout from './layouts/MainLayout';
 import DashboardPage from './pages/Dashboard';
+import BooksPage from './pages/Books';
+import AppsPage from './pages/Apps';
 import LoginPage from './pages/Login';
 import TrashPage from './pages/Trash';
 import ProtectedRoute from './routes/ProtectedRoute';
 import { useAuthStore } from './stores/auth';
+import { useThemeStore } from './stores/theme';
 
 const App = () => {
   const hydrate = useAuthStore((state) => state.hydrate);
   const isHydrated = useAuthStore((state) => state.isHydrated);
   const isHydrating = useAuthStore((state) => state.isHydrating);
+  const themeMode = useThemeStore((state) => state.mode);
 
   useEffect(() => {
     hydrate().catch((error) => {
       console.error('Failed to hydrate auth session', error);
     });
   }, [hydrate]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', themeMode);
+  }, [themeMode]);
 
   if (!isHydrated || isHydrating) {
     return (
@@ -41,6 +49,8 @@ const App = () => {
         <Route path="/" element={<MainLayout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="books" element={<BooksPage />} />
+          <Route path="apps" element={<AppsPage />} />
           <Route path="trash" element={<TrashPage />} />
         </Route>
       </Route>

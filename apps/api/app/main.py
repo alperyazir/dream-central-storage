@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routers import api_keys, apps, auth, books, health, storage
+from app.routers import api_keys, apps, auth, books, health, storage, webhooks
 from app.services import ensure_buckets, get_minio_client
 from app.monitoring import MetricsMiddleware, router as monitoring_router
 from app.db import SessionLocal
@@ -104,6 +104,7 @@ app.include_router(api_keys.router)
 app.include_router(books.router)
 app.include_router(apps.router)
 app.include_router(storage.router)
+app.include_router(webhooks.router)
 app.include_router(health.router)
 app.include_router(monitoring_router)
 

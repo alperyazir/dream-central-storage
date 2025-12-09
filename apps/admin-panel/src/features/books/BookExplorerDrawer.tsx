@@ -203,7 +203,7 @@ const buildMetadata = (
   bookName: extractConfigField(config, CONFIG_ALIASES.bookName) ?? book?.bookName,
   language: extractConfigField(config, CONFIG_ALIASES.language) ?? book?.language,
   category: extractConfigField(config, CONFIG_ALIASES.category) ?? book?.category,
-  version: extractConfigField(config, CONFIG_ALIASES.version) ?? book?.version,
+  version: extractConfigField(config, CONFIG_ALIASES.version),
   status: (extractConfigField(config, CONFIG_ALIASES.status) ?? book?.status)?.toString(),
   createdAt: book?.createdAt,
   updatedAt: book?.updatedAt

@@ -3,6 +3,8 @@ import {
   Alert,
   Box,
   Button,
+  Card,
+  CardContent,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -28,6 +30,10 @@ import {
   Stack
 } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
+import AppsIcon from '@mui/icons-material/Apps';
+import FolderIcon from '@mui/icons-material/Folder';
+import StorageIcon from '@mui/icons-material/Storage';
 
 import { fetchBooks, BookRecord, softDeleteBook } from '../lib/books';
 import { SUPPORTED_APP_PLATFORMS, toPlatformSlug } from '../lib/platforms';
@@ -94,11 +100,13 @@ const mapBookRecords = (records: BookRecord[]): BookListRow[] =>
   records.map((record) => ({
     id: record.id,
     bookName: record.book_name,
+    bookTitle: record.book_title || record.book_name,
+    bookCover: record.book_cover,
+    activityCount: record.activity_count,
     publisher: record.publisher,
     language: record.language,
-    category: record.category,
+    category: record.category || '',
     status: record.status,
-    version: record.version,
     createdAt: record.created_at,
     updatedAt: record.updated_at
   }));
@@ -362,6 +370,23 @@ const DashboardPage = () => {
     [books]
   );
 
+  const totalBookSize = useMemo(() => {
+    // This would need actual size data from books - placeholder for now
+    return 0;
+  }, [books]);
+
+  const totalAppSize = useMemo(() => {
+    return appBuilds.reduce((acc, build) => acc + (build.size || 0), 0);
+  }, [appBuilds]);
+
+  const formatBytes = (bytes: number | undefined) => {
+    if (!bytes || bytes === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    const value = bytes / Math.pow(1024, exponent);
+    return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
+  };
+
   const uploadDialog = (
     <UploadDialog
       open={isUploadOpen}
@@ -441,218 +466,112 @@ const DashboardPage = () => {
         </Alert>
       ) : null}
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-        <FormControl size="small" sx={{ minWidth: 220 }}>
-          <InputLabel id="publisher-filter-label">Publisher</InputLabel>
-          <Select
-            labelId="publisher-filter-label"
-            id="publisher-filter"
-            value={publisherFilter}
-            label="Publisher"
-            onChange={handlePublisherChange}
-          >
-            <MenuItem value="all">All publishers</MenuItem>
-            {uniquePublishers.map((publisher) => (
-              <MenuItem key={publisher} value={publisher}>
-                {publisher}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <Typography variant="body2" color="text.secondary">
-          Showing {filteredBooks.length} of {books.length} books
-        </Typography>
-        <Button variant="contained" onClick={() => setIsUploadOpen(true)} sx={{ ml: 'auto' }}>
-          Upload
-        </Button>
+      {/* Summary Cards */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr' }, gap: 3, mb: 4 }}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box
+                  sx={{
+                    bgcolor: 'primary.main',
+                    color: 'primary.contrastText',
+                    p: 1.5,
+                    borderRadius: 2,
+                    display: 'flex'
+                  }}
+                >
+                  <MenuBookIcon fontSize="medium" />
+                </Box>
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="h4" component="div" fontWeight={700}>
+                    {books.length}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Total Books
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+
+        <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box
+                  sx={{
+                    bgcolor: 'secondary.main',
+                    color: 'secondary.contrastText',
+                    p: 1.5,
+                    borderRadius: 2,
+                    display: 'flex'
+                  }}
+                >
+                  <AppsIcon fontSize="medium" />
+                </Box>
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="h4" component="div" fontWeight={700}>
+                    {appBuilds.length}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    App Builds
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+
+        <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box
+                  sx={{
+                    bgcolor: 'success.main',
+                    color: 'white',
+                    p: 1.5,
+                    borderRadius: 2,
+                    display: 'flex'
+                  }}
+                >
+                  <FolderIcon fontSize="medium" />
+                </Box>
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="h4" component="div" fontWeight={700}>
+                    {uniquePublishers.length}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Publishers
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+
+        <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box
+                  sx={{
+                    bgcolor: 'warning.main',
+                    color: 'white',
+                    p: 1.5,
+                    borderRadius: 2,
+                    display: 'flex'
+                  }}
+                >
+                  <StorageIcon fontSize="medium" />
+                </Box>
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="h4" component="div" fontWeight={700}>
+                    {formatBytes(totalAppSize)}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Total Storage
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
       </Box>
-
-      <TableContainer component={Paper} sx={{ mb: 4 }}>
-        <Table aria-label="Books table">
-          <TableHead>
-            <TableRow>
-              <TableCell sortDirection={bookSort.field === 'bookName' ? bookSort.direction : false}>
-                <TableSortLabel
-                  active={bookSort.field === 'bookName'}
-                  direction={bookSort.field === 'bookName' ? bookSort.direction : 'asc'}
-                  onClick={() => toggleBookSort('bookName')}
-                >
-                  Title
-                </TableSortLabel>
-              </TableCell>
-              <TableCell sortDirection={bookSort.field === 'publisher' ? bookSort.direction : false}>
-                <TableSortLabel
-                  active={bookSort.field === 'publisher'}
-                  direction={bookSort.field === 'publisher' ? bookSort.direction : 'asc'}
-                  onClick={() => toggleBookSort('publisher')}
-                >
-                  Publisher
-                </TableSortLabel>
-              </TableCell>
-              <TableCell sortDirection={bookSort.field === 'language' ? bookSort.direction : false}>
-                <TableSortLabel
-                  active={bookSort.field === 'language'}
-                  direction={bookSort.field === 'language' ? bookSort.direction : 'asc'}
-                  onClick={() => toggleBookSort('language')}
-                >
-                  Language
-                </TableSortLabel>
-              </TableCell>
-              <TableCell sortDirection={bookSort.field === 'category' ? bookSort.direction : false}>
-                <TableSortLabel
-                  active={bookSort.field === 'category'}
-                  direction={bookSort.field === 'category' ? bookSort.direction : 'asc'}
-                  onClick={() => toggleBookSort('category')}
-                >
-                  Category
-                </TableSortLabel>
-              </TableCell>
-              <TableCell align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredBooks.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} align="center">
-                  {books.length === 0 ? 'No books found.' : 'No books match the selected publisher.'}
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredBooks.map((book) => (
-                <TableRow key={book.id} hover>
-                  <TableCell>{book.bookName}</TableCell>
-                  <TableCell>{book.publisher}</TableCell>
-                  <TableCell>{book.language}</TableCell>
-                  <TableCell>{book.category}</TableCell>
-                  <TableCell align="right">
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => setExplorerBook(book)}
-                        disabled={!token}
-                      >
-                        View contents
-                      </Button>
-                      <Tooltip title="Soft-delete book">
-                        <span>
-                          <IconButton
-                            size="small"
-                            color="error"
-                            aria-label={`Soft-delete book ${book.bookName}`}
-                            onClick={() => promptBookDelete(book)}
-                            disabled={isDeleting}
-                          >
-                            <DeleteOutlineIcon fontSize="small" />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
-                    </Stack>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      <Typography variant="h5" component="h2" gutterBottom>
-        Application Builds
-      </Typography>
-      <Typography variant="body2" color="text.secondary" paragraph>
-        Currently tracking {appBuilds.length} build artifact{appBuilds.length === 1 ? '' : 's'} across {platformCount} platform{platformCount === 1 ? '' : 's'}.
-      </Typography>
-
-      <TableContainer component={Paper}>
-        <Table aria-label="Application builds table">
-          <TableHead>
-            <TableRow>
-              <TableCell sortDirection={appSort.field === 'platform' ? appSort.direction : false}>
-                <TableSortLabel
-                  active={appSort.field === 'platform'}
-                  direction={appSort.field === 'platform' ? appSort.direction : 'asc'}
-                  onClick={() => toggleAppSort('platform')}
-                >
-                  Platform
-                </TableSortLabel>
-              </TableCell>
-              <TableCell sortDirection={appSort.field === 'version' ? appSort.direction : false}>
-                <TableSortLabel
-                  active={appSort.field === 'version'}
-                  direction={appSort.field === 'version' ? appSort.direction : 'asc'}
-                  onClick={() => toggleAppSort('version')}
-                >
-                  Version
-                </TableSortLabel>
-              </TableCell>
-              <TableCell sortDirection={appSort.field === 'fileName' ? appSort.direction : false} sx={{ minWidth: 200 }}>
-                <TableSortLabel
-                  active={appSort.field === 'fileName'}
-                  direction={appSort.field === 'fileName' ? appSort.direction : 'asc'}
-                  onClick={() => toggleAppSort('fileName')}
-                >
-                  File
-                </TableSortLabel>
-              </TableCell>
-              <TableCell sortDirection={appSort.field === 'size' ? appSort.direction : false}>
-                <TableSortLabel
-                  active={appSort.field === 'size'}
-                  direction={appSort.field === 'size' ? appSort.direction : 'asc'}
-                  onClick={() => toggleAppSort('size')}
-                >
-                  Size
-                </TableSortLabel>
-              </TableCell>
-              <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                Actions
-              </TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {sortedAppBuilds.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} align="center">
-                  No application builds found.
-                </TableCell>
-              </TableRow>
-            ) : (
-              sortedAppBuilds.map((build) => (
-                <TableRow key={build.storagePath} hover>
-                  <TableCell>{build.platform}</TableCell>
-                  <TableCell>{build.version || '—'}</TableCell>
-                  <TableCell>{build.fileName || '—'}</TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatBytes(build.size)}</TableCell>
-                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                    <Tooltip title="Soft-delete application build">
-                      <span>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          aria-label={`Soft-delete build ${formatBuildLabel(build)}`}
-                          onClick={() => promptAppDelete(build)}
-                          disabled={isDeleting}
-                        >
-                          <DeleteOutlineIcon fontSize="small" />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      {uploadDialog}
-      {deleteDialog}
-      <BookExplorerDrawer
-        open={Boolean(explorerBook)}
-        onClose={() => setExplorerBook(null)}
-        book={explorerBook}
-        token={token ?? null}
-        tokenType={tokenType}
-      />
     </section>
   );
 };

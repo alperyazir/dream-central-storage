@@ -22,7 +22,9 @@ class BookRepository(BaseRepository[Book]):
         return created
 
     def list_all_books(self, session: Session) -> list[Book]:
-        return self.list_all(session)
+        """List all books that are not archived (not in trash)."""
+        statement = select(Book).where(Book.status != BookStatusEnum.ARCHIVED)
+        return list(session.scalars(statement).all())
 
     def get_by_id(self, session: Session, identifier: int) -> Book | None:
         return self.get(session, identifier)

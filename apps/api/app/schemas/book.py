@@ -13,10 +13,14 @@ class BookBase(BaseModel):
     """Shared attributes required for book metadata operations."""
 
     publisher: str = Field(..., max_length=255)
-    book_name: str = Field(..., max_length=255)
-    language: str = Field(..., max_length=64)
-    category: str = Field(..., max_length=128)
-    version: str | None = Field(default=None, max_length=64)
+    book_name: str = Field(..., max_length=255)  # Derived from ZIP filename
+    book_title: str | None = Field(default=None, max_length=255)  # From config.json
+    book_cover: str | None = Field(default=None, max_length=512)
+    activity_count: int | None = Field(default=None)
+    activity_details: dict | None = Field(default=None)
+    total_size: int | None = Field(default=None)
+    language: str = Field(default="en", max_length=64)  # Defaults to "en" if not specified
+    category: str | None = Field(default=None, max_length=128)
     status: BookStatusEnum = Field(default=BookStatusEnum.DRAFT)
 
 
@@ -31,9 +35,13 @@ class BookUpdate(BaseModel):
 
     publisher: str | None = Field(default=None, max_length=255)
     book_name: str | None = Field(default=None, max_length=255)
-    language: str | None = Field(default=None, max_length=64)
+    book_title: str | None = Field(default=None, max_length=255)
+    book_cover: str | None = Field(default=None, max_length=512)
+    activity_count: int | None = Field(default=None)
+    activity_details: dict | None = Field(default=None)
+    total_size: int | None = Field(default=None)
+    language: str | None = Field(default="en", max_length=64)  # Defaults to "en"
     category: str | None = Field(default=None, max_length=128)
-    version: str | None = Field(default=None, max_length=64)
     status: BookStatusEnum | None = Field(default=None)
 
 

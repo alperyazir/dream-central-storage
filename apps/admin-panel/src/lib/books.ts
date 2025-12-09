@@ -5,10 +5,14 @@ export interface BookRecord {
   id: number;
   publisher: string;
   book_name: string;
+  book_title?: string;
+  book_cover?: string;
+  activity_count?: number;
+  activity_details?: Record<string, number>;
+  total_size?: number;
   language: string;
-  category: string;
+  category?: string;
   status: string;
-  version?: string;
   created_at?: string;
   updated_at?: string;
 }
