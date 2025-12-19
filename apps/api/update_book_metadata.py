@@ -1,6 +1,7 @@
 """Script to update existing books with new metadata fields."""
 import io
 import zipfile
+from sqlalchemy.orm import joinedload
 from app.core.config import get_settings
 from app.services.minio import get_minio_client
 from app.db import SessionLocal
@@ -62,17 +63,18 @@ def main():
     db = SessionLocal()
     
     try:
-        books = db.query(Book).filter(Book.status == 'PUBLISHED').all()
+        # Eager load publisher relationship to avoid N+1 queries
+        books = db.query(Book).options(joinedload(Book.publisher_rel)).filter(Book.status == 'PUBLISHED').all()
         print(f"Found {len(books)} published books to update")
         
         for book in books:
             print(f"\nProcessing: {book.publisher}/{book.book_name}")
-            prefix = f"{book.publisher}/{book.book_name}/"
+            prefix = f"{book.publisher}/books/{book.book_name}/"
             
             try:
                 total_size, activity_details = calculate_book_metadata(
-                    client, 
-                    settings.minio_books_bucket, 
+                    client,
+                    settings.minio_publishers_bucket,
                     prefix
                 )
                 

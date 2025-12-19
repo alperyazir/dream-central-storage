@@ -1,9 +1,9 @@
 version: 4.43.1
-installed_at: '2025-09-21T20:54:13.194Z'
+installed_at: '2025-12-13T19:03:52.620Z'
 install_type: full
 agent: null
 ides_setup:
-  - codex
+  - claude-code
 expansion_packs: []
 files:
   - path: .bmad-core/working-in-the-brownfield.md
@@ -16,7 +16,7 @@ files:
     hash: 39beb3516c070e2b
     modified: false
   - path: .bmad-core/core-config.yaml
-    hash: 073cf6d2527c545d
+    hash: 38fbeb4b05ef067d
     modified: false
   - path: .bmad-core/workflows/greenfield-ui.yaml
     hash: 2b595f235c095790
@@ -80,24 +80,6 @@ files:
     modified: false
   - path: .bmad-core/templates/architecture-tmpl.yaml
     hash: e66f63be1af30585
-    modified: false
-  - path: .bmad-core/data/test-priorities-matrix.md
-    hash: 1dd5698a46ab054e
-    modified: false
-  - path: .bmad-core/data/test-levels-framework.md
-    hash: f814f8efed0e96e1
-    modified: false
-  - path: .bmad-core/data/technical-preferences.md
-    hash: a829f3172a10b396
-    modified: false
-  - path: .bmad-core/data/elicitation-methods.md
-    hash: 8c3ca9b84c8784c9
-    modified: false
-  - path: .bmad-core/data/brainstorming-techniques.md
-    hash: 62b0bf50648906b0
-    modified: false
-  - path: .bmad-core/data/bmad-kb.md
-    hash: 1d38eeee61c55bf9
     modified: false
   - path: .bmad-core/tasks/validate-next-story.md
     hash: 75e84133d364d973
@@ -167,6 +149,24 @@ files:
     modified: false
   - path: .bmad-core/tasks/advanced-elicitation.md
     hash: d39118bf32237a21
+    modified: false
+  - path: .bmad-core/data/test-priorities-matrix.md
+    hash: 1dd5698a46ab054e
+    modified: false
+  - path: .bmad-core/data/test-levels-framework.md
+    hash: f814f8efed0e96e1
+    modified: false
+  - path: .bmad-core/data/technical-preferences.md
+    hash: a829f3172a10b396
+    modified: false
+  - path: .bmad-core/data/elicitation-methods.md
+    hash: 8c3ca9b84c8784c9
+    modified: false
+  - path: .bmad-core/data/brainstorming-techniques.md
+    hash: 62b0bf50648906b0
+    modified: false
+  - path: .bmad-core/data/bmad-kb.md
+    hash: 1d38eeee61c55bf9
     modified: false
   - path: .bmad-core/checklists/story-draft-checklist.md
     hash: 0bc8a90678dba318

@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.book import Book, BookStatusEnum
+from app.models.publisher import Publisher
 from app.repositories.base import BaseRepository
 
 
@@ -26,15 +27,39 @@ class BookRepository(BaseRepository[Book]):
         statement = select(Book).where(Book.status != BookStatusEnum.ARCHIVED)
         return list(session.scalars(statement).all())
 
+    def list_by_publisher_id(self, session: Session, publisher_id: int) -> list[Book]:
+        """List all non-archived books for a specific publisher."""
+        statement = select(Book).where(
+            Book.publisher_id == publisher_id,
+            Book.status != BookStatusEnum.ARCHIVED,
+        )
+        return list(session.scalars(statement).all())
+
     def get_by_id(self, session: Session, identifier: int) -> Book | None:
         return self.get(session, identifier)
 
-    def get_by_publisher_and_name(
-        self, session: Session, *, publisher: str, book_name: str
+    def get_by_publisher_id_and_name(
+        self, session: Session, *, publisher_id: int, book_name: str
     ) -> Book | None:
+        """Find a book by publisher ID and book name."""
         statement = select(Book).where(
-            Book.publisher == publisher,
+            Book.publisher_id == publisher_id,
             Book.book_name == book_name,
+        )
+        result = session.execute(statement)
+        return result.scalars().first()
+
+    def get_by_publisher_name_and_book_name(
+        self, session: Session, *, publisher_name: str, book_name: str
+    ) -> Book | None:
+        """Find a book by publisher name and book name (joins publisher table)."""
+        statement = (
+            select(Book)
+            .join(Publisher)
+            .where(
+                Publisher.name == publisher_name,
+                Book.book_name == book_name,
+            )
         )
         result = session.execute(statement)
         return result.scalars().first()

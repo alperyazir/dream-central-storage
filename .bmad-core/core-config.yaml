@@ -4,19 +4,19 @@ qa:
 prd:
   prdFile: docs/prd.md
   prdVersion: v4
-  prdSharded: true
+  prdSharded: false
   prdShardedLocation: docs/prd
   epicFilePattern: epic-{n}*.md
 architecture:
   architectureFile: docs/architecture.md
   architectureVersion: v4
-  architectureSharded: true
+  architectureSharded: false
   architectureShardedLocation: docs/architecture
 customTechnicalDocuments: null
 devLoadAlwaysFiles:
-  - docs/architecture/17-coding-standards.md
-  - docs/architecture/3-tech-stack.md
-  - docs/architecture/12-unified-project-structure.md
+  - docs/architecture/coding-standards.md
+  - docs/architecture/tech-stack.md
+  - docs/architecture/source-tree.md
 devDebugLog: .ai/debug-log.md
 devStoryLocation: docs/stories
 slashPrefix: BMad

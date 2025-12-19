@@ -85,6 +85,9 @@ describe('Trash page', () => {
         );
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 
@@ -141,6 +144,9 @@ describe('Trash page', () => {
         return Promise.resolve(new Response('failure', { status: 502 }));
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 
@@ -201,6 +207,9 @@ describe('Trash page', () => {
         );
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 
@@ -262,6 +271,9 @@ describe('Trash page', () => {
           );
         }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
         throw new Error(`Unexpected request to ${url}`);
       });
 
@@ -319,6 +331,9 @@ describe('Trash page', () => {
         );
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 
@@ -397,6 +412,9 @@ describe('Trash page', () => {
         );
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 

@@ -22,6 +22,7 @@ from app.db import get_db, SessionLocal
 from app.models.book import Book, BookStatusEnum
 from app.models.webhook import WebhookEventType
 from app.repositories.book import BookRepository
+from app.repositories.publisher import PublisherRepository
 from app.repositories.user import UserRepository
 from app.schemas.book import BookCreate, BookRead, BookUpdate
 from app.services import (
@@ -40,6 +41,7 @@ from app.services.webhook import WebhookService
 router = APIRouter(prefix="/books", tags=["Books"])
 _bearer_scheme = HTTPBearer(auto_error=True)
 _book_repository = BookRepository()
+_publisher_repository = PublisherRepository()
 _user_repository = UserRepository()
 _webhook_service = WebhookService()
 logger = logging.getLogger(__name__)
@@ -106,7 +108,14 @@ def create_book(
     """Create a new book metadata record."""
 
     _require_admin(credentials, db)
-    book = _book_repository.create(db, data=payload.model_dump())
+
+    # Convert publisher name to publisher_id
+    data = payload.model_dump()
+    publisher_name = data.pop("publisher")
+    publisher = _publisher_repository.get_or_create_by_name(db, publisher_name)
+    data["publisher_id"] = publisher.id
+
+    book = _book_repository.create(db, data=data)
 
     # Trigger webhook in background
     background_tasks.add_task(_trigger_webhook, book.id, WebhookEventType.BOOK_CREATED)
@@ -116,13 +125,17 @@ def create_book(
 
 @router.get("/", response_model=list[BookRead])
 def list_books(
+    publisher_id: int | None = Query(default=None, description="Filter books by publisher ID"),
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
 ) -> list[BookRead]:
-    """Return all stored books."""
+    """Return all stored books, optionally filtered by publisher."""
 
     _require_admin(credentials, db)
-    books = _book_repository.list_all_books(db)
+    if publisher_id is not None:
+        books = _book_repository.list_by_publisher_id(db, publisher_id)
+    else:
+        books = _book_repository.list_all_books(db)
     return [BookRead.model_validate(book) for book in books]
 
 
@@ -160,6 +173,12 @@ def update_book(
     if not update_data:
         return BookRead.model_validate(book)
 
+    # Convert publisher name to publisher_id if provided
+    if "publisher" in update_data:
+        publisher_name = update_data.pop("publisher")
+        publisher = _publisher_repository.get_or_create_by_name(db, publisher_name)
+        update_data["publisher_id"] = publisher.id
+
     updated = _book_repository.update(db, book, data=update_data)
 
     # Trigger webhook in background
@@ -187,12 +206,12 @@ def soft_delete_book(
 
     settings = get_settings()
     client = get_minio_client(settings)
-    prefix = f"{book.publisher}/{book.book_name}/"
+    prefix = f"{book.publisher}/books/{book.book_name}/"
 
     try:
         report = move_prefix_to_trash(
             client=client,
-            source_bucket=settings.minio_books_bucket,
+            source_bucket=settings.minio_publishers_bucket,
             prefix=prefix,
             trash_bucket=settings.minio_trash_bucket,
         )
@@ -239,13 +258,13 @@ async def upload_book(
     settings = get_settings()
     client = get_minio_client(settings)
 
-    prefix = f"{book.publisher}/{book.book_name}/"
+    prefix = f"{book.publisher}/books/{book.book_name}/"
 
     # Clear existing files
     try:
-        objects = list(client.list_objects(settings.minio_books_bucket, prefix=prefix, recursive=True))
+        objects = list(client.list_objects(settings.minio_publishers_bucket, prefix=prefix, recursive=True))
         for obj in objects:
-            client.remove_object(settings.minio_books_bucket, obj.object_name)
+            client.remove_object(settings.minio_publishers_bucket, obj.object_name)
         logger.info("Cleared %d existing objects for book %s", len(objects), book_id)
     except Exception as exc:
         logger.error("Failed to clear existing book files: %s", exc)
@@ -259,7 +278,7 @@ async def upload_book(
         manifest = upload_book_archive(
             client=client,
             archive_bytes=contents,
-            bucket=settings.minio_books_bucket,
+            bucket=settings.minio_publishers_bucket,
             object_prefix=prefix,
             content_type="application/octet-stream",
             strip_root_folder=True,
@@ -293,6 +312,10 @@ async def upload_new_book(
         False,
         description="When true, backup existing book and upload new one.",
     ),
+    publisher_id: int | None = Query(
+        None,
+        description="Optional publisher ID to override the publisher from config.json.",
+    ),
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
 ):
@@ -300,6 +323,7 @@ async def upload_new_book(
 
     Book name is derived from the ZIP filename (e.g., BRAINS.zip → book name: BRAINS).
     Storage path: publisher/zipfilename/ (no version tracking).
+    If publisher_id is provided, it overrides the publisher specified in config.json.
     """
 
     admin_id = _require_admin(credentials, db)
@@ -338,17 +362,32 @@ async def upload_new_book(
         if isinstance(value, str):
             book_data[field] = value.strip()
 
+    # Override publisher if publisher_id is provided
+    if publisher_id is not None:
+        override_publisher = _publisher_repository.get(db, publisher_id)
+        if override_publisher is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Publisher with ID {publisher_id} not found",
+            )
+        book_data["publisher"] = override_publisher.name
+        logger.info(
+            "Publisher override: using '%s' (ID: %d) instead of config.json value",
+            override_publisher.name,
+            publisher_id,
+        )
+
     # Default new uploads to published status
     if book_data.get("status") is None or book_data["status"] == BookStatusEnum.DRAFT:
         book_data["status"] = BookStatusEnum.PUBLISHED
 
     settings = get_settings()
     client = get_minio_client(settings)
-    object_prefix = f"{book_data['publisher']}/{book_data['book_name']}/"
+    object_prefix = f"{book_data['publisher']}/books/{book_data['book_name']}/"
 
     # Check if book already exists in storage
     try:
-        prefix_exists = _prefix_exists(client, settings.minio_books_bucket, object_prefix)
+        prefix_exists = _prefix_exists(client, settings.minio_publishers_bucket, object_prefix)
     except Exception as exc:
         logger.error("Failed to check existing book prefix '%s': %s", object_prefix, exc)
         raise HTTPException(
@@ -372,9 +411,9 @@ async def upload_new_book(
     if prefix_exists and override:
         try:
             # Delete all objects at this prefix
-            objects = list(client.list_objects(settings.minio_books_bucket, prefix=object_prefix, recursive=True))
+            objects = list(client.list_objects(settings.minio_publishers_bucket, prefix=object_prefix, recursive=True))
             for obj in objects:
-                client.remove_object(settings.minio_books_bucket, obj.object_name)
+                client.remove_object(settings.minio_publishers_bucket, obj.object_name)
 
             logger.info("Deleted %d existing objects for book %s/%s", len(objects), book_data['publisher'], book_data['book_name'])
         except Exception as exc:
@@ -389,7 +428,7 @@ async def upload_new_book(
         manifest = upload_book_archive(
             client=client,
             archive_bytes=contents,
-            bucket=settings.minio_books_bucket,
+            bucket=settings.minio_publishers_bucket,
             object_prefix=object_prefix,
             content_type="application/octet-stream",
             strip_root_folder=True,
@@ -403,10 +442,15 @@ async def upload_new_book(
             detail="Failed to upload book archive",
         ) from exc
 
+    # Convert publisher name to publisher_id
+    publisher_name = book_data.pop('publisher')
+    publisher = _publisher_repository.get_or_create_by_name(db, publisher_name)
+    book_data['publisher_id'] = publisher.id
+
     # Create or update book metadata in database
-    existing_book = _book_repository.get_by_publisher_and_name(
+    existing_book = _book_repository.get_by_publisher_id_and_name(
         db,
-        publisher=book_data['publisher'],
+        publisher_id=publisher.id,
         book_name=book_data['book_name'],
     )
 
@@ -520,13 +564,13 @@ async def upload_bulk_books(
             if book_data.get("status") is None or book_data["status"] == BookStatusEnum.DRAFT:
                 book_data["status"] = BookStatusEnum.PUBLISHED
 
-            object_prefix = f"{book_data['publisher']}/{book_data['book_name']}/"
+            object_prefix = f"{book_data['publisher']}/books/{book_data['book_name']}/"
             result["publisher"] = book_data['publisher']
             result["book_name"] = book_data['book_name']
 
             # Check if book exists
             try:
-                prefix_exists = _prefix_exists(client, settings.minio_books_bucket, object_prefix)
+                prefix_exists = _prefix_exists(client, settings.minio_publishers_bucket, object_prefix)
             except Exception as exc:
                 logger.error("Failed to check existing book prefix '%s': %s", object_prefix, exc)
                 result["error"] = "Unable to check for existing book"
@@ -544,9 +588,9 @@ async def upload_bulk_books(
             # Delete existing book if override is true
             if prefix_exists and override:
                 try:
-                    objects = list(client.list_objects(settings.minio_books_bucket, prefix=object_prefix, recursive=True))
+                    objects = list(client.list_objects(settings.minio_publishers_bucket, prefix=object_prefix, recursive=True))
                     for obj in objects:
-                        client.remove_object(settings.minio_books_bucket, obj.object_name)
+                        client.remove_object(settings.minio_publishers_bucket, obj.object_name)
 
                     logger.info("Deleted %d existing objects for book %s/%s", len(objects), book_data['publisher'], book_data['book_name'])
                 except Exception as exc:
@@ -561,7 +605,7 @@ async def upload_bulk_books(
                 manifest = upload_book_archive(
                     client=client,
                     archive_bytes=contents,
-                    bucket=settings.minio_books_bucket,
+                    bucket=settings.minio_publishers_bucket,
                     object_prefix=object_prefix,
                     content_type="application/octet-stream",
                     strip_root_folder=True,
@@ -578,10 +622,15 @@ async def upload_bulk_books(
                 failed_count += 1
                 continue
 
+            # Convert publisher name to publisher_id
+            publisher_name = book_data.pop('publisher')
+            publisher = _publisher_repository.get_or_create_by_name(db, publisher_name)
+            book_data['publisher_id'] = publisher.id
+
             # Create or update database record
-            existing_book = _book_repository.get_by_publisher_and_name(
+            existing_book = _book_repository.get_by_publisher_id_and_name(
                 db,
-                publisher=book_data['publisher'],
+                publisher_id=publisher.id,
                 book_name=book_data['book_name'],
             )
 

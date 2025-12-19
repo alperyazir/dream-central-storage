@@ -8,7 +8,7 @@ export interface StorageNode {
   children?: StorageNode[];
 }
 
-export type TrashItemType = 'book' | 'app' | 'unknown';
+export type TrashItemType = 'book' | 'app' | 'teacher_material' | 'unknown';
 
 export interface TrashEntry {
   key: string;
@@ -17,7 +17,18 @@ export interface TrashEntry {
   item_type: TrashItemType;
   object_count: number;
   total_size: number;
-  metadata?: Record<string, string>;
+  metadata?: {
+    publisher?: string;
+    Publisher?: string;
+    book_name?: string;
+    bookName?: string;
+    platform?: string;
+    Platform?: string;
+    version?: string;
+    Version?: string;
+    teacher_id?: string;
+    teacherId?: string;
+  };
   youngest_last_modified: string | null;
   eligible_at: string | null;
   eligible_for_deletion: boolean;

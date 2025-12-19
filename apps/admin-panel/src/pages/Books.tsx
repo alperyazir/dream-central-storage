@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Alert,
-  Avatar,
   Box,
   Button,
   Card,
@@ -60,6 +60,7 @@ interface BookListRow {
   activityCount?: number;
   activityDetails?: Record<string, number>;
   totalSize?: number;
+  publisherId: number;
   publisher: string;
   language: string;
   category: string;
@@ -75,6 +76,7 @@ const mapBookRecords = (records: BookRecord[]): BookListRow[] =>
     activityCount: record.activity_count,
     activityDetails: record.activity_details,
     totalSize: record.total_size,
+    publisherId: record.publisher_id,
     publisher: record.publisher,
     language: record.language,
     category: record.category || '',
@@ -439,7 +441,18 @@ const BooksPage = () => {
                         </Typography>
                       )}
                     </TableCell>
-                    <TableCell>{book.publisher}</TableCell>
+                    <TableCell>
+                      <Link
+                        to={`/publishers/${book.publisherId}`}
+                        style={{
+                          color: 'inherit',
+                          textDecoration: 'none',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {book.publisher}
+                      </Link>
+                    </TableCell>
                     <TableCell>
                       <Chip label={book.language.toUpperCase()} size="small" />
                     </TableCell>

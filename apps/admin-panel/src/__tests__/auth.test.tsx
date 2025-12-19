@@ -79,6 +79,9 @@ describe('Authentication flows', () => {
         return Promise.resolve(createJsonResponse([]));
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 
@@ -139,6 +142,9 @@ describe('Authentication flows', () => {
         return Promise.resolve(createJsonResponse([]));
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 

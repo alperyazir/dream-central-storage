@@ -24,13 +24,13 @@ def override_dependencies(monkeypatch):
 
     fake_client = MagicMock()
     fake_client.list_objects.return_value = [
-        SimpleNamespace(object_name="Dream/Sky/chapter1.txt", size=10),
-        SimpleNamespace(object_name="Dream/Sky/notes/readme.md", size=5),
+        SimpleNamespace(object_name="Dream/books/Sky/chapter1.txt", size=10),
+        SimpleNamespace(object_name="Dream/books/Sky/notes/readme.md", size=5),
     ]
     monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
 
     fake_book_repo = MagicMock()
-    fake_book_repo.get_by_publisher_and_name.return_value = None
+    fake_book_repo.get_by_publisher_name_and_book_name.return_value = None
     monkeypatch.setattr(storage, "_book_repository", fake_book_repo)
 
     def fake_get_db():
@@ -57,7 +57,7 @@ def test_list_book_contents() -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert body["path"] == "Dream/Sky/"
+    assert body["path"] == "Dream/books/Sky/"
     assert len(body["children"]) == 2
 
 
@@ -131,13 +131,13 @@ def test_delete_trash_entry_removes_objects_and_metadata(monkeypatch) -> None:
     old_timestamp = datetime.now(UTC) - timedelta(days=10)
     fake_client = MagicMock()
     fake_client.list_objects.return_value = [
-        SimpleNamespace(object_name="books/Press/Atlas/file.txt", last_modified=old_timestamp)
+        SimpleNamespace(object_name="publishers/Press/books/Atlas/file.txt", last_modified=old_timestamp)
     ]
     monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
 
     fake_book = MagicMock()
     fake_repo = MagicMock()
-    fake_repo.get_by_publisher_and_name.return_value = fake_book
+    fake_repo.get_by_publisher_name_and_book_name.return_value = fake_book
     monkeypatch.setattr(storage, "_book_repository", fake_repo)
 
     client = TestClient(app)
@@ -145,14 +145,14 @@ def test_delete_trash_entry_removes_objects_and_metadata(monkeypatch) -> None:
         "DELETE",
         "/storage/trash",
         headers=_auth_headers(),
-        json={"key": "books/Press/Atlas/"},
+        json={"key": "publishers/Press/books/Atlas/"},
     )
 
     assert response.status_code == 200
     body = response.json()
-    assert body["deleted_key"] == "books/Press/Atlas/"
+    assert body["deleted_key"] == "publishers/Press/books/Atlas/"
     assert body["objects_removed"] == 1
-    fake_client.remove_object.assert_called_once_with("trash", "books/Press/Atlas/file.txt")
+    fake_client.remove_object.assert_called_once_with("trash", "publishers/Press/books/Atlas/file.txt")
     fake_repo.delete.assert_called_once_with(ANY, fake_book)
 
 
@@ -244,7 +244,7 @@ def test_delete_trash_entry_returns_not_found(monkeypatch) -> None:
         "DELETE",
         "/storage/trash",
         headers=_auth_headers(),
-        json={"key": "books/Press/Missing/"},
+        json={"key": "publishers/Press/books/Missing/"},
     )
 
     assert response.status_code == 404
@@ -266,6 +266,13 @@ def test_get_book_config_returns_payload(monkeypatch) -> None:
     fake_client.get_object.return_value = fake_obj
 
     monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
+
+    # Mock the book repository to return a book with a version
+    fake_book = MagicMock()
+    fake_book.version = "1.0.0"
+    fake_book_repo = MagicMock()
+    fake_book_repo.get_by_publisher_name_and_book_name.return_value = fake_book
+    monkeypatch.setattr(storage, "_book_repository", fake_book_repo)
 
     client = TestClient(app)
     response = client.get(

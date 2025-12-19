@@ -16,6 +16,7 @@ from app.db import get_db
 from app.db.base import Base
 from app.main import app
 from app.models.book import Book, BookStatusEnum
+from app.models.publisher import Publisher
 from app.models.user import User
 from app.services import RelocationError, RelocationReport
 
@@ -56,7 +57,8 @@ def setup_database() -> None:
 @pytest.fixture(autouse=True)
 def clean_tables() -> None:
     with TestingSessionLocal() as session:
-        session.query(Book).delete()
+        session.query(Book).delete()  # Delete books first (has FK to publishers)
+        session.query(Publisher).delete()
         session.query(User).delete()
         session.commit()
 
@@ -169,10 +171,10 @@ def test_soft_delete_book_archives_and_moves_assets(monkeypatch) -> None:
     def fake_move_prefix_to_trash(**kwargs):
         captured["prefix"] = kwargs["prefix"]
         return RelocationReport(
-            source_bucket="books",
+            source_bucket="publishers",
             destination_bucket="trash",
-            source_prefix=f"DreamPress/SkyTales/",
-            destination_prefix="books/DreamPress/SkyTales/",
+            source_prefix=f"DreamPress/books/SkyTales/",
+            destination_prefix="publishers/DreamPress/books/SkyTales/",
             objects_moved=2,
         )
 
@@ -183,7 +185,7 @@ def test_soft_delete_book_archives_and_moves_assets(monkeypatch) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "archived"
-    assert captured["prefix"] == "DreamPress/SkyTales/"
+    assert captured["prefix"] == "DreamPress/books/SkyTales/"
 
     with TestingSessionLocal() as session:
         stored = session.get(Book, book_id)

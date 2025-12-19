@@ -1,9 +1,11 @@
 import { useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
-import { IconButton, Tooltip } from '@mui/material';
+import { IconButton, Tooltip, List } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
+import BusinessIcon from '@mui/icons-material/Business';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import AppsIcon from '@mui/icons-material/Apps';
+import SchoolIcon from '@mui/icons-material/School';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LogoutIcon from '@mui/icons-material/Logout';
 import LoginIcon from '@mui/icons-material/Login';
@@ -35,7 +37,7 @@ const NavBar = () => {
           </IconButton>
         </Tooltip>
       </div>
-      <ul className="nav__links">
+      <List component="ul" className="nav__links" sx={{ p: 0, m: 0 }}>
         <li>
           <NavLink to="/dashboard" end className={({ isActive }) => (isActive ? 'active' : '')}>
             <DashboardIcon fontSize="small" />
@@ -43,15 +45,27 @@ const NavBar = () => {
           </NavLink>
         </li>
         <li>
+          <NavLink to="/publishers" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <BusinessIcon fontSize="small" />
+            <span>Publishers</span>
+          </NavLink>
+        </li>
+        <li>
           <NavLink to="/books" className={({ isActive }) => (isActive ? 'active' : '')}>
             <MenuBookIcon fontSize="small" />
-            <span>Books</span>
+            <span>All Books</span>
           </NavLink>
         </li>
         <li>
           <NavLink to="/apps" className={({ isActive }) => (isActive ? 'active' : '')}>
             <AppsIcon fontSize="small" />
             <span>Applications</span>
+          </NavLink>
+        </li>
+        <li>
+          <NavLink to="/teachers" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <SchoolIcon fontSize="small" />
+            <span>Teachers</span>
           </NavLink>
         </li>
         <li>
@@ -75,7 +89,7 @@ const NavBar = () => {
             </NavLink>
           </li>
         )}
-      </ul>
+      </List>
     </nav>
   );
 };

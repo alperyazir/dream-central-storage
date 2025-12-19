@@ -35,10 +35,15 @@ class Settings(BaseSettings):
     minio_access_key: str = "dream_minio"
     minio_secret_key: str = "dream_minio_secret"
     minio_secure: bool = False
-    minio_books_bucket: str = "books"
+    minio_publishers_bucket: str = "publishers"
     minio_apps_bucket: str = "apps"
     minio_trash_bucket: str = "trash"
+    minio_teachers_bucket: str = "teachers"
     trash_retention_days: int = 7
+
+    # Teacher storage configuration
+    teacher_quota_bytes: int = 524288000  # 500MB default
+    teacher_max_file_size_bytes: int = 104857600  # 100MB default
 
     jwt_secret_key: str = "CHANGE_ME"
     jwt_algorithm: str = "HS256"
@@ -66,9 +71,47 @@ class Settings(BaseSettings):
         """Return the list of buckets the application requires."""
 
         return [
-            self.minio_books_bucket,
+            self.minio_publishers_bucket,
             self.minio_apps_bucket,
             self.minio_trash_bucket,
+            self.minio_teachers_bucket,
+        ]
+
+    @property
+    def teacher_allowed_mime_types(self) -> dict[str, list[str]]:
+        """Return allowed MIME types by category for teacher uploads."""
+        return {
+            "documents": [
+                "application/pdf",
+                "text/plain",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ],
+            "images": [
+                "image/jpeg",
+                "image/png",
+                "image/gif",
+                "image/webp",
+            ],
+            "audio": [
+                "audio/mpeg",
+                "audio/wav",
+                "audio/ogg",
+                "audio/mp4",
+            ],
+            "video": [
+                "video/mp4",
+                "video/webm",
+                "video/quicktime",
+            ],
+        }
+
+    @property
+    def teacher_all_allowed_mime_types(self) -> list[str]:
+        """Return flat list of all allowed MIME types for teacher uploads."""
+        return [
+            mime
+            for mimes in self.teacher_allowed_mime_types.values()
+            for mime in mimes
         ]
 
     @property

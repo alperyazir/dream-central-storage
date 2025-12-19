@@ -27,3 +27,6 @@ dist/
 .vscode/
 .idea/
 .DS_Store
+.bmad-core/
+.claude/
+web-bundles/

@@ -145,6 +145,12 @@ def iter_zip_entries(archive: zipfile.ZipFile, strip_root: str | None = None) ->
         if os.path.basename(normalized_path).startswith("._"):
             continue
 
+        # Skip backup and temporary files
+        basename_lower = os.path.basename(normalized_path).lower()
+        if basename_lower.endswith(('.fbinf', '.bak', '.tmp')):
+            logger.debug("Skipping backup/temp file: %s", entry.filename)
+            continue
+
         # Strip root folder if specified
         final_path = normalized_path
         if strip_root and normalized_path.startswith(f"{strip_root}/"):
@@ -441,14 +447,22 @@ def list_trash_entries(
         prefix_parts: list[str]
         metadata: dict[str, str] | None = None
 
-        if bucket == "books" and len(parts) >= 3:
+        if bucket == "publishers" and len(parts) >= 4 and parts[2] == "books":
             item_type = "book"
-            prefix_parts = parts[1:3]
-            metadata = {"publisher": parts[1], "book_name": parts[2]}
+            prefix_parts = parts[1:4]  # [publisher, "books", book_name]
+            metadata = {"publisher": parts[1], "book_name": parts[3]}
+        elif bucket == "publishers" and len(parts) >= 4 and parts[2] == "assets":
+            item_type = "publisher_asset"
+            prefix_parts = parts[1:4]  # [publisher, "assets", asset_type]
+            metadata = {"publisher": parts[1], "asset_type": parts[3]}
         elif bucket == "apps" and len(parts) >= 3:
             item_type = "app"
             prefix_parts = parts[1:3]
             metadata = {"platform": parts[1], "version": parts[2]}
+        elif bucket == "teachers" and len(parts) >= 3 and parts[2] == "materials":
+            item_type = "teacher_material"
+            prefix_parts = parts[1:3]  # [teacher_id, "materials"]
+            metadata = {"teacher_id": parts[1]}
         else:
             # Fallback: treat the next segment as the identifier when available.
             prefix_parts = parts[1:2] if len(parts) >= 2 else []

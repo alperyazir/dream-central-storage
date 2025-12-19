@@ -186,12 +186,21 @@ def _normalize_relative_path(path: str) -> str:
 
 
 def _build_book_object_key(publisher: str, book_name: str, relative_path: str | None = None) -> str:
+    """Build the MinIO object key for book content.
+
+    Path structure: {publisher}/books/{book_name}/...
+
+    Reserved publisher path prefixes:
+        - {publisher}/books/    - Book content (implemented)
+        - {publisher}/logos/    - Publisher logos (reserved for future use)
+        - {publisher}/materials/ - Publisher materials (reserved for future use)
+    """
     publisher_segment = _sanitize_segment(publisher, "publisher")
     book_segment = _sanitize_segment(book_name, "book name")
     if relative_path is None:
-        return f"{publisher_segment}/{book_segment}/"
+        return f"{publisher_segment}/books/{book_segment}/"
     normalized_path = _normalize_relative_path(relative_path)
-    return f"{publisher_segment}/{book_segment}/{normalized_path}"
+    return f"{publisher_segment}/books/{book_segment}/{normalized_path}"
 
 
 @router.get("/books/{publisher}/{book_name}")
@@ -207,7 +216,7 @@ async def list_book_contents(
     settings = get_settings()
     client = get_minio_client(settings)
     prefix = _build_book_object_key(publisher, book_name, None)
-    tree = list_objects_tree(client, settings.minio_books_bucket, prefix)
+    tree = list_objects_tree(client, settings.minio_publishers_bucket, prefix)
     return tree
 
 
@@ -223,7 +232,7 @@ async def get_book_config(
     _require_admin(credentials, db)
 
     # Look up the book to get the version
-    book = _book_repository.get_by_publisher_and_name(db, publisher=publisher, book_name=book_name)
+    book = _book_repository.get_by_publisher_name_and_book_name(db, publisher_name=publisher, book_name=book_name)
     if book is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Book not found")
 
@@ -233,11 +242,11 @@ async def get_book_config(
     settings = get_settings()
     client = get_minio_client(settings)
 
-    # Build the correct path: {publisher}/{book_name}/{version}/{book_name}/config.json
-    object_key = f"{publisher}/{book_name}/{book.version}/{book_name}/config.json"
+    # Build the correct path: {publisher}/books/{book_name}/{version}/{book_name}/config.json
+    object_key = f"{publisher}/books/{book_name}/{book.version}/{book_name}/config.json"
 
     try:
-        stat = client.stat_object(settings.minio_books_bucket, object_key)
+        stat = client.stat_object(settings.minio_publishers_bucket, object_key)
     except S3Error as exc:
         if exc.code == "NoSuchKey":
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="config.json not found") from exc
@@ -245,7 +254,7 @@ async def get_book_config(
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to load config.json") from exc
 
     try:
-        response = client.get_object(settings.minio_books_bucket, object_key)
+        response = client.get_object(settings.minio_publishers_bucket, object_key)
     except S3Error as exc:
         if exc.code == "NoSuchKey":
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="config.json not found") from exc
@@ -283,7 +292,7 @@ async def get_book_cover_url(
 
     try:
         # Check if the file exists
-        client.stat_object(settings.minio_books_bucket, object_key)
+        client.stat_object(settings.minio_publishers_bucket, object_key)
     except S3Error as exc:
         if exc.code == "NoSuchKey":
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Book cover not found") from exc
@@ -293,7 +302,7 @@ async def get_book_cover_url(
     # Generate presigned URL valid for 1 hour
     try:
         url = client.presigned_get_object(
-            settings.minio_books_bucket,
+            settings.minio_publishers_bucket,
             object_key,
             expires=timedelta(hours=1)
         )
@@ -343,7 +352,7 @@ async def download_book_object(
 
     # Get file metadata (size is required for Range support)
     try:
-        stat = client.stat_object(settings.minio_books_bucket, object_key)
+        stat = client.stat_object(settings.minio_publishers_bucket, object_key)
     except S3Error as exc:
         if exc.code == "NoSuchKey":
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="File not found") from exc
@@ -377,7 +386,7 @@ async def download_book_object(
         try:
             # Use offset and length for partial reads (efficient streaming)
             obj = client.get_object(
-                settings.minio_books_bucket,
+                settings.minio_publishers_bucket,
                 object_key,
                 offset=start,
                 length=content_length,
@@ -491,9 +500,16 @@ def _parse_trash_key(key: str) -> tuple[str, list[str]]:
 
 
 def _extract_book_identifiers(path_parts: list[str]) -> tuple[str, str]:
-    if len(path_parts) < 2:
+    if len(path_parts) < 3 or path_parts[1] != "books":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Book restore key is incomplete")
-    return path_parts[0], path_parts[1]
+    return path_parts[0], path_parts[2]
+
+
+def _extract_teacher_identifiers(path_parts: list[str]) -> tuple[str, str]:
+    """Extract teacher_id and material path from trash key parts."""
+    if len(path_parts) < 2 or path_parts[1] != "materials":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Teacher restore key is incomplete")
+    return path_parts[0], "/".join(path_parts[2:]) if len(path_parts) > 2 else ""
 
 
 @router.post("/restore", response_model=RestoreResponse)
@@ -523,15 +539,15 @@ def restore_item(
         status_code = status.HTTP_404_NOT_FOUND if "No trash objects" in message else status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=message) from exc
 
-    item_type: Literal["book", "app", "unknown"] = "unknown"
+    item_type: Literal["book", "app", "teacher_material", "unknown"] = "unknown"
     book_read: BookRead | None = None
 
-    if bucket == "books":
+    if bucket == "publishers":
         item_type = "book"
         publisher, book_name = _extract_book_identifiers(path_parts)
-        book = _book_repository.get_by_publisher_and_name(
+        book = _book_repository.get_by_publisher_name_and_book_name(
             db,
-            publisher=publisher,
+            publisher_name=publisher,
             book_name=book_name,
         )
         if book is None:
@@ -545,6 +561,9 @@ def restore_item(
         book_read = BookRead.model_validate(restored_book)
     elif bucket == "apps":
         item_type = "app"
+    elif bucket == "teachers":
+        item_type = "teacher_material"
+        # No database record for teacher materials, just restore files
 
     logger.info(
         "User %s restored trash key '%s'; moved %s objects",
@@ -597,19 +616,22 @@ def delete_trash_entry(
     except TrashDeletionError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
-    item_type: Literal["book", "app", "unknown"] = "unknown"
-    if bucket == "books":
+    item_type: Literal["book", "app", "teacher_material", "unknown"] = "unknown"
+    if bucket == "publishers":
         item_type = "book"
         publisher, book_name = _extract_book_identifiers(path_parts)
-        book = _book_repository.get_by_publisher_and_name(
+        book = _book_repository.get_by_publisher_name_and_book_name(
             db,
-            publisher=publisher,
+            publisher_name=publisher,
             book_name=book_name,
         )
         if book is not None:
             _book_repository.delete(db, book)
     elif bucket == "apps":
         item_type = "app"
+    elif bucket == "teachers":
+        item_type = "teacher_material"
+        # No database record for teacher materials, just delete files
 
     logger.info(
         "User %s permanently deleted trash key '%s'; removed %s objects (force=%s, override_reason=%s)",

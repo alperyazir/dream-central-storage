@@ -16,6 +16,7 @@ from app.db import get_db
 from app.db.base import Base
 from app.main import app
 from app.models.book import Book, BookStatusEnum
+from app.models.publisher import Publisher
 from app.models.user import User
 from app.services import RelocationReport, RestorationError, TrashEntry
 
@@ -56,7 +57,8 @@ def setup_database() -> None:
 @pytest.fixture(autouse=True)
 def clean_tables() -> None:
     with TestingSessionLocal() as session:
-        session.query(Book).delete()
+        session.query(Book).delete()  # Delete books first (has FK to publishers)
+        session.query(Publisher).delete()
         session.query(User).delete()
         session.commit()
 
@@ -79,9 +81,9 @@ def test_list_trash_returns_entries(monkeypatch) -> None:
         "list_trash_entries",
         lambda client, bucket, retention: [
             TrashEntry(
-                key="books/Press/Atlas/",
-                bucket="books",
-                path="Press/Atlas",
+                key="publishers/Press/books/Atlas/",
+                bucket="publishers",
+                path="Press/books/Atlas",
                 item_type="book",
                 object_count=2,
                 total_size=15,
@@ -95,9 +97,9 @@ def test_list_trash_returns_entries(monkeypatch) -> None:
     body = response.json()
     assert body == [
         {
-            "key": "books/Press/Atlas/",
-            "bucket": "books",
-            "path": "Press/Atlas",
+            "key": "publishers/Press/books/Atlas/",
+            "bucket": "publishers",
+            "path": "Press/books/Atlas",
             "item_type": "book",
             "object_count": 2,
             "total_size": 15,
@@ -113,8 +115,11 @@ def test_restore_book_success(monkeypatch) -> None:
     from app.routers import storage as storage_router
 
     with TestingSessionLocal() as session:
+        publisher = Publisher(name="Press", display_name="Press", status="active")
+        session.add(publisher)
+        session.flush()
         book = Book(
-            publisher="Press",
+            publisher_id=publisher.id,
             book_name="Atlas",
             language="en",
             category="fiction",
@@ -132,16 +137,16 @@ def test_restore_book_success(monkeypatch) -> None:
         "restore_prefix_from_trash",
         lambda **kwargs: RelocationReport(
             source_bucket="trash",
-            destination_bucket="books",
-            source_prefix="books/Press/Atlas/",
-            destination_prefix="Press/Atlas/",
+            destination_bucket="publishers",
+            source_prefix="publishers/Press/books/Atlas/",
+            destination_prefix="Press/books/Atlas/",
             objects_moved=3,
         ),
     )
 
     response = client.post(
         "/storage/restore",
-        json={"key": "books/Press/Atlas/"},
+        json={"key": "publishers/Press/books/Atlas/"},
         headers=headers,
     )
 
@@ -161,8 +166,11 @@ def test_restore_book_missing_trash(monkeypatch) -> None:
     from app.routers import storage as storage_router
 
     with TestingSessionLocal() as session:
+        publisher = Publisher(name="Press", display_name="Press", status="active")
+        session.add(publisher)
+        session.flush()
         book = Book(
-            publisher="Press",
+            publisher_id=publisher.id,
             book_name="Atlas",
             language="en",
             category="fiction",
@@ -179,13 +187,13 @@ def test_restore_book_missing_trash(monkeypatch) -> None:
         storage_router,
         "restore_prefix_from_trash",
         lambda **kwargs: (_ for _ in ()).throw(
-            RestorationError("No trash objects found for key 'books/Press/Atlas/'")
+            RestorationError("No trash objects found for key 'publishers/Press/books/Atlas/'")
         ),
     )
 
     response = client.post(
         "/storage/restore",
-        json={"key": "books/Press/Atlas/"},
+        json={"key": "publishers/Press/books/Atlas/"},
         headers=headers,
     )
 
@@ -196,8 +204,11 @@ def test_restore_book_conflict_when_not_archived(monkeypatch) -> None:
     from app.routers import storage as storage_router
 
     with TestingSessionLocal() as session:
+        publisher = Publisher(name="Press", display_name="Press", status="active")
+        session.add(publisher)
+        session.flush()
         book = Book(
-            publisher="Press",
+            publisher_id=publisher.id,
             book_name="Atlas",
             language="en",
             category="fiction",
@@ -215,16 +226,16 @@ def test_restore_book_conflict_when_not_archived(monkeypatch) -> None:
         "restore_prefix_from_trash",
         lambda **kwargs: RelocationReport(
             source_bucket="trash",
-            destination_bucket="books",
-            source_prefix="books/Press/Atlas/",
-            destination_prefix="Press/Atlas/",
+            destination_bucket="publishers",
+            source_prefix="publishers/Press/books/Atlas/",
+            destination_prefix="Press/books/Atlas/",
             objects_moved=1,
         ),
     )
 
     response = client.post(
         "/storage/restore",
-        json={"key": "books/Press/Atlas/"},
+        json={"key": "publishers/Press/books/Atlas/"},
         headers=headers,
     )
 
@@ -237,5 +248,5 @@ def test_restore_requires_authentication(monkeypatch) -> None:
     monkeypatch.setattr(storage_router, "get_minio_client", lambda settings: MagicMock())
 
     client = TestClient(app)
-    response = client.post("/storage/restore", json={"key": "books/Press/Atlas/"})
+    response = client.post("/storage/restore", json={"key": "publishers/Press/books/Atlas/"})
     assert response.status_code in {401, 403}

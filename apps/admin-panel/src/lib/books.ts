@@ -3,7 +3,8 @@ import { buildAuthHeaders } from './http';
 
 export interface BookRecord {
   id: number;
-  publisher: string;
+  publisher_id: number;
+  publisher: string; // from relationship property
   book_name: string;
   book_title?: string;
   book_cover?: string;

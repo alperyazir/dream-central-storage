@@ -27,10 +27,21 @@ export interface AppUploadResponse {
 
 interface UploadOptions {
   override?: boolean;
+  publisherId?: number;
 }
 
-const appendOverrideParam = (path: string, override?: boolean) =>
-  override ? `${path}${path.includes('?') ? '&' : '?'}override=true` : path;
+const appendQueryParams = (path: string, options: UploadOptions = {}): string => {
+  const params: string[] = [];
+  if (options.override) {
+    params.push('override=true');
+  }
+  if (options.publisherId !== undefined) {
+    params.push(`publisher_id=${options.publisherId}`);
+  }
+  if (params.length === 0) return path;
+  const separator = path.includes('?') ? '&' : '?';
+  return `${path}${separator}${params.join('&')}`;
+};
 
 const appendArchive = (formData: FormData, file: File) => {
   formData.append('file', file, file.name);
@@ -46,7 +57,7 @@ export const uploadBookArchive = async (
   options: UploadOptions = {}
 ): Promise<BookUploadResponse> => {
   const formData = appendArchive(new FormData(), file);
-  return client.postForm<BookUploadResponse>(appendOverrideParam(`/books/${bookId}/upload`, options.override), formData, {
+  return client.postForm<BookUploadResponse>(appendQueryParams(`/books/${bookId}/upload`, options), formData, {
     headers: buildAuthHeaders(token, tokenType)
   });
 };
@@ -59,7 +70,7 @@ export const uploadNewBookArchive = async (
   options: UploadOptions = {}
 ): Promise<NewBookUploadResponse> => {
   const formData = appendArchive(new FormData(), file);
-  return client.postForm<NewBookUploadResponse>(appendOverrideParam('/books/upload', options.override), formData, {
+  return client.postForm<NewBookUploadResponse>(appendQueryParams('/books/upload', options), formData, {
     headers: buildAuthHeaders(token, tokenType)
   });
 };
@@ -74,7 +85,7 @@ export const uploadAppArchive = async (
 ): Promise<AppUploadResponse> => {
   const normalizedPlatform = platform.toLowerCase();
   const formData = appendArchive(new FormData(), file);
-  return client.postForm<AppUploadResponse>(appendOverrideParam(`/apps/${normalizedPlatform}/upload`, options.override), formData, {
+  return client.postForm<AppUploadResponse>(appendQueryParams(`/apps/${normalizedPlatform}/upload`, options), formData, {
     headers: buildAuthHeaders(token, tokenType)
   });
 };
@@ -107,7 +118,7 @@ export const uploadBulkBookArchives = async (
     formData.append('files', file, file.name);
   });
   return client.postForm<BulkUploadResponse>(
-    appendOverrideParam('/books/upload-bulk', options.override),
+    appendQueryParams('/books/upload-bulk', options),
     formData,
     {
       headers: buildAuthHeaders(token, tokenType)

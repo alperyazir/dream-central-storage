@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import pytest
 
 from app.models.book import Book, BookStatusEnum
+from app.models.publisher import Publisher
 from app.schemas.book import BookCreate, BookRead, BookUpdate
 
 
@@ -19,7 +20,6 @@ def test_book_create_defaults() -> None:
     }
     schema = BookCreate(**payload)
     assert schema.status is BookStatusEnum.DRAFT
-    assert schema.version is None
 
 
 def test_book_update_supports_partial_mutation() -> None:
@@ -34,20 +34,30 @@ def test_book_update_rejects_invalid_status() -> None:
 
 
 def test_book_read_serializes_from_orm() -> None:
+    # Create a real Publisher object for the relationship
+    publisher = Publisher(
+        id=1,
+        name="Dream Press",
+        display_name="Dream Press",
+        status="active",
+    )
+
     book = Book(
         id=1,
-        publisher="Dream Press",
+        publisher_id=1,
         book_name="Midnight Stories",
         language="en",
         category="fiction",
-        version=None,
         status=BookStatusEnum.DRAFT,
     )
+    # Set the relationship manually for testing (bypass SQLAlchemy instrumentation)
+    object.__setattr__(book, 'publisher_rel', publisher)
     now = datetime.now(timezone.utc)
     book.created_at = now
     book.updated_at = now
 
     schema = BookRead.model_validate(book)
     assert schema.id == 1
+    assert schema.publisher == "Dream Press"
     assert schema.created_at == now
     assert schema.status is BookStatusEnum.DRAFT

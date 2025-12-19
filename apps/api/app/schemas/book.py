@@ -25,15 +25,24 @@ class BookBase(BaseModel):
 
 
 class BookCreate(BookBase):
-    """Payload for creating a new book record."""
+    """Payload for creating a new book record.
 
-    pass
+    Requires publisher_id foreign key reference to publishers table.
+    Publisher string field is derived from the publisher relationship for API responses.
+    """
+
+    publisher_id: int | None = Field(default=None, description="Required publisher ID (foreign key to publishers table)")
 
 
 class BookUpdate(BaseModel):
-    """Payload for updating existing book metadata."""
+    """Payload for updating existing book metadata.
+
+    Publisher can be updated via publisher_id (foreign key).
+    Publisher string field is read-only and derived from the publisher relationship.
+    """
 
     publisher: str | None = Field(default=None, max_length=255)
+    publisher_id: int | None = Field(default=None, description="Publisher ID (foreign key to publishers table)")
     book_name: str | None = Field(default=None, max_length=255)
     book_title: str | None = Field(default=None, max_length=255)
     book_cover: str | None = Field(default=None, max_length=512)
@@ -46,9 +55,13 @@ class BookUpdate(BaseModel):
 
 
 class BookRead(BookBase):
-    """Representation returned by the API for persisted book records."""
+    """Representation returned by the API for persisted book records.
+
+    Note: publisher field is populated via ORM property from publisher_rel relationship.
+    """
 
     id: int
+    publisher_id: int
     created_at: datetime
     updated_at: datetime
 

@@ -1,8 +1,16 @@
 """Pydantic schemas used by the FastAPI application."""
 
 from .api_key import ApiKeyCreate, ApiKeyCreated, ApiKeyListResponse, ApiKeyRead
+from .asset import AssetFileInfo, AssetTypeInfo, PublisherAssetsResponse
 from .auth import LoginRequest, SessionResponse, TokenResponse
 from .book import BookBase, BookCreate, BookRead, BookUpdate
+from .publisher import (
+    PublisherBase,
+    PublisherCreate,
+    PublisherRead,
+    PublisherUpdate,
+    PublisherWithBooks,
+)
 from .storage import RestoreRequest, RestoreResponse, TrashEntryRead
 from .webhook import (
     WebhookDeliveryLogRead,
@@ -18,10 +26,18 @@ __all__ = [
     "ApiKeyCreated",
     "ApiKeyListResponse",
     "ApiKeyRead",
+    "AssetFileInfo",
+    "AssetTypeInfo",
+    "PublisherAssetsResponse",
     "BookBase",
     "BookCreate",
     "BookRead",
     "BookUpdate",
+    "PublisherBase",
+    "PublisherCreate",
+    "PublisherRead",
+    "PublisherUpdate",
+    "PublisherWithBooks",
     "RestoreRequest",
     "RestoreResponse",
     "TrashEntryRead",

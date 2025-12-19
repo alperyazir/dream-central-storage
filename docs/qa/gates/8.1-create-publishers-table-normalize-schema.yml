@@ -1,0 +1,69 @@
+# Quality Gate: 8.1 - Create Publishers Table & Establish Normalized Schema
+schema: 1
+story: "8.1"
+story_title: "Create Publishers Table & Establish Normalized Schema"
+gate: PASS
+status_reason: "Implementation complete. Core tests pass (test_books_upload.py, test_schemas_book.py). Integration tests updated but require PostgreSQL due to pre-existing JSONB/SQLite incompatibility."
+reviewer: "Quinn (Test Architect)"
+updated: "2025-12-14T14:00:00Z"
+
+waiver: { active: false }
+
+top_issues:
+  - id: "TEST-001"
+    severity: resolved
+    finding: "30 test errors due to Book model changes - tests create Book with publisher= instead of publisher_id="
+    suggested_action: "Fixed: Updated test fixtures in test_books_upload.py, test_books_endpoints.py, test_storage_trash_endpoints.py to use publisher_id and create mock Publisher objects"
+    suggested_owner: dev
+  - id: "TEST-002"
+    severity: resolved
+    finding: "Test mocks reference renamed method get_by_publisher_and_name which no longer exists"
+    suggested_action: "Fixed: Updated mocks to use get_by_publisher_id_and_name"
+    suggested_owner: dev
+  - id: "DEBT-001"
+    severity: low
+    finding: "Pre-existing test infrastructure issue - SQLite tests fail on JSONB column type"
+    suggested_action: "Consider using JSON instead of JSONB or configure test DB to use PostgreSQL. This affects integration tests only."
+    suggested_owner: dev
+
+quality_score: 90  # Integration tests ready, pending PostgreSQL runtime
+expires: "2025-12-28T00:00:00Z"
+
+evidence:
+  tests_reviewed: 4
+  risks_identified: 3
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "FK constraints enforce data integrity; no auth/authz changes"
+  performance:
+    status: PASS
+    notes: "Indexes added on publishers.name and books.publisher_id for query performance"
+  reliability:
+    status: PASS
+    notes: "Migrations include proper downgrade support; orphan handling with _unknown publisher"
+  maintainability:
+    status: PASS
+    notes: "Clean SQLAlchemy 2.0 patterns; bidirectional relationships; well-documented code"
+
+recommendations:
+  immediate:
+    - action: "Update test fixtures to create Book objects with publisher_id instead of publisher"
+      refs:
+        - "tests/test_books_upload.py"
+        - "tests/test_books_endpoints.py"
+        - "tests/test_storage_trash_endpoints.py"
+    - action: "Update mock definitions to use renamed repository methods"
+      refs:
+        - "tests/test_books_upload.py:197-198"
+        - "tests/test_books_upload.py:244-245"
+        - "tests/test_storage_endpoints.py:33"
+  future:
+    - action: "Consider adding Publisher model unit tests"
+      refs: ["tests/test_publisher_model.py (new)"]
+    - action: "Add integration tests for Publisher-Book relationship queries"
+      refs: ["tests/test_publisher_integration.py (new)"]

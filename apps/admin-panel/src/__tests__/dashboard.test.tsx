@@ -184,6 +184,9 @@ afterEach(() => {
       const url = input.toString();
       const normalized = url.toLowerCase();
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       if (url.endsWith('/books')) {
         const headers = new Headers(init?.headers as HeadersInit);
         expect(headers.get('Authorization')).toBe('Bearer test-token');
@@ -202,6 +205,9 @@ afterEach(() => {
         return Promise.resolve(createJsonResponse(trees[slug]!));
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 
@@ -330,6 +336,9 @@ afterEach(() => {
         return Promise.resolve(createJsonResponse({ path: 'macOS/', type: 'folder', children: [] }));
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 
@@ -410,6 +419,9 @@ afterEach(() => {
         );
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 
@@ -488,6 +500,9 @@ afterEach(() => {
         );
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 
@@ -555,6 +570,9 @@ afterEach(() => {
         return Promise.resolve(createJsonResponse({ platform: 'macos', version: 'abc123', files: [] }));
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 
@@ -614,6 +632,9 @@ afterEach(() => {
         return Promise.resolve(createJsonResponse({ platform: 'linux', version: 'lin-build', files: [] }));
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 
@@ -715,6 +736,9 @@ afterEach(() => {
         );
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 
@@ -802,6 +826,9 @@ afterEach(() => {
           return Promise.resolve(new Response('Internal server error', { status: 500 }));
         }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
         throw new Error(`Unexpected request to ${url}`);
       });
 
@@ -893,6 +920,9 @@ afterEach(() => {
         return Promise.resolve(createJsonResponse(booksPayloadArchived[0]));
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 
@@ -973,6 +1003,9 @@ afterEach(() => {
         return Promise.resolve(new Response('failure', { status: 502 }));
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 
@@ -1084,6 +1117,9 @@ afterEach(() => {
           return Promise.resolve(createJsonResponse(configPayload));
         }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
         throw new Error(`Unexpected request to ${url}`);
       });
 
@@ -1172,6 +1208,9 @@ afterEach(() => {
         return Promise.resolve(createJsonResponse(configPayload));
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 
@@ -1241,6 +1280,9 @@ afterEach(() => {
         return Promise.resolve(new Response('config failure', { status: 500 }));
       }
 
+      if (url.endsWith('/publishers/')) {
+        return Promise.resolve(createJsonResponse([]));
+      }
       throw new Error(`Unexpected request to ${url}`);
     });
 

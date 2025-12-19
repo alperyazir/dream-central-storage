@@ -3,6 +3,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -10,6 +11,7 @@ import {
   DialogContentText,
   DialogTitle,
   Paper,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -44,6 +46,19 @@ const formatBytes = (size?: number) => {
   return `${value.toFixed(precision)} ${units[exponent]}`;
 };
 
+const getItemTypeLabel = (itemType: string) => {
+  switch (itemType) {
+    case 'book':
+      return 'Book';
+    case 'app':
+      return 'App';
+    case 'teacher_material':
+      return 'Teacher Material';
+    default:
+      return 'Unknown';
+  }
+};
+
 const getEntryLabel = (entry: TrashEntry) => {
   if (entry.item_type === 'book' && entry.metadata) {
     const publisher = entry.metadata.publisher ?? entry.metadata.Publisher;
@@ -58,6 +73,13 @@ const getEntryLabel = (entry: TrashEntry) => {
     const version = entry.metadata.version ?? entry.metadata.Version;
     if (platform && version) {
       return `${platform} ${version}`;
+    }
+  }
+
+  if (entry.item_type === 'teacher_material' && entry.metadata) {
+    const teacherId = entry.metadata.teacher_id ?? entry.metadata.teacherId;
+    if (teacherId) {
+      return `Teacher: ${teacherId}`;
     }
   }
 
@@ -80,6 +102,7 @@ const TrashPage = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [notification, setNotification] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
   const [refreshIndex, setRefreshIndex] = useState(0);
+  const [typeFilter, setTypeFilter] = useState<string>('');
 
   useEffect(() => {
     let active = true;
@@ -172,8 +195,11 @@ const TrashPage = () => {
   };
 
   const sortedEntries = useMemo(() => {
-    return [...entries].sort((a, b) => getEntryLabel(a).localeCompare(getEntryLabel(b), undefined, { sensitivity: 'base' }));
-  }, [entries]);
+    const filtered = typeFilter
+      ? entries.filter((entry) => entry.item_type === typeFilter)
+      : entries;
+    return [...filtered].sort((a, b) => getEntryLabel(a).localeCompare(getEntryLabel(b), undefined, { sensitivity: 'base' }));
+  }, [entries, typeFilter]);
 
   const performPermanentDelete = async () => {
     if (!deleteTarget || !token) {
@@ -304,6 +330,41 @@ const TrashPage = () => {
         </Alert>
       ) : null}
 
+      {entries.length > 0 ? (
+        <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+          <Chip
+            label="All"
+            onClick={() => setTypeFilter('')}
+            variant={typeFilter === '' ? 'filled' : 'outlined'}
+            color={typeFilter === '' ? 'primary' : 'default'}
+          />
+          <Chip
+            label="Books"
+            onClick={() => setTypeFilter('book')}
+            variant={typeFilter === 'book' ? 'filled' : 'outlined'}
+            color={typeFilter === 'book' ? 'primary' : 'default'}
+          />
+          <Chip
+            label="Apps"
+            onClick={() => setTypeFilter('app')}
+            variant={typeFilter === 'app' ? 'filled' : 'outlined'}
+            color={typeFilter === 'app' ? 'primary' : 'default'}
+          />
+          <Chip
+            label="Teacher Materials"
+            onClick={() => setTypeFilter('teacher_material')}
+            variant={typeFilter === 'teacher_material' ? 'filled' : 'outlined'}
+            color={typeFilter === 'teacher_material' ? 'primary' : 'default'}
+          />
+        </Stack>
+      ) : null}
+
+      {typeFilter && sortedEntries.length > 0 ? (
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Showing {sortedEntries.length} {sortedEntries.length === 1 ? 'item' : 'items'}
+        </Typography>
+      ) : null}
+
       {!loading && !error && !hasEntries ? (
         <Alert severity="info" sx={{ mb: 3 }}>
           Trash is currently empty.
@@ -323,6 +384,7 @@ const TrashPage = () => {
             <TableHead>
               <TableRow>
                 <TableCell>Name</TableCell>
+                <TableCell>Type</TableCell>
                 <TableCell>Bucket</TableCell>
                 <TableCell>Path</TableCell>
                 <TableCell align="right">Objects</TableCell>
@@ -334,6 +396,7 @@ const TrashPage = () => {
               {sortedEntries.map((entry) => (
                 <TableRow key={entry.key} hover>
                   <TableCell>{getEntryLabel(entry)}</TableCell>
+                  <TableCell>{getItemTypeLabel(entry.item_type)}</TableCell>
                   <TableCell>{entry.bucket}</TableCell>
                   <TableCell>{entry.path}</TableCell>
                   <TableCell align="right">{entry.object_count}</TableCell>

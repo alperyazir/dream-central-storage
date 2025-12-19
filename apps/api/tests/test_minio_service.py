@@ -33,18 +33,18 @@ def test_ensure_buckets_creates_missing_bucket() -> None:
     client = MagicMock()
     client.bucket_exists.side_effect = [False, True]
 
-    ensure_buckets(client, ["books", "apps"])
+    ensure_buckets(client, ["publishers", "apps"])
 
-    client.bucket_exists.assert_any_call("books")
+    client.bucket_exists.assert_any_call("publishers")
     client.bucket_exists.assert_any_call("apps")
-    client.make_bucket.assert_called_once_with("books")
+    client.make_bucket.assert_called_once_with("publishers")
 
 
 def test_ensure_buckets_skips_existing_bucket() -> None:
     client = MagicMock()
     client.bucket_exists.return_value = True
 
-    ensure_buckets(client, ["books"])
+    ensure_buckets(client, ["publishers"])
 
     client.make_bucket.assert_not_called()
 
@@ -62,5 +62,5 @@ def test_ensure_buckets_raises_runtime_error_on_s3_failure() -> None:
     )
     client.bucket_exists.side_effect = error
 
-    with pytest.raises(RuntimeError, match="Unable to ensure bucket 'books'"):
-        ensure_buckets(client, ["books"])
+    with pytest.raises(RuntimeError, match="Unable to ensure bucket 'publishers'"):
+        ensure_buckets(client, ["publishers"])
