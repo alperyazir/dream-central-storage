@@ -118,7 +118,9 @@ def create_book(
     book = _book_repository.create(db, data=data)
 
     # Trigger webhook in background
+    logger.info(f"[WEBHOOK-TRIGGER] Scheduling BOOK_CREATED webhook for book_id={book.id}, book_name='{book.book_name}', publisher='{book.publisher}'")
     background_tasks.add_task(_trigger_webhook, book.id, WebhookEventType.BOOK_CREATED)
+    logger.debug(f"[WEBHOOK-TRIGGER] BOOK_CREATED webhook task added to background queue for book_id={book.id}")
 
     return BookRead.model_validate(book)
 
@@ -182,7 +184,9 @@ def update_book(
     updated = _book_repository.update(db, book, data=update_data)
 
     # Trigger webhook in background
+    logger.info(f"[WEBHOOK-TRIGGER] Scheduling BOOK_UPDATED webhook for book_id={book_id}, book_name='{updated.book_name}', updated_fields={list(update_data.keys())}")
     background_tasks.add_task(_trigger_webhook, book_id, WebhookEventType.BOOK_UPDATED)
+    logger.debug(f"[WEBHOOK-TRIGGER] BOOK_UPDATED webhook task added to background queue for book_id={book_id}")
 
     return BookRead.model_validate(updated)
 
@@ -235,7 +239,9 @@ def soft_delete_book(
     )
 
     # Trigger webhook in background
+    logger.info(f"[WEBHOOK-TRIGGER] Scheduling BOOK_DELETED webhook for book_id={book_id}, book_name='{archived.book_name}', objects_moved={report.objects_moved}")
     background_tasks.add_task(_trigger_webhook, book_id, WebhookEventType.BOOK_DELETED)
+    logger.debug(f"[WEBHOOK-TRIGGER] BOOK_DELETED webhook task added to background queue for book_id={book_id}")
 
     return BookRead.model_validate(archived)
 
@@ -299,7 +305,9 @@ async def upload_book(
     )
 
     # Trigger webhook for book update
+    logger.info(f"[WEBHOOK-TRIGGER] Scheduling BOOK_UPDATED webhook (upload) for book_id={book_id}, files_uploaded={len(manifest)}")
     background_tasks.add_task(_trigger_webhook, book_id, WebhookEventType.BOOK_UPDATED)
+    logger.debug(f"[WEBHOOK-TRIGGER] BOOK_UPDATED webhook task (upload) added to background queue for book_id={book_id}")
 
     return {"book_id": book_id, "files": manifest}
 
@@ -472,7 +480,9 @@ async def upload_new_book(
     )
 
     # Trigger webhook in background
+    logger.info(f"[WEBHOOK-TRIGGER] Scheduling BOOK_CREATED webhook (new upload) for book_id={book.id}, book_name='{book.book_name}', files_uploaded={len(manifest)}")
     background_tasks.add_task(_trigger_webhook, book.id, WebhookEventType.BOOK_CREATED)
+    logger.debug(f"[WEBHOOK-TRIGGER] BOOK_CREATED webhook task (new upload) added to background queue for book_id={book.id}")
 
     return {"book": book_read.model_dump(), "files": manifest}
 
@@ -652,7 +662,9 @@ async def upload_bulk_books(
             )
 
             # Trigger webhook in background
+            logger.info(f"[WEBHOOK-TRIGGER] Scheduling BOOK_CREATED webhook (bulk upload) for book_id={book.id}, book_name='{book.book_name}', files_uploaded={len(manifest)}")
             background_tasks.add_task(_trigger_webhook, book.id, WebhookEventType.BOOK_CREATED)
+            logger.debug(f"[WEBHOOK-TRIGGER] BOOK_CREATED webhook task (bulk upload) added to background queue for book_id={book.id}")
 
         except Exception as exc:
             logger.error("Unexpected error processing file %s: %s", file.filename, exc)

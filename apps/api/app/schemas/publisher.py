@@ -56,3 +56,27 @@ class PublisherWithBooks(PublisherRead):
     books: list[Any] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PublisherSyncItem(BaseModel):
+    """Publisher data for sync/webhook purposes (LMS integration)."""
+
+    id: int
+    name: str
+    contact_email: str | None = None
+    logo_url: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PublisherListItem(PublisherRead):
+    """Publisher item in list response with computed logo_url."""
+
+    logo_url: str | None = None
+
+
+class PublisherListResponse(BaseModel):
+    """Paginated publisher list response."""
+
+    items: list[PublisherListItem]
+    total: int

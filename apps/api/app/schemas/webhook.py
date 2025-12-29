@@ -90,9 +90,18 @@ class WebhookEventBookData(BaseModel):
     status: str
 
 
+class WebhookEventPublisherData(BaseModel):
+    """Publisher data included in webhook events."""
+
+    id: int
+    name: str
+    contact_email: str | None = None
+    logo_url: str | None = None
+
+
 class WebhookEventPayload(BaseModel):
     """Webhook event payload sent to subscribers."""
 
     event: WebhookEventType
     timestamp: datetime
-    data: WebhookEventBookData
+    data: WebhookEventBookData | WebhookEventPublisherData

@@ -47,17 +47,24 @@ export interface PublisherBook {
   updated_at?: string;
 }
 
+export interface PublisherListResponse {
+  items: Publisher[];
+  total: number;
+}
+
 /**
  * Fetch all publishers.
  */
-export const fetchPublishers = (
+export const fetchPublishers = async (
   token: string,
   tokenType: string = 'Bearer',
   client: ApiClient = apiClient
-): Promise<Publisher[]> =>
-  client.get<Publisher[]>('/publishers/', {
+): Promise<Publisher[]> => {
+  const response = await client.get<PublisherListResponse>('/publishers/', {
     headers: buildAuthHeaders(token, tokenType),
   });
+  return response.items;
+};
 
 /**
  * Fetch a single publisher by ID.
@@ -118,15 +125,55 @@ export const updatePublisher = (
   });
 
 /**
- * Soft-delete a publisher.
+ * Soft-delete a publisher (moves to trash).
  */
 export const deletePublisher = (
   id: number,
   token: string,
   tokenType: string = 'Bearer',
   client: ApiClient = apiClient
+): Promise<Publisher> =>
+  client.delete<Publisher>(`/publishers/${id}`, undefined, {
+    headers: buildAuthHeaders(token, tokenType),
+  });
+
+/**
+ * Fetch trashed publishers.
+ */
+export const fetchTrashedPublishers = async (
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient
+): Promise<Publisher[]> => {
+  const response = await client.get<PublisherListResponse>('/publishers/trash', {
+    headers: buildAuthHeaders(token, tokenType),
+  });
+  return response.items;
+};
+
+/**
+ * Restore a publisher from trash.
+ */
+export const restorePublisher = (
+  id: number,
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient
+): Promise<Publisher> =>
+  client.post<Publisher, undefined>(`/publishers/${id}/restore`, undefined, {
+    headers: buildAuthHeaders(token, tokenType),
+  });
+
+/**
+ * Permanently delete a publisher from trash.
+ */
+export const permanentDeletePublisher = (
+  id: number,
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient
 ): Promise<void> =>
-  client.delete<void>(`/publishers/${id}`, undefined, {
+  client.delete<void>(`/publishers/${id}/permanent`, undefined, {
     headers: buildAuthHeaders(token, tokenType),
   });
 

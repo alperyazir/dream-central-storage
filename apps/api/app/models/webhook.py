@@ -17,6 +17,9 @@ class WebhookEventType(str, enum.Enum):
     BOOK_CREATED = "book.created"
     BOOK_UPDATED = "book.updated"
     BOOK_DELETED = "book.deleted"
+    PUBLISHER_CREATED = "publisher.created"
+    PUBLISHER_UPDATED = "publisher.updated"
+    PUBLISHER_DELETED = "publisher.deleted"
 
 
 class WebhookDeliveryStatus(str, enum.Enum):
@@ -57,15 +60,15 @@ class WebhookDeliveryLog(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     subscription_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    event_type: Mapped[WebhookEventType] = mapped_column(
-        Enum(WebhookEventType, name="webhook_event_type", native_enum=False),
+    event_type: Mapped[str] = mapped_column(
+        String(50),  # Store as string to avoid enum name/value confusion
         nullable=False,
     )
     payload: Mapped[str] = mapped_column(Text, nullable=False)  # JSON payload as text
-    status: Mapped[WebhookDeliveryStatus] = mapped_column(
-        Enum(WebhookDeliveryStatus, name="webhook_delivery_status", native_enum=False),
+    status: Mapped[str] = mapped_column(
+        String(20),  # Store as string to avoid enum name/value confusion
         nullable=False,
-        default=WebhookDeliveryStatus.PENDING,
+        default="pending",
     )
     response_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
     response_body: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
+import logging
+
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.publisher import Publisher
 from app.repositories.base import BaseRepository
+
+logger = logging.getLogger(__name__)
 
 
 class PublisherRepository(BaseRepository[Publisher]):
@@ -24,6 +28,41 @@ class PublisherRepository(BaseRepository[Publisher]):
         """Return publishers with pagination."""
         statement = select(Publisher).offset(skip).limit(limit)
         return list(session.scalars(statement).all())
+
+    def count(self, session: Session) -> int:
+        """Return total count of publishers."""
+        statement = select(func.count()).select_from(Publisher)
+        return session.execute(statement).scalar() or 0
+
+    def list_active(self, session: Session, skip: int = 0, limit: int = 100) -> list[Publisher]:
+        """Return only active publishers with pagination."""
+        statement = (
+            select(Publisher)
+            .where(Publisher.status == "active")
+            .offset(skip)
+            .limit(limit)
+        )
+        return list(session.scalars(statement).all())
+
+    def count_active(self, session: Session) -> int:
+        """Return count of active publishers."""
+        statement = select(func.count()).select_from(Publisher).where(Publisher.status == "active")
+        return session.execute(statement).scalar() or 0
+
+    def list_archived(self, session: Session, skip: int = 0, limit: int = 100) -> list[Publisher]:
+        """Return archived (trashed) publishers with pagination."""
+        statement = (
+            select(Publisher)
+            .where(Publisher.status == "inactive")
+            .offset(skip)
+            .limit(limit)
+        )
+        return list(session.scalars(statement).all())
+
+    def count_archived(self, session: Session) -> int:
+        """Return count of archived publishers."""
+        statement = select(func.count()).select_from(Publisher).where(Publisher.status == "inactive")
+        return session.execute(statement).scalar() or 0
 
     def get_by_name(self, session: Session, name: str) -> Publisher | None:
         """Fetch a publisher by unique name."""
@@ -67,6 +106,19 @@ class PublisherRepository(BaseRepository[Publisher]):
         return publisher
 
     def delete(self, session: Session, publisher: Publisher) -> None:
-        """Permanently remove a publisher record from the database."""
+        """Permanently remove a publisher record from the database.
+
+        This will also delete all books associated with the publisher due to
+        cascade delete configured on the relationship.
+        """
+        # Load books to ensure cascade delete works properly
+        session.refresh(publisher)
+        book_count = len(publisher.books)
+
+        logger.info(f"Deleting publisher '{publisher.name}' (ID: {publisher.id}) and {book_count} associated books")
+
+        # Delete publisher (cascade will delete all books)
         session.delete(publisher)
         session.commit()
+
+        logger.info(f"Successfully deleted publisher '{publisher.name}' and {book_count} books")

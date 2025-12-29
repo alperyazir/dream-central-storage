@@ -29,11 +29,15 @@ import {
   TableHead,
   TableRow,
   TableSortLabel,
+  Tabs,
+  Tab,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import RestoreIcon from '@mui/icons-material/Restore';
 import EditIcon from '@mui/icons-material/Edit';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
@@ -41,8 +45,11 @@ import BusinessIcon from '@mui/icons-material/Business';
 
 import {
   fetchPublishers,
+  fetchTrashedPublishers,
   Publisher,
   deletePublisher,
+  restorePublisher,
+  permanentDeletePublisher,
   fetchPublisherBooks,
   fetchPublisherAssetFiles,
 } from '../lib/publishers';
@@ -60,6 +67,8 @@ const PublishersPage = () => {
   const token = useAuthStore((state) => state.token);
   const tokenType = useAuthStore((state) => state.tokenType);
   const [publishers, setPublishers] = useState<Publisher[]>([]);
+  const [trashedPublishers, setTrashedPublishers] = useState<Publisher[]>([]);
+  const [activeTab, setActiveTab] = useState(0); // 0 = active, 1 = trash
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -68,6 +77,7 @@ const PublishersPage = () => {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [deleteTarget, setDeleteTarget] = useState<Publisher | null>(null);
   const [deleteBookCount, setDeleteBookCount] = useState<number>(0);
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<Publisher | null>(null);
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const [editingPublisher, setEditingPublisher] = useState<Publisher | null>(null);
   const [bookCounts, setBookCounts] = useState<Record<number, number>>({});
@@ -78,8 +88,12 @@ const PublishersPage = () => {
     setLoading(true);
     setError('');
     try {
-      const data = await fetchPublishers(token, tokenType || 'Bearer');
-      setPublishers(data);
+      const [activeData, trashedData] = await Promise.all([
+        fetchPublishers(token, tokenType || 'Bearer'),
+        fetchTrashedPublishers(token, tokenType || 'Bearer'),
+      ]);
+      setPublishers(activeData);
+      setTrashedPublishers(trashedData);
     } catch (err) {
       console.error('Failed to fetch publishers:', err);
       setError('Failed to load publishers. Please try again.');
@@ -163,6 +177,35 @@ const PublishersPage = () => {
     }
   };
 
+  const handleRestore = async (publisher: Publisher) => {
+    if (!token) return;
+    try {
+      await restorePublisher(publisher.id, token, tokenType || 'Bearer');
+      await loadPublishers();
+    } catch (err) {
+      console.error('Failed to restore publisher:', err);
+      setError('Failed to restore publisher. Please try again.');
+    }
+  };
+
+  const handlePermanentDeleteClick = (publisher: Publisher) => {
+    setPermanentDeleteTarget(publisher);
+  };
+
+  const handlePermanentDeleteConfirm = async () => {
+    if (!permanentDeleteTarget || !token) return;
+
+    try {
+      await permanentDeletePublisher(permanentDeleteTarget.id, token, tokenType || 'Bearer');
+      await loadPublishers();
+      setPermanentDeleteTarget(null);
+    } catch (err) {
+      console.error('Failed to permanently delete publisher:', err);
+      setError('Failed to permanently delete publisher. Please try again.');
+      setPermanentDeleteTarget(null);
+    }
+  };
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -201,8 +244,10 @@ const PublishersPage = () => {
     return Array.from(set).sort();
   }, [publishers]);
 
+  const currentPublishers = activeTab === 0 ? publishers : trashedPublishers;
+
   const filteredAndSortedPublishers = useMemo(() => {
-    let result = [...publishers];
+    let result = [...currentPublishers];
 
     // Apply search filter
     if (searchQuery) {
@@ -253,7 +298,7 @@ const PublishersPage = () => {
     });
 
     return result;
-  }, [publishers, searchQuery, statusFilter, sortField, sortDirection]);
+  }, [currentPublishers, searchQuery, statusFilter, sortField, sortDirection]);
 
   const clearFilters = () => {
     setSearchQuery('');
@@ -294,10 +339,22 @@ const PublishersPage = () => {
             Manage publisher information and view their books
           </Typography>
         </Box>
-        <Button variant="contained" size="large" onClick={handleAddPublisher}>
-          Add Publisher
-        </Button>
+        {activeTab === 0 && (
+          <Button variant="contained" size="large" onClick={handleAddPublisher}>
+            Add Publisher
+          </Button>
+        )}
       </Box>
+
+      {/* Tabs for Active/Trash */}
+      <Tabs
+        value={activeTab}
+        onChange={(_, newValue) => setActiveTab(newValue)}
+        sx={{ mb: 3 }}
+      >
+        <Tab label={`Active (${publishers.length})`} />
+        <Tab label={`Trash (${trashedPublishers.length})`} />
+      </Tabs>
 
       {/* Search and Filters */}
       <Card sx={{ mb: 3 }}>
@@ -349,7 +406,7 @@ const PublishersPage = () => {
 
           <Box sx={{ mt: 2 }}>
             <Typography variant="body2" color="text.secondary">
-              Showing {filteredAndSortedPublishers.length} of {publishers.length} publishers
+              Showing {filteredAndSortedPublishers.length} of {currentPublishers.length} publishers
             </Typography>
           </Box>
         </CardContent>
@@ -457,20 +514,45 @@ const PublishersPage = () => {
                       />
                     </TableCell>
                     <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                      <Tooltip title="Edit publisher">
-                        <IconButton size="small" onClick={() => handleEditPublisher(publisher)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Delete publisher">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleDeleteClick(publisher)}
-                        >
-                          <DeleteOutlineIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
+                      {activeTab === 0 ? (
+                        <>
+                          <Tooltip title="Edit publisher">
+                            <IconButton size="small" onClick={() => handleEditPublisher(publisher)}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Move to trash">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleDeleteClick(publisher)}
+                            >
+                              <DeleteOutlineIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </>
+                      ) : (
+                        <>
+                          <Tooltip title="Restore publisher">
+                            <IconButton
+                              size="small"
+                              color="success"
+                              onClick={() => handleRestore(publisher)}
+                            >
+                              <RestoreIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete permanently">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handlePermanentDeleteClick(publisher)}
+                            >
+                              <DeleteForeverIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -490,27 +572,48 @@ const PublishersPage = () => {
         tokenType={tokenType}
       />
 
-      {/* Delete Confirmation Dialog */}
+      {/* Move to Trash Confirmation Dialog */}
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>
-        <DialogTitle>Delete Publisher?</DialogTitle>
+        <DialogTitle>Move to Trash?</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Are you sure you want to delete "{deleteTarget?.display_name || deleteTarget?.name}"?
+            Are you sure you want to move "{deleteTarget?.display_name || deleteTarget?.name}" to trash?
             {deleteBookCount > 0 && (
               <>
                 <br />
                 <br />
                 <strong>Warning:</strong> This publisher has {deleteBookCount} book
-                {deleteBookCount !== 1 ? 's' : ''} associated with it. Deleting this publisher may
-                affect these books.
+                {deleteBookCount !== 1 ? 's' : ''} associated with it.
               </>
             )}
+            <br />
+            <br />
+            You can restore it later from the Trash tab.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteTarget(null)}>Cancel</Button>
           <Button onClick={handleDeleteConfirm} color="error" variant="contained">
-            Delete
+            Move to Trash
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Permanent Delete Confirmation Dialog */}
+      <Dialog open={!!permanentDeleteTarget} onClose={() => setPermanentDeleteTarget(null)}>
+        <DialogTitle>Permanently Delete Publisher?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to permanently delete "{permanentDeleteTarget?.display_name || permanentDeleteTarget?.name}"?
+            <br />
+            <br />
+            <strong>Warning:</strong> This action cannot be undone. The publisher will be permanently removed from the database.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPermanentDeleteTarget(null)}>Cancel</Button>
+          <Button onClick={handlePermanentDeleteConfirm} color="error" variant="contained">
+            Delete Permanently
           </Button>
         </DialogActions>
       </Dialog>

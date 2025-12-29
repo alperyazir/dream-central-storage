@@ -42,5 +42,5 @@ class Publisher(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    # Relationship to books
-    books: Mapped[list["Book"]] = relationship("Book", back_populates="publisher_rel")
+    # Relationship to books (cascade delete: when publisher is deleted, all books are deleted too)
+    books: Mapped[list["Book"]] = relationship("Book", back_populates="publisher_rel", cascade="all, delete-orphan")
