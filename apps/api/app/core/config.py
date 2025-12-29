@@ -61,6 +61,18 @@ class Settings(BaseSettings):
     llm_timeout_seconds: int = 60
     llm_max_retries: int = 3
 
+    # TTS Provider Configuration
+    azure_tts_key: str = ""
+    azure_tts_region: str = "eastus"
+    tts_primary_provider: str = "edge"
+    tts_fallback_provider: str = "azure"
+    tts_default_voice_en: str = "en-US-JennyNeural"
+    tts_default_voice_tr: str = "tr-TR-EmelNeural"
+    tts_audio_format: str = "mp3"
+    tts_timeout_seconds: int = 30
+    tts_max_retries: int = 3
+    tts_batch_concurrency: int = 5
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
