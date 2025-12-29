@@ -51,6 +51,16 @@ class Settings(BaseSettings):
 
     cors_allowed_origins: str | list[str] = "http://localhost:5173"
 
+    # LLM Provider Configuration
+    deepseek_api_key: str = ""
+    gemini_api_key: str = ""
+    llm_primary_provider: str = "deepseek"
+    llm_fallback_provider: str = "gemini"
+    llm_default_model: str = "deepseek-chat"
+    llm_max_tokens: int = 4096
+    llm_timeout_seconds: int = 60
+    llm_max_retries: int = 3
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
