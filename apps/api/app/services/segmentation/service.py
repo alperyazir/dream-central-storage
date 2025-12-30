@@ -118,7 +118,7 @@ class SegmentationService:
         if not pages:
             raise NoTextFoundError(
                 book_id,
-                f"{publisher_id}/books/{book_id}/{book_name}/ai-data/text/",
+                f"{publisher_id}/books/{book_name}/ai-data/text/",
             )
 
         total_pages = max(pages.keys())
@@ -218,9 +218,9 @@ class SegmentationService:
         client = get_minio_client(self.settings)
         bucket = self.settings.minio_publishers_bucket
 
-        # Build path
+        # Build path (book_id not used in storage path)
         path = (
-            f"{publisher_id}/books/{book_id}/{book_name}/"
+            f"{publisher_id}/books/{book_name}/"
             f"ai-data/text/page_{page_num:03d}.txt"
         )
 

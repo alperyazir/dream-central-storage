@@ -51,7 +51,8 @@ class ModuleStorage:
         *path_parts: str,
     ) -> str:
         """Build MinIO path within ai-data/modules directory."""
-        base = f"{publisher_id}/books/{book_id}/{book_name}/ai-data/modules"
+        # Path: {publisher_name}/books/{book_name}/ai-data/modules (book_id not in path)
+        base = f"{publisher_id}/books/{book_name}/ai-data/modules"
         if path_parts:
             return f"{base}/{'/'.join(path_parts)}"
         return base

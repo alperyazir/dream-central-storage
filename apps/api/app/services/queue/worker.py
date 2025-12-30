@@ -68,6 +68,9 @@ class WorkerSettings:
         """Get retry delay for attempt."""
         return _get_retry_delay(attempt)
 
+    # Queue name (set dynamically)
+    queue_name: str = "arq:queue"
+
     @classmethod
     def configure(cls) -> type["WorkerSettings"]:
         """Configure settings from environment.
@@ -81,6 +84,8 @@ class WorkerSettings:
         cls.max_jobs = settings.queue_max_concurrency
         cls.job_timeout = settings.queue_job_timeout_seconds
         cls.max_tries = settings.queue_max_retries
+        # Listen to normal priority queue by default
+        cls.queue_name = f"{settings.queue_name}:normal"
 
         return cls
 
@@ -143,6 +148,7 @@ async def run_worker() -> None:
         max_tries=settings_cls.max_tries,
         health_check_interval=settings_cls.health_check_interval,
         retry_jobs=settings_cls.retry_jobs,
+        queue_name=settings_cls.queue_name,
         on_startup=startup,
         on_shutdown=shutdown,
     )

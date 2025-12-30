@@ -396,7 +396,7 @@ class VocabularyExtractionService:
         if not modules:
             raise NoModulesFoundError(
                 book_id=book_id,
-                path=f"{publisher_id}/books/{book_id}/{book_name}/ai-data/modules/",
+                path=f"{publisher_id}/books/{book_name}/ai-data/modules/",
             )
 
         logger.info(

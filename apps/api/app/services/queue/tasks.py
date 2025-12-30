@@ -333,6 +333,7 @@ async def _run_processing_stage(
             job_id=job_id,
             book_id=book_id,
             publisher_id=publisher_id,
+            publisher=metadata.get("publisher", ""),
             book_name=metadata.get("book_name", ""),
             progress=progress,
         )
@@ -342,6 +343,7 @@ async def _run_processing_stage(
             job_id=job_id,
             book_id=book_id,
             publisher_id=publisher_id,
+            publisher=metadata.get("publisher", ""),
             book_name=metadata.get("book_name", ""),
             progress=progress,
             text_extraction_result=stage_results.get("text_extraction"),
@@ -352,6 +354,7 @@ async def _run_processing_stage(
             job_id=job_id,
             book_id=book_id,
             publisher_id=publisher_id,
+            publisher=metadata.get("publisher", ""),
             book_name=metadata.get("book_name", ""),
             progress=progress,
             segmentation_result=stage_results.get("segmentation"),
@@ -362,6 +365,7 @@ async def _run_processing_stage(
             job_id=job_id,
             book_id=book_id,
             publisher_id=publisher_id,
+            publisher=metadata.get("publisher", ""),
             book_name=metadata.get("book_name", ""),
             progress=progress,
             topic_analysis_result=stage_results.get("topic_analysis"),
@@ -372,6 +376,7 @@ async def _run_processing_stage(
             job_id=job_id,
             book_id=book_id,
             publisher_id=publisher_id,
+            publisher=metadata.get("publisher", ""),
             book_name=metadata.get("book_name", ""),
             progress=progress,
             vocabulary_result=stage_results.get("vocabulary"),
@@ -388,6 +393,7 @@ async def _run_text_extraction(
     job_id: str,
     book_id: str,
     publisher_id: str,
+    publisher: str,
     book_name: str,
     progress: ProgressReporter,
 ) -> dict[str, Any]:
@@ -399,6 +405,7 @@ async def _run_text_extraction(
         job_id: Job ID
         book_id: Book ID
         publisher_id: Publisher ID
+        publisher: Publisher name (for storage path)
         book_name: Book folder name
         progress: Progress reporter
 
@@ -417,7 +424,7 @@ async def _run_text_extraction(
     logger.info(
         "Starting text extraction for book %s (publisher: %s, name: %s)",
         book_id,
-        publisher_id,
+        publisher,
         book_name,
     )
 
@@ -436,10 +443,10 @@ async def _run_text_extraction(
     # Clean up any existing text files before re-extraction
     ai_storage.cleanup_text_directory(publisher_id, book_id, book_name)
 
-    # Extract text from PDF
+    # Extract text from PDF (use publisher name for storage path)
     result = await extraction_service.extract_book_pdf(
         book_id=book_id,
-        publisher_id=publisher_id,
+        publisher_id=publisher,  # Pass publisher name, not ID
         book_name=book_name,
         progress_callback=on_progress,
     )
@@ -472,6 +479,7 @@ async def _run_segmentation(
     job_id: str,
     book_id: str,
     publisher_id: str,
+    publisher: str,
     book_name: str,
     progress: ProgressReporter,
     text_extraction_result: dict[str, Any] | None = None,
@@ -484,6 +492,7 @@ async def _run_segmentation(
         job_id: Job ID
         book_id: Book ID
         publisher_id: Publisher ID
+        publisher: Publisher name (for storage path)
         book_name: Book folder name
         progress: Progress reporter
         text_extraction_result: Result from text extraction stage
@@ -503,7 +512,7 @@ async def _run_segmentation(
     logger.info(
         "Starting segmentation for book %s (publisher: %s, name: %s)",
         book_id,
-        publisher_id,
+        publisher,
         book_name,
     )
 
@@ -516,13 +525,13 @@ async def _run_segmentation(
     segmentation_service = get_segmentation_service()
     module_storage = get_module_storage()
 
-    # Clean up any existing module files before re-segmentation
-    module_storage.cleanup_modules_directory(publisher_id, book_id, book_name)
+    # Clean up any existing module files before re-segmentation (use publisher name for path)
+    module_storage.cleanup_modules_directory(publisher, book_id, book_name)
 
-    # Run segmentation
+    # Run segmentation (use publisher name for storage path)
     result = await segmentation_service.segment_book(
         book_id=book_id,
-        publisher_id=publisher_id,
+        publisher_id=publisher,  # Pass publisher name, not ID
         book_name=book_name,
         progress_callback=on_progress,
     )
@@ -559,6 +568,7 @@ async def _run_topic_analysis(
     job_id: str,
     book_id: str,
     publisher_id: str,
+    publisher: str,
     book_name: str,
     progress: ProgressReporter,
     segmentation_result: dict[str, Any] | None = None,
@@ -571,6 +581,7 @@ async def _run_topic_analysis(
         job_id: Job ID
         book_id: Book ID
         publisher_id: Publisher ID
+        publisher: Publisher name (for storage path)
         book_name: Book folder name
         progress: Progress reporter
         segmentation_result: Result from segmentation stage
@@ -590,7 +601,7 @@ async def _run_topic_analysis(
     logger.info(
         "Starting topic analysis for book %s (publisher: %s, name: %s)",
         book_id,
-        publisher_id,
+        publisher,
         book_name,
     )
 
@@ -598,13 +609,13 @@ async def _run_topic_analysis(
     topic_service = get_topic_analysis_service()
     topic_storage = get_topic_storage()
 
-    # Load modules from storage
-    modules = topic_storage.list_modules(publisher_id, book_id, book_name)
+    # Load modules from storage (use publisher name for path)
+    modules = topic_storage.list_modules(publisher, book_id, book_name)
 
     if not modules:
         logger.warning(
             "No modules found for topic analysis: %s/%s/%s",
-            publisher_id,
+            publisher,
             book_id,
             book_name,
         )
@@ -625,10 +636,10 @@ async def _run_topic_analysis(
         nonlocal analyzed_count
         analyzed_count = current
 
-    # Run topic analysis
+    # Run topic analysis (use publisher name for storage path)
     result = await topic_service.analyze_book(
         book_id=book_id,
-        publisher_id=publisher_id,
+        publisher_id=publisher,  # Pass publisher name, not ID
         book_name=book_name,
         modules=modules,
         progress_callback=on_progress,
@@ -668,6 +679,7 @@ async def _run_vocabulary_extraction(
     job_id: str,
     book_id: str,
     publisher_id: str,
+    publisher: str,
     book_name: str,
     progress: ProgressReporter,
     topic_analysis_result: dict[str, Any] | None = None,
@@ -680,6 +692,7 @@ async def _run_vocabulary_extraction(
         job_id: Job ID
         book_id: Book ID
         publisher_id: Publisher ID
+        publisher: Publisher name (for storage path)
         book_name: Book folder name
         progress: Progress reporter
         topic_analysis_result: Result from topic analysis stage
@@ -699,7 +712,7 @@ async def _run_vocabulary_extraction(
     logger.info(
         "Starting vocabulary extraction for book %s (publisher: %s, name: %s)",
         book_id,
-        publisher_id,
+        publisher,
         book_name,
     )
 
@@ -707,13 +720,13 @@ async def _run_vocabulary_extraction(
     vocab_service = get_vocabulary_extraction_service()
     vocab_storage = get_vocabulary_storage()
 
-    # Load modules from storage (includes topics from previous stage)
-    modules = vocab_storage.list_modules(publisher_id, book_id, book_name)
+    # Load modules from storage (use publisher name for path)
+    modules = vocab_storage.list_modules(publisher, book_id, book_name)
 
     if not modules:
         logger.warning(
             "No modules found for vocabulary extraction: %s/%s/%s",
-            publisher_id,
+            publisher,
             book_id,
             book_name,
         )
@@ -737,10 +750,10 @@ async def _run_vocabulary_extraction(
         """Sync callback to track progress."""
         pass  # Progress reported via ProgressReporter
 
-    # Run vocabulary extraction
+    # Run vocabulary extraction (use publisher name for storage path)
     result = await vocab_service.extract_book_vocabulary(
         book_id=book_id,
-        publisher_id=publisher_id,
+        publisher_id=publisher,  # Pass publisher name, not ID
         book_name=book_name,
         modules=modules,
         language=primary_language,
@@ -781,6 +794,7 @@ async def _run_audio_generation(
     job_id: str,
     book_id: str,
     publisher_id: str,
+    publisher: str,
     book_name: str,
     progress: ProgressReporter,
     vocabulary_result: dict[str, Any] | None = None,
@@ -793,6 +807,7 @@ async def _run_audio_generation(
         job_id: Job ID
         book_id: Book ID
         publisher_id: Publisher ID
+        publisher: Publisher name (for storage path)
         book_name: Book folder name
         progress: Progress reporter
         vocabulary_result: Result from vocabulary extraction stage
@@ -812,7 +827,7 @@ async def _run_audio_generation(
     logger.info(
         "Starting audio generation for book %s (publisher: %s, name: %s)",
         book_id,
-        publisher_id,
+        publisher,
         book_name,
     )
 
@@ -820,13 +835,13 @@ async def _run_audio_generation(
     audio_service = get_audio_generation_service()
     audio_storage = get_audio_storage()
 
-    # Load vocabulary from storage
+    # Load vocabulary from storage (use publisher name for path)
     try:
-        vocabulary_data = audio_storage.load_vocabulary(publisher_id, book_id, book_name)
+        vocabulary_data = audio_storage.load_vocabulary(publisher, book_id, book_name)
     except Exception as e:
         logger.warning(
             "No vocabulary found for audio generation: %s/%s/%s - %s",
-            publisher_id,
+            publisher,
             book_id,
             book_name,
             e,
@@ -864,14 +879,14 @@ async def _run_audio_generation(
     # Report initial progress
     await progress.report_progress("audio_generation", 10)
 
-    # Clean up existing audio before re-generation
-    audio_storage.cleanup_audio_directory(publisher_id, book_id, book_name)
+    # Clean up existing audio before re-generation (use publisher name for path)
+    audio_storage.cleanup_audio_directory(publisher, book_id, book_name)
 
-    # Generate audio for all vocabulary words
+    # Generate audio for all vocabulary words (use publisher name for storage path)
     result, audio_data = await audio_service.generate_vocabulary_audio(
         vocabulary=vocabulary_words,
         book_id=book_id,
-        publisher_id=publisher_id,
+        publisher_id=publisher,  # Pass publisher name, not ID
         book_name=book_name,
         language=primary_language,
         translation_language=translation_language,
@@ -881,9 +896,9 @@ async def _run_audio_generation(
     # Report progress at 50% (generation complete)
     await progress.report_progress("audio_generation", 50)
 
-    # Save audio files to storage
+    # Save audio files to storage (use publisher name for path)
     save_result = audio_storage.save_all_audio(
-        publisher_id=publisher_id,
+        publisher_id=publisher,  # Pass publisher name, not ID
         book_id=book_id,
         book_name=book_name,
         audio_files=result.audio_files,
@@ -893,10 +908,10 @@ async def _run_audio_generation(
     # Report progress at 80% (files saved)
     await progress.report_progress("audio_generation", 80)
 
-    # Update vocabulary.json with audio paths
+    # Update vocabulary.json with audio paths (use publisher name for path)
     if result.audio_files:
         audio_storage.update_vocabulary_audio_paths(
-            publisher_id=publisher_id,
+            publisher_id=publisher,  # Pass publisher name, not ID
             book_id=book_id,
             book_name=book_name,
             audio_files=result.audio_files,

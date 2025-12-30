@@ -267,7 +267,8 @@ class AIDataStructure:
         cls, publisher_id: str, book_id: str, book_name: str
     ) -> AIDataStructure:
         """Create AIDataStructure from book information."""
-        base = f"{publisher_id}/books/{book_id}/{book_name}/ai-data"
+        # Path: {publisher_name}/books/{book_name}/ai-data (book_id not in path)
+        base = f"{publisher_id}/books/{book_name}/ai-data"
         return cls(
             base_path=base,
             text_path=f"{base}/text",

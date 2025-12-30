@@ -50,7 +50,8 @@ class AIDataMetadataService:
         book_name: str,
     ) -> str:
         """Build path for metadata.json file."""
-        return f"{publisher_id}/books/{book_id}/{book_name}/ai-data/metadata.json"
+        # Path: {publisher_name}/books/{book_name}/ai-data (book_id not in path)
+        return f"{publisher_id}/books/{book_name}/ai-data/metadata.json"
 
     def create_metadata(
         self,

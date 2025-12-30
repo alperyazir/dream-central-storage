@@ -12,6 +12,13 @@ from .publisher import (
     PublisherWithBooks,
 )
 from .storage import RestoreRequest, RestoreResponse, TrashEntryRead
+from .processing import (
+    CleanupStatsResponse,
+    ProcessingJobResponse,
+    ProcessingStatusResponse,
+    ProcessingTriggerRequest,
+    QueueStatsResponse,
+)
 from .webhook import (
     WebhookDeliveryLogRead,
     WebhookEventBookData,
@@ -33,6 +40,11 @@ __all__ = [
     "BookCreate",
     "BookRead",
     "BookUpdate",
+    "CleanupStatsResponse",
+    "ProcessingJobResponse",
+    "ProcessingStatusResponse",
+    "ProcessingTriggerRequest",
+    "QueueStatsResponse",
     "PublisherBase",
     "PublisherCreate",
     "PublisherRead",

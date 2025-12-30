@@ -60,7 +60,8 @@ class AudioStorage:
         *path_parts: str,
     ) -> str:
         """Build MinIO path within ai-data directory."""
-        base = f"{publisher_id}/books/{book_id}/{book_name}/ai-data"
+        # Path: {publisher_name}/books/{book_name}/ai-data (book_id not in path)
+        base = f"{publisher_id}/books/{book_name}/ai-data"
         if path_parts:
             return f"{base}/{'/'.join(path_parts)}"
         return base

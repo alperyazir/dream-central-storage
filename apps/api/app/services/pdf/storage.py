@@ -54,15 +54,16 @@ class AIDataStorage:
         Build MinIO path within ai-data directory.
 
         Args:
-            publisher_id: Publisher identifier.
-            book_id: Book identifier.
+            publisher_id: Publisher identifier (actually publisher name).
+            book_id: Book identifier (not used in path).
             book_name: Book name (folder name).
             *path_parts: Additional path segments.
 
         Returns:
             Complete MinIO object path.
         """
-        base = f"{publisher_id}/books/{book_id}/{book_name}/ai-data"
+        # Path: {publisher_name}/books/{book_name}/ai-data (book_id not in path)
+        base = f"{publisher_id}/books/{book_name}/ai-data"
         if path_parts:
             return f"{base}/{'/'.join(path_parts)}"
         return base

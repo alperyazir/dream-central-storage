@@ -201,6 +201,7 @@ class QueueService:
                 book_id=book_id,
                 publisher_id=publisher_id,
                 job_type=job_type.value,
+                metadata=metadata,
                 _queue_name=queue_name,
             )
 

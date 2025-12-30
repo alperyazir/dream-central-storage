@@ -1,3 +1,3 @@
-from . import api_keys, apps, auth, books, health, storage, webhooks  # noqa: F401
+from . import api_keys, apps, auth, books, health, processing, storage, webhooks  # noqa: F401
 
-__all__ = ["api_keys", "auth", "books", "apps", "storage", "webhooks", "health"]
+__all__ = ["api_keys", "auth", "books", "apps", "processing", "storage", "webhooks", "health"]

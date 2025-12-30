@@ -39,6 +39,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ClearIcon from '@mui/icons-material/Clear';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 
 import { fetchBooks, BookRecord, softDeleteBook } from '../lib/books';
 import { useAuthStore } from '../stores/auth';
@@ -46,6 +47,7 @@ import BookUploadDialog from '../components/BookUploadDialog';
 import BookExplorerDrawer from '../features/books/BookExplorerDrawer';
 import ActivityDetailsDialog from '../components/ActivityDetailsDialog';
 import AuthenticatedImage from '../components/AuthenticatedImage';
+import ProcessingDialog from '../components/ProcessingDialog';
 
 import '../styles/page.css';
 
@@ -100,6 +102,7 @@ const BooksPage = () => {
   const [deleteTarget, setDeleteTarget] = useState<BookListRow | null>(null);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [activityDialogBook, setActivityDialogBook] = useState<BookListRow | null>(null);
+  const [processingBook, setProcessingBook] = useState<BookListRow | null>(null);
 
   const loadBooks = async () => {
     if (!token) return;
@@ -156,6 +159,10 @@ const BooksPage = () => {
 
   const handleActivityClick = (book: BookListRow) => {
     setActivityDialogBook(book);
+  };
+
+  const handleProcessClick = (book: BookListRow) => {
+    setProcessingBook(book);
   };
 
   const formatBytes = (bytes?: number): string => {
@@ -469,6 +476,11 @@ const BooksPage = () => {
                     </TableCell>
                     <TableCell>{formatBytes(book.totalSize)}</TableCell>
                     <TableCell align="right">
+                      <Tooltip title="AI Processing">
+                        <IconButton size="small" color="primary" onClick={() => handleProcessClick(book)}>
+                          <SmartToyIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                       <Tooltip title="View contents">
                         <IconButton size="small" onClick={() => handleViewContents(book)}>
                           <VisibilityIcon fontSize="small" />
@@ -534,6 +546,16 @@ const BooksPage = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* AI Processing Dialog */}
+      <ProcessingDialog
+        open={!!processingBook}
+        onClose={() => setProcessingBook(null)}
+        bookId={processingBook?.id || 0}
+        bookTitle={processingBook?.bookTitle || ''}
+        token={token}
+        tokenType={tokenType}
+      />
     </Box>
   );
 };
