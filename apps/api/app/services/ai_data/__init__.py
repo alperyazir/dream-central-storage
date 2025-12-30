@@ -16,6 +16,10 @@ from app.services.ai_data.models import (
     StageResult,
     StageStatus,
 )
+from app.services.ai_data.retrieval import (
+    AIDataRetrievalService,
+    get_ai_data_retrieval_service,
+)
 from app.services.ai_data.service import (
     AIDataMetadataService,
     get_ai_data_metadata_service,
@@ -29,6 +33,9 @@ __all__ = [
     # Services
     "AIDataMetadataService",
     "get_ai_data_metadata_service",
+    # Retrieval Service
+    "AIDataRetrievalService",
+    "get_ai_data_retrieval_service",
     # Structure Manager
     "AIDataStructureManager",
     "get_ai_data_structure_manager",
