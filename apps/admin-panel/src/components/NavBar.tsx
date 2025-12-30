@@ -6,6 +6,7 @@ import BusinessIcon from '@mui/icons-material/Business';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import AppsIcon from '@mui/icons-material/Apps';
 import SchoolIcon from '@mui/icons-material/School';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LogoutIcon from '@mui/icons-material/Logout';
 import LoginIcon from '@mui/icons-material/Login';
@@ -54,6 +55,12 @@ const NavBar = () => {
           <NavLink to="/books" className={({ isActive }) => (isActive ? 'active' : '')}>
             <MenuBookIcon fontSize="small" />
             <span>All Books</span>
+          </NavLink>
+        </li>
+        <li>
+          <NavLink to="/processing" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <SmartToyIcon fontSize="small" />
+            <span>AI Processing</span>
           </NavLink>
         </li>
         <li>

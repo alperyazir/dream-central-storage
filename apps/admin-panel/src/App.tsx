@@ -11,6 +11,7 @@ import AppsPage from './pages/Apps';
 import TeachersPage from './pages/Teachers';
 import LoginPage from './pages/Login';
 import TrashPage from './pages/Trash';
+import ProcessingPage from './pages/Processing';
 import ProtectedRoute from './routes/ProtectedRoute';
 import { useAuthStore } from './stores/auth';
 import { useThemeStore } from './stores/theme';
@@ -57,6 +58,7 @@ const App = () => {
           <Route path="books" element={<BooksPage />} />
           <Route path="apps" element={<AppsPage />} />
           <Route path="teachers" element={<TeachersPage />} />
+          <Route path="processing" element={<ProcessingPage />} />
           <Route path="trash" element={<TrashPage />} />
         </Route>
       </Route>

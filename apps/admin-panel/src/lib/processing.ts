@@ -138,3 +138,150 @@ export const getStatusLabel = (status: ProcessingStatus): string => {
       return status;
   }
 };
+
+// Extended status type that includes 'not_started'
+export type ExtendedProcessingStatus = ProcessingStatus | 'not_started';
+
+export interface BookWithProcessingStatus {
+  book_id: number;
+  book_name: string;
+  book_title: string;
+  publisher_id: number;
+  publisher_name: string;
+  processing_status: ExtendedProcessingStatus;
+  progress: number;
+  current_step: string | null;
+  error_message: string | null;
+  job_id: string | null;
+  last_processed_at: string | null;
+}
+
+export interface BooksWithProcessingStatusResponse {
+  books: BookWithProcessingStatus[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface ProcessingQueueItem {
+  job_id: string;
+  book_id: number;
+  book_name: string;
+  book_title: string;
+  publisher_name: string;
+  status: ProcessingStatus;
+  progress: number;
+  current_step: string;
+  position: number;
+  created_at: string;
+  started_at: string | null;
+}
+
+export interface ProcessingQueueResponse {
+  queue: ProcessingQueueItem[];
+  total_queued: number;
+  total_processing: number;
+}
+
+export interface BulkReprocessRequest {
+  book_ids: number[];
+  job_type?: ProcessingJobType;
+  priority?: JobPriority;
+}
+
+export interface BulkReprocessResponse {
+  triggered: number;
+  skipped: number;
+  errors: string[];
+  job_ids: string[];
+}
+
+/**
+ * Get list of books with their processing status.
+ */
+export const getBooksWithProcessingStatus = (
+  token: string,
+  tokenType: string = 'Bearer',
+  params: {
+    status?: ExtendedProcessingStatus;
+    publisher?: string;
+    search?: string;
+    page?: number;
+    page_size?: number;
+  } = {},
+  client: ApiClient = apiClient
+): Promise<BooksWithProcessingStatusResponse> => {
+  const searchParams = new URLSearchParams();
+  if (params.status) searchParams.set('status', params.status);
+  if (params.publisher) searchParams.set('publisher', params.publisher);
+  if (params.search) searchParams.set('search', params.search);
+  if (params.page !== undefined) searchParams.set('page', params.page.toString());
+  if (params.page_size !== undefined) searchParams.set('page_size', params.page_size.toString());
+
+  const queryString = searchParams.toString();
+  const url = `/processing/books${queryString ? `?${queryString}` : ''}`;
+
+  return client.get<BooksWithProcessingStatusResponse>(url, {
+    headers: buildAuthHeaders(token, tokenType),
+  });
+};
+
+/**
+ * Get current processing queue.
+ */
+export const getProcessingQueue = (
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient
+): Promise<ProcessingQueueResponse> =>
+  client.get<ProcessingQueueResponse>('/processing/queue', {
+    headers: buildAuthHeaders(token, tokenType),
+  });
+
+/**
+ * Clear processing error for a book (reset to not_started).
+ */
+export const clearProcessingError = (
+  bookId: number,
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient
+): Promise<{ message: string }> =>
+  client.post<{ message: string }, undefined>(
+    `/processing/books/${bookId}/clear-error`,
+    undefined,
+    { headers: buildAuthHeaders(token, tokenType) }
+  );
+
+/**
+ * Bulk reprocess multiple books.
+ */
+export const bulkReprocess = (
+  request: BulkReprocessRequest,
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient
+): Promise<BulkReprocessResponse> =>
+  client.post<BulkReprocessResponse, BulkReprocessRequest>(
+    '/processing/bulk-reprocess',
+    request,
+    { headers: buildAuthHeaders(token, tokenType) }
+  );
+
+/**
+ * Get status color for extended status (including not_started).
+ */
+export const getExtendedStatusColor = (
+  status: ExtendedProcessingStatus
+): 'default' | 'primary' | 'secondary' | 'success' | 'error' | 'info' | 'warning' => {
+  if (status === 'not_started') return 'default';
+  return getStatusColor(status as ProcessingStatus);
+};
+
+/**
+ * Get human-readable label for extended status.
+ */
+export const getExtendedStatusLabel = (status: ExtendedProcessingStatus): string => {
+  if (status === 'not_started') return 'Not Started';
+  return getStatusLabel(status as ProcessingStatus);
+};
