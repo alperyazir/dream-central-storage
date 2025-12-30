@@ -103,6 +103,12 @@ class Settings(BaseSettings):
     topic_analysis_temperature: float = 0.3  # LLM temperature for analysis
     topic_analysis_max_text_length: int = 8000  # max chars to send to LLM
 
+    # Vocabulary Extraction Configuration
+    vocabulary_max_words_per_module: int = 50  # max vocabulary words per module
+    vocabulary_min_word_length: int = 3  # min word length to include
+    vocabulary_temperature: float = 0.3  # LLM temperature for extraction
+    vocabulary_max_text_length: int = 8000  # max chars to send to LLM
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

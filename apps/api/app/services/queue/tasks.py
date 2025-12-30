@@ -3,8 +3,6 @@
 import logging
 from typing import Any
 
-from arq import ArqRedis
-
 from app.core.config import get_settings
 from app.services.queue.models import (
     ProcessingJobType,
@@ -24,6 +22,9 @@ from app.services.segmentation import get_segmentation_service, get_module_stora
 
 # Import topic analysis service for topic_analysis stage
 from app.services.topic_analysis import get_topic_analysis_service, get_topic_storage
+
+# Import vocabulary extraction service for vocabulary stage
+from app.services.vocabulary_extraction import get_vocabulary_extraction_service, get_vocabulary_storage
 
 logger = logging.getLogger(__name__)
 
@@ -262,8 +263,17 @@ async def _run_processing_stage(
             segmentation_result=stage_results.get("segmentation"),
         )
 
+    if stage == "vocabulary":
+        return await _run_vocabulary_extraction(
+            job_id=job_id,
+            book_id=book_id,
+            publisher_id=publisher_id,
+            book_name=metadata.get("book_name", ""),
+            progress=progress,
+            topic_analysis_result=stage_results.get("topic_analysis"),
+        )
+
     # Placeholder for other stages (to be implemented in future stories)
-    # - vocabulary: LLM service
     # - audio_generation: TTS service
 
     await progress.report_progress(stage, 50)
@@ -309,8 +319,6 @@ async def _run_text_extraction(
         publisher_id,
         book_name,
     )
-
-    import asyncio
 
     # Progress tracking for async update after extraction
     last_progress = {"current": 0, "total": 0}
@@ -509,7 +517,6 @@ async def _run_topic_analysis(
         }
 
     # Progress tracking
-    total_modules = len(modules)
     analyzed_count = 0
 
     def on_progress(current: int, total: int) -> None:
@@ -551,6 +558,119 @@ async def _run_topic_analysis(
         "difficulty_range": result.difficulty_range,
         "total_topics": result.total_topics,
         "total_grammar_points": result.total_grammar_points,
+        "updated_modules": len(saved.get("updated", [])),
+        "metadata_path": saved.get("metadata"),
+    }
+
+
+async def _run_vocabulary_extraction(
+    job_id: str,
+    book_id: str,
+    publisher_id: str,
+    book_name: str,
+    progress: ProgressReporter,
+    topic_analysis_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Run vocabulary extraction stage.
+
+    Extracts vocabulary words from module content using LLM.
+
+    Args:
+        job_id: Job ID
+        book_id: Book ID
+        publisher_id: Publisher ID
+        book_name: Book folder name
+        progress: Progress reporter
+        topic_analysis_result: Result from topic analysis stage
+
+    Returns:
+        Vocabulary extraction result data
+
+    Raises:
+        QueueError: If book_name is missing or extraction fails
+    """
+    if not book_name:
+        raise QueueError(
+            "book_name is required for vocabulary extraction",
+            {"job_id": job_id, "book_id": book_id},
+        )
+
+    logger.info(
+        "Starting vocabulary extraction for book %s (publisher: %s, name: %s)",
+        book_id,
+        publisher_id,
+        book_name,
+    )
+
+    # Get vocabulary extraction service and storage
+    vocab_service = get_vocabulary_extraction_service()
+    vocab_storage = get_vocabulary_storage()
+
+    # Load modules from storage (includes topics from previous stage)
+    modules = vocab_storage.list_modules(publisher_id, book_id, book_name)
+
+    if not modules:
+        logger.warning(
+            "No modules found for vocabulary extraction: %s/%s/%s",
+            publisher_id,
+            book_id,
+            book_name,
+        )
+        await progress.report_progress("vocabulary", 100)
+        return {
+            "module_count": 0,
+            "success_count": 0,
+            "failure_count": 0,
+            "total_words": 0,
+            "language": "",
+        }
+
+    # Determine language from topic analysis result or modules
+    primary_language = "en"
+    translation_language = "tr"
+    if topic_analysis_result:
+        primary_language = topic_analysis_result.get("primary_language", "en") or "en"
+
+    # Progress tracking
+    def on_progress(current: int, total: int) -> None:
+        """Sync callback to track progress."""
+        pass  # Progress reported via ProgressReporter
+
+    # Run vocabulary extraction
+    result = await vocab_service.extract_book_vocabulary(
+        book_id=book_id,
+        publisher_id=publisher_id,
+        book_name=book_name,
+        modules=modules,
+        language=primary_language,
+        translation_language=translation_language,
+        progress_callback=on_progress,
+    )
+
+    # Report progress at 80%
+    await progress.report_progress("vocabulary", 80)
+
+    # Save vocabulary and update module JSONs
+    saved = vocab_storage.save_all(result)
+
+    # Report final progress
+    await progress.report_progress("vocabulary", 100)
+
+    logger.info(
+        "Vocabulary extraction completed: %d/%d modules succeeded, %d unique words",
+        result.success_count,
+        len(modules),
+        result.total_words,
+    )
+
+    return {
+        "module_count": len(modules),
+        "success_count": result.success_count,
+        "failure_count": result.failure_count,
+        "total_words": result.total_words,
+        "language": result.language,
+        "translation_language": result.translation_language,
+        "vocabulary_path": saved.get("vocabulary"),
         "updated_modules": len(saved.get("updated", [])),
         "metadata_path": saved.get("metadata"),
     }
