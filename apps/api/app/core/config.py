@@ -83,6 +83,14 @@ class Settings(BaseSettings):
     queue_default_priority: str = "normal"
     queue_job_ttl_seconds: int = 86400 * 7  # 7 days
 
+    # PDF Extraction Configuration
+    pdf_min_text_threshold: int = 50  # chars below this = scanned page
+    pdf_min_word_threshold: int = 10  # words below this = scanned page
+    pdf_ocr_enabled: bool = True  # enable OCR fallback for scanned pages
+    pdf_ocr_batch_size: int = 5  # pages to OCR concurrently
+    pdf_ocr_dpi: int = 150  # resolution for page image rendering
+    pdf_max_pages: int = 500  # max pages per book
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

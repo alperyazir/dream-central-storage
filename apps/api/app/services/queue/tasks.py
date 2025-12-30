@@ -16,6 +16,9 @@ from app.services.queue.repository import JobRepository
 from app.services.queue.redis import get_redis_connection
 from app.services.queue.service import ProgressReporter
 
+# Import PDF extraction service for text_extraction stage
+from app.services.pdf import get_extraction_service, get_ai_storage
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,6 +28,8 @@ async def process_book_task(
     book_id: str,
     publisher_id: str,
     job_type: str,
+    book_name: str | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Main entry point for book processing.
 
@@ -41,6 +46,8 @@ async def process_book_task(
         book_id: Book to process
         publisher_id: Publisher owning the book
         job_type: Type of processing (full, text_only, etc.)
+        book_name: Book folder name (required for storage path)
+        metadata: Additional job metadata
 
     Returns:
         Result dict with status and any output data
@@ -56,6 +63,11 @@ async def process_book_task(
     )
     progress = ProgressReporter(repository, job_id)
 
+    # Merge metadata with book_name
+    job_metadata = metadata or {}
+    if book_name:
+        job_metadata["book_name"] = book_name
+
     logger.info(
         "Starting processing job %s for book %s (type: %s)",
         job_id,
@@ -70,17 +82,22 @@ async def process_book_task(
     stages_to_run = _get_stages_for_job_type(job_type_enum)
     errors: list[dict] = []
     completed_stages: list[str] = []
+    stage_results: dict[str, Any] = {}  # Store results for passing between stages
 
     try:
         for stage in stages_to_run:
             try:
-                await _run_processing_stage(
+                result = await _run_processing_stage(
                     stage=stage,
                     job_id=job_id,
                     book_id=book_id,
                     publisher_id=publisher_id,
                     progress=progress,
+                    metadata=job_metadata,
+                    stage_results=stage_results,
                 )
+                if result:
+                    stage_results[stage] = result
                 completed_stages.append(stage)
                 await progress.report_step_complete(stage)
 
@@ -186,11 +203,10 @@ async def _run_processing_stage(
     book_id: str,
     publisher_id: str,
     progress: ProgressReporter,
-) -> None:
+    metadata: dict[str, Any] | None = None,
+    stage_results: dict[str, Any] | None = None,
+) -> Any:
     """Run a single processing stage.
-
-    This is a placeholder that will be implemented in future stories
-    when the actual processing logic is built.
 
     Args:
         stage: Stage name
@@ -198,27 +214,125 @@ async def _run_processing_stage(
         book_id: Book ID
         publisher_id: Publisher ID
         progress: Progress reporter
+        metadata: Job metadata (contains book_name, etc.)
+        stage_results: Results from previous stages
+
+    Returns:
+        Stage result data (if any)
     """
     logger.info("Running stage %s for job %s", stage, job_id)
+    metadata = metadata or {}
+    stage_results = stage_results or {}
 
     # Report initial progress for stage
     await progress.report_progress(stage, 0)
 
-    # Placeholder - actual implementation in future stories
-    # Each stage will call the appropriate service:
-    # - text_extraction: PDF service
+    if stage == "text_extraction":
+        return await _run_text_extraction(
+            job_id=job_id,
+            book_id=book_id,
+            publisher_id=publisher_id,
+            book_name=metadata.get("book_name", ""),
+            progress=progress,
+        )
+
+    # Placeholder for other stages (to be implemented in future stories)
     # - segmentation: Text processing service
     # - topic_analysis: LLM service
     # - vocabulary: LLM service
     # - audio_generation: TTS service
 
-    # For now, just mark progress
     await progress.report_progress(stage, 50)
-
-    # Simulate completion
     await progress.report_progress(stage, 100)
 
     logger.info("Completed stage %s for job %s", stage, job_id)
+    return None
+
+
+async def _run_text_extraction(
+    job_id: str,
+    book_id: str,
+    publisher_id: str,
+    book_name: str,
+    progress: ProgressReporter,
+) -> dict[str, Any]:
+    """Run text extraction stage.
+
+    Extracts text from the book's PDF and stores it in ai-data.
+
+    Args:
+        job_id: Job ID
+        book_id: Book ID
+        publisher_id: Publisher ID
+        book_name: Book folder name
+        progress: Progress reporter
+
+    Returns:
+        Extraction result data
+
+    Raises:
+        QueueError: If book_name is missing or extraction fails
+    """
+    if not book_name:
+        raise QueueError(
+            "book_name is required for text extraction",
+            {"job_id": job_id, "book_id": book_id},
+        )
+
+    logger.info(
+        "Starting text extraction for book %s (publisher: %s, name: %s)",
+        book_id,
+        publisher_id,
+        book_name,
+    )
+
+    import asyncio
+
+    # Progress tracking for async update after extraction
+    last_progress = {"current": 0, "total": 0}
+
+    def on_progress(current: int, total: int) -> None:
+        """Sync callback to track progress."""
+        last_progress["current"] = current
+        last_progress["total"] = total
+
+    # Get extraction service and storage
+    extraction_service = get_extraction_service()
+    ai_storage = get_ai_storage()
+
+    # Clean up any existing text files before re-extraction
+    ai_storage.cleanup_text_directory(publisher_id, book_id, book_name)
+
+    # Extract text from PDF
+    result = await extraction_service.extract_book_pdf(
+        book_id=book_id,
+        publisher_id=publisher_id,
+        book_name=book_name,
+        progress_callback=on_progress,
+    )
+
+    # Report final progress
+    await progress.report_progress("text_extraction", 100)
+
+    # Save extracted text to storage
+    saved = ai_storage.save_all(result)
+
+    logger.info(
+        "Text extraction completed: %d pages, %d words, method=%s",
+        result.total_pages,
+        result.total_word_count,
+        result.method.value,
+    )
+
+    return {
+        "total_pages": result.total_pages,
+        "total_word_count": result.total_word_count,
+        "method": result.method.value,
+        "scanned_pages": result.scanned_page_count,
+        "native_pages": result.native_page_count,
+        "saved_files": len(saved.get("text_files", [])),
+        "metadata_path": saved.get("metadata"),
+    }
 
 
 async def on_job_start(ctx: dict[str, Any]) -> None:

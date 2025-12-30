@@ -1,0 +1,141 @@
+# Quality Gate: Story 10.4 - PDF Text Extraction Pipeline
+# Generated: 2024-12-30
+# Reviewer: Quinn (QA Agent)
+
+story:
+  id: "10.4"
+  title: "PDF Text Extraction Pipeline"
+  epic: 10
+
+gate_decision: PASS
+
+review_summary:
+  date: "2024-12-30"
+  reviewer: "Quinn (QA Agent)"
+  test_results:
+    total: 44
+    passed: 44
+    failed: 0
+    skipped: 0
+
+acceptance_criteria:
+  - id: AC1
+    description: "Extract text from PDF using PyPDF or similar"
+    status: PASS
+    evidence: "pymupdf used via PDFExtractor class"
+    tests:
+      - test_extract_text_from_page
+      - test_extract_all_pages
+
+  - id: AC2
+    description: "Preserve page boundaries"
+    status: PASS
+    evidence: "PageText model with page_number, Storage: page_{NNN}.txt"
+    tests:
+      - test_extract_all_pages
+      - test_full_extraction_pipeline
+
+  - id: AC3
+    description: "Handle multi-column layouts"
+    status: PASS
+    evidence: "extractor.py:60-87 sorts text blocks by position"
+    tests:
+      - test_multicolumn_text_extraction
+
+  - id: AC4
+    description: "Detect scanned PDFs"
+    status: PASS
+    evidence: "ScannedPDFDetector with 50 char/10 word thresholds"
+    tests:
+      - test_detect_scanned_page_by_chars
+      - test_detect_scanned_page_by_words
+      - test_analyze_page_texts_all_native
+      - test_analyze_page_texts_all_scanned
+      - test_analyze_page_texts_mixed
+
+  - id: AC5
+    description: "Use Gemini Vision for OCR"
+    status: PASS
+    evidence: "PDFOCRService integrates with LLMService"
+    tests:
+      - test_ocr_page_success
+      - test_ocr_page_retry_on_failure
+      - test_ocr_page_all_retries_fail
+
+  - id: AC6
+    description: "Store text per page in ai-data/text/"
+    status: PASS
+    evidence: "AIDataStorage.save_extracted_text() saves to correct path"
+    tests:
+      - test_save_extracted_text
+      - test_build_text_path
+      - test_build_text_path_formatting
+
+  - id: AC7
+    description: "Handle extraction errors gracefully"
+    status: PASS
+    evidence: "Exception hierarchy: PDFNotFoundError, PDFCorruptedError, OCRError"
+    tests:
+      - test_pdf_extraction_error
+      - test_pdf_not_found_error
+      - test_pdf_password_protected_error
+      - test_pdf_corrupted_error
+      - test_ocr_error
+      - test_page_limit_exceeded_error
+      - test_open_corrupted_pdf
+
+code_quality:
+  architecture:
+    status: PASS
+    notes:
+      - "Module structure matches services/{module}/ pattern"
+      - "Singleton factory pattern (get_extraction_service, get_ai_storage)"
+      - "Proper exception hierarchy inheriting from base error"
+      - "Async patterns consistent with existing codebase"
+
+  test_coverage:
+    status: PASS
+    notes:
+      - "44 tests covering all components"
+      - "Unit tests for each class/function"
+      - "Integration tests for end-to-end pipeline"
+      - "Mocked external dependencies (MinIO, LLM service)"
+      - "Edge cases covered (empty pages, corrupted PDFs, password protection)"
+
+  documentation:
+    status: PASS
+    notes:
+      - "All functions have docstrings"
+      - "Story file fully updated with task completion"
+      - "Dev notes section provides implementation context"
+
+regression_check:
+  status: PASS
+  full_suite_tests: 342
+  notes: "Pre-existing failures unrelated to Story 10.4"
+
+observations:
+  - severity: INFO
+    description: "Import placement in tasks.py:289 - asyncio import inside function is unconventional but acceptable"
+
+files_reviewed:
+  - path: "app/services/pdf/__init__.py"
+    status: PASS
+  - path: "app/services/pdf/models.py"
+    status: PASS
+  - path: "app/services/pdf/extractor.py"
+    status: PASS
+  - path: "app/services/pdf/detector.py"
+    status: PASS
+  - path: "app/services/pdf/ocr.py"
+    status: PASS
+  - path: "app/services/pdf/service.py"
+    status: PASS
+  - path: "app/services/pdf/storage.py"
+    status: PASS
+  - path: "app/core/config.py"
+    status: PASS
+  - path: "app/services/queue/tasks.py"
+    status: PASS
+  - path: "tests/test_pdf_extraction.py"
+    status: PASS
