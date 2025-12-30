@@ -73,6 +73,16 @@ class Settings(BaseSettings):
     tts_max_retries: int = 3
     tts_batch_concurrency: int = 5
 
+    # Queue Configuration (Redis/arq)
+    redis_url: str = "redis://localhost:6379"
+    queue_name: str = "ai_processing"
+    queue_max_concurrency: int = 3
+    queue_max_retries: int = 3
+    queue_job_timeout_seconds: int = 3600  # 1 hour
+    queue_retry_delay_seconds: int = 60
+    queue_default_priority: str = "normal"
+    queue_job_ttl_seconds: int = 86400 * 7  # 7 days
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
