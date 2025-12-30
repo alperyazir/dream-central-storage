@@ -19,6 +19,9 @@ from app.services.queue.service import ProgressReporter
 # Import PDF extraction service for text_extraction stage
 from app.services.pdf import get_extraction_service, get_ai_storage
 
+# Import segmentation service for segmentation stage
+from app.services.segmentation import get_segmentation_service, get_module_storage
+
 logger = logging.getLogger(__name__)
 
 
@@ -236,8 +239,17 @@ async def _run_processing_stage(
             progress=progress,
         )
 
+    if stage == "segmentation":
+        return await _run_segmentation(
+            job_id=job_id,
+            book_id=book_id,
+            publisher_id=publisher_id,
+            book_name=metadata.get("book_name", ""),
+            progress=progress,
+            text_extraction_result=stage_results.get("text_extraction"),
+        )
+
     # Placeholder for other stages (to be implemented in future stories)
-    # - segmentation: Text processing service
     # - topic_analysis: LLM service
     # - vocabulary: LLM service
     # - audio_generation: TTS service
@@ -332,6 +344,93 @@ async def _run_text_extraction(
         "native_pages": result.native_page_count,
         "saved_files": len(saved.get("text_files", [])),
         "metadata_path": saved.get("metadata"),
+    }
+
+
+async def _run_segmentation(
+    job_id: str,
+    book_id: str,
+    publisher_id: str,
+    book_name: str,
+    progress: ProgressReporter,
+    text_extraction_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Run segmentation stage.
+
+    Segments the extracted text into logical modules/chapters.
+
+    Args:
+        job_id: Job ID
+        book_id: Book ID
+        publisher_id: Publisher ID
+        book_name: Book folder name
+        progress: Progress reporter
+        text_extraction_result: Result from text extraction stage
+
+    Returns:
+        Segmentation result data
+
+    Raises:
+        QueueError: If book_name is missing or segmentation fails
+    """
+    if not book_name:
+        raise QueueError(
+            "book_name is required for segmentation",
+            {"job_id": job_id, "book_id": book_id},
+        )
+
+    logger.info(
+        "Starting segmentation for book %s (publisher: %s, name: %s)",
+        book_id,
+        publisher_id,
+        book_name,
+    )
+
+    # Progress tracking
+    def on_progress(current: int, total: int) -> None:
+        """Sync callback to track progress."""
+        pass  # Progress is reported via ProgressReporter
+
+    # Get segmentation service and storage
+    segmentation_service = get_segmentation_service()
+    module_storage = get_module_storage()
+
+    # Clean up any existing module files before re-segmentation
+    module_storage.cleanup_modules_directory(publisher_id, book_id, book_name)
+
+    # Run segmentation
+    result = await segmentation_service.segment_book(
+        book_id=book_id,
+        publisher_id=publisher_id,
+        book_name=book_name,
+        progress_callback=on_progress,
+    )
+
+    # Report progress at 80%
+    await progress.report_progress("segmentation", 80)
+
+    # Save modules to storage
+    saved = module_storage.save_all(result)
+
+    # Report final progress
+    await progress.report_progress("segmentation", 100)
+
+    logger.info(
+        "Segmentation completed: %d modules, method=%s",
+        result.module_count,
+        result.method.value,
+    )
+
+    return {
+        "module_count": result.module_count,
+        "total_word_count": result.total_word_count,
+        "method": result.method.value,
+        "saved_modules": len(saved.get("modules", [])),
+        "metadata_path": saved.get("metadata"),
+        "modules": [
+            {"id": m.module_id, "title": m.title, "pages": len(m.pages)}
+            for m in result.modules
+        ],
     }
 
 

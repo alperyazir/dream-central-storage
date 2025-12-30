@@ -91,6 +91,12 @@ class Settings(BaseSettings):
     pdf_ocr_dpi: int = 150  # resolution for page image rendering
     pdf_max_pages: int = 500  # max pages per book
 
+    # Segmentation Configuration
+    segmentation_min_module_pages: int = 3  # min pages per module
+    segmentation_max_modules: int = 50  # max modules per book
+    segmentation_ai_enabled: bool = True  # enable AI-assisted segmentation
+    segmentation_default_strategy: str = "auto"  # auto, manual, header, toc, ai
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
