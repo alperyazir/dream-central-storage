@@ -20,6 +20,9 @@ class WebhookEventType(str, enum.Enum):
     PUBLISHER_CREATED = "publisher.created"
     PUBLISHER_UPDATED = "publisher.updated"
     PUBLISHER_DELETED = "publisher.deleted"
+    PROCESSING_STARTED = "processing.started"
+    PROCESSING_COMPLETED = "processing.completed"
+    PROCESSING_FAILED = "processing.failed"
 
 
 class WebhookDeliveryStatus(str, enum.Enum):

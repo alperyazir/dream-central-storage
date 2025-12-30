@@ -35,6 +35,7 @@ from app.services import (
     move_prefix_to_trash,
     upload_book_archive,
 )
+from app.services.ai_processing import trigger_auto_processing
 from app.services.storage import _prefix_exists
 from app.services.webhook import WebhookService
 
@@ -309,6 +310,16 @@ async def upload_book(
     background_tasks.add_task(_trigger_webhook, book_id, WebhookEventType.BOOK_UPDATED)
     logger.debug(f"[WEBHOOK-TRIGGER] BOOK_UPDATED webhook task (upload) added to background queue for book_id={book_id}")
 
+    # Trigger auto-processing (force=True since content was replaced)
+    logger.info(f"[AUTO-PROCESS] Scheduling auto-processing for book_id={book_id} (content replaced)")
+    background_tasks.add_task(
+        trigger_auto_processing,
+        book_id=book_id,
+        publisher=book.publisher,
+        book_name=book.book_name,
+        force=True,  # Force reprocess since content changed
+    )
+
     return {"book_id": book_id, "files": manifest}
 
 
@@ -483,6 +494,16 @@ async def upload_new_book(
     logger.info(f"[WEBHOOK-TRIGGER] Scheduling BOOK_CREATED webhook (new upload) for book_id={book.id}, book_name='{book.book_name}', files_uploaded={len(manifest)}")
     background_tasks.add_task(_trigger_webhook, book.id, WebhookEventType.BOOK_CREATED)
     logger.debug(f"[WEBHOOK-TRIGGER] BOOK_CREATED webhook task (new upload) added to background queue for book_id={book.id}")
+
+    # Trigger auto-processing for new book (force if override was used)
+    logger.info(f"[AUTO-PROCESS] Scheduling auto-processing for book_id={book.id}, book_name='{book.book_name}'")
+    background_tasks.add_task(
+        trigger_auto_processing,
+        book_id=book.id,
+        publisher=publisher.name,
+        book_name=book.book_name,
+        force=override,  # Force reprocess if override was used
+    )
 
     return {"book": book_read.model_dump(), "files": manifest}
 
@@ -665,6 +686,16 @@ async def upload_bulk_books(
             logger.info(f"[WEBHOOK-TRIGGER] Scheduling BOOK_CREATED webhook (bulk upload) for book_id={book.id}, book_name='{book.book_name}', files_uploaded={len(manifest)}")
             background_tasks.add_task(_trigger_webhook, book.id, WebhookEventType.BOOK_CREATED)
             logger.debug(f"[WEBHOOK-TRIGGER] BOOK_CREATED webhook task (bulk upload) added to background queue for book_id={book.id}")
+
+            # Trigger auto-processing for bulk uploaded book
+            logger.info(f"[AUTO-PROCESS] Scheduling auto-processing (bulk) for book_id={book.id}, book_name='{book.book_name}'")
+            background_tasks.add_task(
+                trigger_auto_processing,
+                book_id=book.id,
+                publisher=publisher.name,
+                book_name=book.book_name,
+                force=override,  # Force reprocess if override was used
+            )
 
         except Exception as exc:
             logger.error("Unexpected error processing file %s: %s", file.filename, exc)

@@ -114,6 +114,10 @@ class Settings(BaseSettings):
     audio_generation_languages: str = "en,tr"  # languages to generate audio for
     audio_retry_failed: bool = True  # retry failed audio generation
 
+    # Auto-Processing Configuration
+    ai_auto_process_on_upload: bool = True  # trigger AI processing on book upload
+    ai_auto_process_skip_existing: bool = True  # skip if book already processed
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
