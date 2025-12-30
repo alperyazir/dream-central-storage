@@ -22,6 +22,9 @@ from app.services.pdf import get_extraction_service, get_ai_storage
 # Import segmentation service for segmentation stage
 from app.services.segmentation import get_segmentation_service, get_module_storage
 
+# Import topic analysis service for topic_analysis stage
+from app.services.topic_analysis import get_topic_analysis_service, get_topic_storage
+
 logger = logging.getLogger(__name__)
 
 
@@ -249,8 +252,17 @@ async def _run_processing_stage(
             text_extraction_result=stage_results.get("text_extraction"),
         )
 
+    if stage == "topic_analysis":
+        return await _run_topic_analysis(
+            job_id=job_id,
+            book_id=book_id,
+            publisher_id=publisher_id,
+            book_name=metadata.get("book_name", ""),
+            progress=progress,
+            segmentation_result=stage_results.get("segmentation"),
+        )
+
     # Placeholder for other stages (to be implemented in future stories)
-    # - topic_analysis: LLM service
     # - vocabulary: LLM service
     # - audio_generation: TTS service
 
@@ -431,6 +443,116 @@ async def _run_segmentation(
             {"id": m.module_id, "title": m.title, "pages": len(m.pages)}
             for m in result.modules
         ],
+    }
+
+
+async def _run_topic_analysis(
+    job_id: str,
+    book_id: str,
+    publisher_id: str,
+    book_name: str,
+    progress: ProgressReporter,
+    segmentation_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Run topic analysis stage.
+
+    Analyzes module content with LLM to extract topics, difficulty, and language.
+
+    Args:
+        job_id: Job ID
+        book_id: Book ID
+        publisher_id: Publisher ID
+        book_name: Book folder name
+        progress: Progress reporter
+        segmentation_result: Result from segmentation stage
+
+    Returns:
+        Topic analysis result data
+
+    Raises:
+        QueueError: If book_name is missing or analysis fails
+    """
+    if not book_name:
+        raise QueueError(
+            "book_name is required for topic analysis",
+            {"job_id": job_id, "book_id": book_id},
+        )
+
+    logger.info(
+        "Starting topic analysis for book %s (publisher: %s, name: %s)",
+        book_id,
+        publisher_id,
+        book_name,
+    )
+
+    # Get topic analysis service and storage
+    topic_service = get_topic_analysis_service()
+    topic_storage = get_topic_storage()
+
+    # Load modules from storage
+    modules = topic_storage.list_modules(publisher_id, book_id, book_name)
+
+    if not modules:
+        logger.warning(
+            "No modules found for topic analysis: %s/%s/%s",
+            publisher_id,
+            book_id,
+            book_name,
+        )
+        await progress.report_progress("topic_analysis", 100)
+        return {
+            "module_count": 0,
+            "success_count": 0,
+            "failure_count": 0,
+            "primary_language": "",
+            "difficulty_range": [],
+        }
+
+    # Progress tracking
+    total_modules = len(modules)
+    analyzed_count = 0
+
+    def on_progress(current: int, total: int) -> None:
+        """Sync callback to track progress."""
+        nonlocal analyzed_count
+        analyzed_count = current
+
+    # Run topic analysis
+    result = await topic_service.analyze_book(
+        book_id=book_id,
+        publisher_id=publisher_id,
+        book_name=book_name,
+        modules=modules,
+        progress_callback=on_progress,
+    )
+
+    # Report progress at 80%
+    await progress.report_progress("topic_analysis", 80)
+
+    # Save analysis results (update module JSONs)
+    saved = topic_storage.save_all(result)
+
+    # Report final progress
+    await progress.report_progress("topic_analysis", 100)
+
+    logger.info(
+        "Topic analysis completed: %d/%d modules succeeded, language=%s, difficulty=%s",
+        result.success_count,
+        len(modules),
+        result.primary_language,
+        result.difficulty_range,
+    )
+
+    return {
+        "module_count": len(modules),
+        "success_count": result.success_count,
+        "failure_count": result.failure_count,
+        "primary_language": result.primary_language,
+        "difficulty_range": result.difficulty_range,
+        "total_topics": result.total_topics,
+        "total_grammar_points": result.total_grammar_points,
+        "updated_modules": len(saved.get("updated", [])),
+        "metadata_path": saved.get("metadata"),
     }
 
 

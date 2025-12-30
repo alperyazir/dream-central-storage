@@ -97,6 +97,12 @@ class Settings(BaseSettings):
     segmentation_ai_enabled: bool = True  # enable AI-assisted segmentation
     segmentation_default_strategy: str = "auto"  # auto, manual, header, toc, ai
 
+    # Topic Analysis Configuration
+    topic_analysis_max_topics: int = 5  # max topics to extract per module
+    topic_analysis_max_grammar_points: int = 10  # max grammar points per module
+    topic_analysis_temperature: float = 0.3  # LLM temperature for analysis
+    topic_analysis_max_text_length: int = 8000  # max chars to send to LLM
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
