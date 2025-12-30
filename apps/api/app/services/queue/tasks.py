@@ -29,6 +29,14 @@ from app.services.vocabulary_extraction import get_vocabulary_extraction_service
 # Import audio generation service for audio_generation stage
 from app.services.audio_generation import get_audio_generation_service, get_audio_storage
 
+# Import AI data services for metadata and structure management
+from app.services.ai_data import (
+    get_ai_data_metadata_service,
+    get_ai_data_structure_manager,
+    get_ai_data_cleanup_manager,
+    ProcessingStatus as AIDataProcessingStatus,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -94,7 +102,32 @@ async def process_book_task(
     completed_stages: list[str] = []
     stage_results: dict[str, Any] = {}  # Store results for passing between stages
 
+    # Get AI data services
+    metadata_service = get_ai_data_metadata_service()
+    structure_manager = get_ai_data_structure_manager()
+    cleanup_manager = get_ai_data_cleanup_manager()
+
     try:
+        # Initialize AI data structure and metadata
+        if book_name:
+            # Check if reprocessing - cleanup existing ai-data if metadata exists
+            if metadata_service.metadata_exists(publisher_id, book_id, book_name):
+                logger.info("Reprocessing detected, cleaning up existing ai-data")
+                cleanup_manager.cleanup_all(publisher_id, book_id, book_name)
+
+            # Initialize directory structure
+            structure_manager.initialize_ai_data_structure(
+                publisher_id, book_id, book_name
+            )
+
+            # Create initial metadata.json
+            metadata_service.create_metadata(
+                book_id=book_id,
+                publisher_id=publisher_id,
+                book_name=book_name,
+            )
+            logger.info("Initialized ai-data structure and metadata for book %s", book_id)
+
         for stage in stages_to_run:
             try:
                 result = await _run_processing_stage(
@@ -111,6 +144,17 @@ async def process_book_task(
                 completed_stages.append(stage)
                 await progress.report_step_complete(stage)
 
+                # Update metadata.json with stage results
+                if book_name and result:
+                    metadata_service.update_metadata(
+                        publisher_id=publisher_id,
+                        book_id=book_id,
+                        book_name=book_name,
+                        stage_name=stage,
+                        stage_result=result,
+                        success=True,
+                    )
+
             except Exception as stage_error:
                 logger.error(
                     "Stage %s failed for job %s: %s",
@@ -122,6 +166,18 @@ async def process_book_task(
                     "stage": stage,
                     "error": str(stage_error),
                 })
+
+                # Update metadata.json with stage failure
+                if book_name:
+                    metadata_service.update_metadata(
+                        publisher_id=publisher_id,
+                        book_id=book_id,
+                        book_name=book_name,
+                        stage_name=stage,
+                        stage_result={},
+                        success=False,
+                        error_message=str(stage_error),
+                    )
 
                 # Continue on non-critical errors for partial completion
                 if not _is_critical_stage(stage):
@@ -142,6 +198,17 @@ async def process_book_task(
                 ProcessingStatus.PARTIAL,
                 error_message=f"Partial completion: {len(errors)} stage(s) failed",
             )
+
+            # Finalize metadata with partial status
+            if book_name:
+                metadata_service.finalize_metadata(
+                    publisher_id=publisher_id,
+                    book_id=book_id,
+                    book_name=book_name,
+                    final_status=AIDataProcessingStatus.PARTIAL,
+                    error_message=f"{len(errors)} stage(s) failed",
+                )
+
             logger.warning(
                 "Job %s completed partially with %d error(s)",
                 job_id,
@@ -154,6 +221,16 @@ async def process_book_task(
             }
 
         await repository.update_job_status(job_id, ProcessingStatus.COMPLETED)
+
+        # Finalize metadata with completed status
+        if book_name:
+            metadata_service.finalize_metadata(
+                publisher_id=publisher_id,
+                book_id=book_id,
+                book_name=book_name,
+                final_status=AIDataProcessingStatus.COMPLETED,
+            )
+
         logger.info("Job %s completed successfully", job_id)
         return {
             "status": "completed",
@@ -167,6 +244,20 @@ async def process_book_task(
             ProcessingStatus.FAILED,
             error_message=str(e),
         )
+
+        # Finalize metadata with failed status
+        if book_name:
+            try:
+                metadata_service.finalize_metadata(
+                    publisher_id=publisher_id,
+                    book_id=book_id,
+                    book_name=book_name,
+                    final_status=AIDataProcessingStatus.FAILED,
+                    error_message=str(e),
+                )
+            except Exception as meta_err:
+                logger.warning("Failed to finalize metadata on error: %s", meta_err)
+
         raise QueueError(f"Processing failed: {e}") from e
 
 
