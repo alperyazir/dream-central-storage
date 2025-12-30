@@ -26,6 +26,9 @@ from app.services.topic_analysis import get_topic_analysis_service, get_topic_st
 # Import vocabulary extraction service for vocabulary stage
 from app.services.vocabulary_extraction import get_vocabulary_extraction_service, get_vocabulary_storage
 
+# Import audio generation service for audio_generation stage
+from app.services.audio_generation import get_audio_generation_service, get_audio_storage
+
 logger = logging.getLogger(__name__)
 
 
@@ -273,8 +276,15 @@ async def _run_processing_stage(
             topic_analysis_result=stage_results.get("topic_analysis"),
         )
 
-    # Placeholder for other stages (to be implemented in future stories)
-    # - audio_generation: TTS service
+    if stage == "audio_generation":
+        return await _run_audio_generation(
+            job_id=job_id,
+            book_id=book_id,
+            publisher_id=publisher_id,
+            book_name=metadata.get("book_name", ""),
+            progress=progress,
+            vocabulary_result=stage_results.get("vocabulary"),
+        )
 
     await progress.report_progress(stage, 50)
     await progress.report_progress(stage, 100)
@@ -673,6 +683,153 @@ async def _run_vocabulary_extraction(
         "vocabulary_path": saved.get("vocabulary"),
         "updated_modules": len(saved.get("updated", [])),
         "metadata_path": saved.get("metadata"),
+    }
+
+
+async def _run_audio_generation(
+    job_id: str,
+    book_id: str,
+    publisher_id: str,
+    book_name: str,
+    progress: ProgressReporter,
+    vocabulary_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Run audio generation stage.
+
+    Generates audio pronunciations for vocabulary words using TTS service.
+
+    Args:
+        job_id: Job ID
+        book_id: Book ID
+        publisher_id: Publisher ID
+        book_name: Book folder name
+        progress: Progress reporter
+        vocabulary_result: Result from vocabulary extraction stage
+
+    Returns:
+        Audio generation result data
+
+    Raises:
+        QueueError: If book_name is missing or generation fails
+    """
+    if not book_name:
+        raise QueueError(
+            "book_name is required for audio generation",
+            {"job_id": job_id, "book_id": book_id},
+        )
+
+    logger.info(
+        "Starting audio generation for book %s (publisher: %s, name: %s)",
+        book_id,
+        publisher_id,
+        book_name,
+    )
+
+    # Get audio generation service and storage
+    audio_service = get_audio_generation_service()
+    audio_storage = get_audio_storage()
+
+    # Load vocabulary from storage
+    try:
+        vocabulary_data = audio_storage.load_vocabulary(publisher_id, book_id, book_name)
+    except Exception as e:
+        logger.warning(
+            "No vocabulary found for audio generation: %s/%s/%s - %s",
+            publisher_id,
+            book_id,
+            book_name,
+            e,
+        )
+        await progress.report_progress("audio_generation", 100)
+        return {
+            "total_words": 0,
+            "generated_count": 0,
+            "failed_count": 0,
+            "language": "",
+            "translation_language": "",
+        }
+
+    vocabulary_words = vocabulary_data.get("words", [])
+    if not vocabulary_words:
+        logger.info("No vocabulary words to generate audio for")
+        await progress.report_progress("audio_generation", 100)
+        return {
+            "total_words": 0,
+            "generated_count": 0,
+            "failed_count": 0,
+            "language": vocabulary_data.get("language", "en"),
+            "translation_language": vocabulary_data.get("translation_language", "tr"),
+        }
+
+    # Get language settings
+    primary_language = vocabulary_data.get("language", "en")
+    translation_language = vocabulary_data.get("translation_language", "tr")
+
+    # Progress tracking
+    def on_progress(current: int, total: int) -> None:
+        """Sync callback to track progress."""
+        pass  # Progress reported via ProgressReporter
+
+    # Report initial progress
+    await progress.report_progress("audio_generation", 10)
+
+    # Clean up existing audio before re-generation
+    audio_storage.cleanup_audio_directory(publisher_id, book_id, book_name)
+
+    # Generate audio for all vocabulary words
+    result, audio_data = await audio_service.generate_vocabulary_audio(
+        vocabulary=vocabulary_words,
+        book_id=book_id,
+        publisher_id=publisher_id,
+        book_name=book_name,
+        language=primary_language,
+        translation_language=translation_language,
+        progress_callback=on_progress,
+    )
+
+    # Report progress at 50% (generation complete)
+    await progress.report_progress("audio_generation", 50)
+
+    # Save audio files to storage
+    save_result = audio_storage.save_all_audio(
+        publisher_id=publisher_id,
+        book_id=book_id,
+        book_name=book_name,
+        audio_files=result.audio_files,
+        audio_data=audio_data,
+    )
+
+    # Report progress at 80% (files saved)
+    await progress.report_progress("audio_generation", 80)
+
+    # Update vocabulary.json with audio paths
+    if result.audio_files:
+        audio_storage.update_vocabulary_audio_paths(
+            publisher_id=publisher_id,
+            book_id=book_id,
+            book_name=book_name,
+            audio_files=result.audio_files,
+        )
+
+    # Report final progress
+    await progress.report_progress("audio_generation", 100)
+
+    logger.info(
+        "Audio generation completed: %d/%d generated, %d failed, %d files saved",
+        result.generated_count,
+        len(vocabulary_words),
+        result.failed_count,
+        save_result.get("saved", 0),
+    )
+
+    return {
+        "total_words": len(vocabulary_words),
+        "generated_count": result.generated_count,
+        "failed_count": result.failed_count,
+        "audio_files_saved": save_result.get("saved", 0),
+        "audio_files_failed": save_result.get("failed", 0),
+        "language": primary_language,
+        "translation_language": translation_language,
     }
 
 

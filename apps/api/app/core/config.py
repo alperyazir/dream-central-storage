@@ -109,6 +109,11 @@ class Settings(BaseSettings):
     vocabulary_temperature: float = 0.3  # LLM temperature for extraction
     vocabulary_max_text_length: int = 8000  # max chars to send to LLM
 
+    # Audio Generation Configuration
+    audio_generation_concurrency: int = 5  # concurrent TTS requests for batch
+    audio_generation_languages: str = "en,tr"  # languages to generate audio for
+    audio_retry_failed: bool = True  # retry failed audio generation
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
