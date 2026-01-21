@@ -231,19 +231,11 @@ async def get_book_config(
 
     _require_admin(credentials, db)
 
-    # Look up the book to get the version
-    book = _book_repository.get_by_publisher_name_and_book_name(db, publisher_name=publisher, book_name=book_name)
-    if book is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Book not found")
-
-    if not book.version:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Book has no version information")
-
     settings = get_settings()
     client = get_minio_client(settings)
 
-    # Build the correct path: {publisher}/books/{book_name}/{version}/{book_name}/config.json
-    object_key = f"{publisher}/books/{book_name}/{book.version}/{book_name}/config.json"
+    # Build path: {publisher}/books/{book_name}/config.json
+    object_key = _build_book_object_key(publisher, book_name, "config.json")
 
     try:
         stat = client.stat_object(settings.minio_publishers_bucket, object_key)
@@ -277,46 +269,69 @@ async def get_book_config(
 
 
 @router.get("/books/{publisher}/{book_name}/cover")
-async def get_book_cover_url(
+async def get_book_cover(
     publisher: str,
     book_name: str,
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
 ):
-    """Generate a presigned URL for the book cover image."""
+    """Stream the book cover image."""
 
     _require_admin(credentials, db)
+
+    # Look up book to get the cover filename
+    book = _book_repository.get_by_publisher_name_and_book_name(db, publisher_name=publisher, book_name=book_name)
+    if book is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Book not found")
+
+    # Use book_cover from database, fallback to default
+    cover_filename = book.book_cover or "book_cover.png"
+
     settings = get_settings()
     client = get_minio_client(settings)
-    object_key = _build_book_object_key(publisher, book_name, "images/book_cover.png")
+    object_key = _build_book_object_key(publisher, book_name, f"images/{cover_filename}")
 
+    # Get file metadata
     try:
-        # Check if the file exists
-        client.stat_object(settings.minio_publishers_bucket, object_key)
+        stat = client.stat_object(settings.minio_publishers_bucket, object_key)
     except S3Error as exc:
         if exc.code == "NoSuchKey":
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Book cover not found") from exc
         logger.error("Failed statting book cover '%s': %s", object_key, exc)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to load book cover") from exc
 
-    # Generate presigned URL valid for 1 hour
-    try:
-        url = client.presigned_get_object(
-            settings.minio_publishers_bucket,
-            object_key,
-            expires=timedelta(hours=1)
-        )
+    file_size = stat.size
+    if file_size is None:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to determine file size")
 
-        # Replace internal endpoint with external URL for browser access
-        if settings.minio_endpoint in url:
-            protocol = "https://" if settings.minio_secure else "http://"
-            internal_base = f"{protocol}{settings.minio_endpoint}"
-            url = url.replace(internal_base, settings.minio_external_url)
+    # Determine MIME type from filename
+    media_type = _get_media_type(cover_filename, "image/png")
 
-        return {"url": url}
-    except S3Error as exc:
-        logger.error("Failed generating presigned URL for '%s': %s", object_key, exc)
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to generate URL") from exc
+    def iterator():
+        """Stream chunks from MinIO."""
+        try:
+            obj = client.get_object(settings.minio_publishers_bucket, object_key)
+            try:
+                for chunk in obj.stream(32 * 1024):
+                    yield chunk
+            finally:
+                obj.close()
+                obj.release_conn()
+        except S3Error as exc:
+            logger.error("Failed streaming book cover '%s': %s", object_key, exc)
+            raise
+
+    headers = {
+        "Content-Length": str(file_size),
+        "Content-Disposition": f'inline; filename="{cover_filename}"',
+    }
+
+    return StreamingResponse(
+        iterator(),
+        status_code=status.HTTP_200_OK,
+        media_type=media_type,
+        headers=headers,
+    )
 
 
 @router.get("/books/{publisher}/{book_name}/object")

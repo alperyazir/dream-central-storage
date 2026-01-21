@@ -267,13 +267,6 @@ def test_get_book_config_returns_payload(monkeypatch) -> None:
 
     monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
 
-    # Mock the book repository to return a book with a version
-    fake_book = MagicMock()
-    fake_book.version = "1.0.0"
-    fake_book_repo = MagicMock()
-    fake_book_repo.get_by_publisher_name_and_book_name.return_value = fake_book
-    monkeypatch.setattr(storage, "_book_repository", fake_book_repo)
-
     client = TestClient(app)
     response = client.get(
         "/storage/books/Dream/Sky/config",
@@ -284,6 +277,87 @@ def test_get_book_config_returns_payload(monkeypatch) -> None:
     assert response.json() == payload
     fake_obj.close.assert_called_once()
     fake_obj.release_conn.assert_called_once()
+    # Verify correct path is used: {publisher}/books/{book_name}/config.json
+    fake_client.stat_object.assert_called_once()
+    call_args = fake_client.stat_object.call_args
+    assert call_args[0][1] == "Dream/books/Sky/config.json"
+
+
+def test_get_book_cover_streams_image(monkeypatch) -> None:
+    from app.routers import storage
+
+    image_data = b"\x89PNG\r\n\x1a\n" + b"fake image content"
+
+    fake_obj = MagicMock()
+    fake_obj.stream.return_value = iter([image_data])
+    fake_obj.close = MagicMock()
+    fake_obj.release_conn = MagicMock()
+
+    fake_client = MagicMock()
+    fake_client.stat_object.return_value = SimpleNamespace(size=len(image_data))
+    fake_client.get_object.return_value = fake_obj
+
+    monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
+
+    # Mock book repository to return a book with cover filename
+    fake_book = MagicMock()
+    fake_book.book_cover = "cover.jpg"
+    fake_book_repo = MagicMock()
+    fake_book_repo.get_by_publisher_name_and_book_name.return_value = fake_book
+    monkeypatch.setattr(storage, "_book_repository", fake_book_repo)
+
+    client = TestClient(app)
+    response = client.get(
+        "/storage/books/Dream/Sky/cover",
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.content == image_data
+    assert response.headers["content-type"] == "image/jpeg"
+    assert response.headers["content-disposition"] == 'inline; filename="cover.jpg"'
+    # Verify correct path uses book_cover from database
+    fake_client.stat_object.assert_called_once()
+    call_args = fake_client.stat_object.call_args
+    assert call_args[0][1] == "Dream/books/Sky/images/cover.jpg"
+    fake_obj.close.assert_called_once()
+    fake_obj.release_conn.assert_called_once()
+
+
+def test_get_book_cover_uses_default_filename(monkeypatch) -> None:
+    from app.routers import storage
+
+    image_data = b"\x89PNG\r\n\x1a\n" + b"fake png content"
+
+    fake_obj = MagicMock()
+    fake_obj.stream.return_value = iter([image_data])
+    fake_obj.close = MagicMock()
+    fake_obj.release_conn = MagicMock()
+
+    fake_client = MagicMock()
+    fake_client.stat_object.return_value = SimpleNamespace(size=len(image_data))
+    fake_client.get_object.return_value = fake_obj
+
+    monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
+
+    # Mock book repository to return a book with no cover filename
+    fake_book = MagicMock()
+    fake_book.book_cover = None
+    fake_book_repo = MagicMock()
+    fake_book_repo.get_by_publisher_name_and_book_name.return_value = fake_book
+    monkeypatch.setattr(storage, "_book_repository", fake_book_repo)
+
+    client = TestClient(app)
+    response = client.get(
+        "/storage/books/Dream/Sky/cover",
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    # Verify fallback to default filename
+    call_args = fake_client.stat_object.call_args
+    assert call_args[0][1] == "Dream/books/Sky/images/book_cover.png"
 
 
 def test_download_book_object_streams_content(monkeypatch) -> None:
