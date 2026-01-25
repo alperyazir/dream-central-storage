@@ -13,8 +13,8 @@ class ProcessingTriggerRequest(BaseModel):
     """Request payload to trigger AI processing for a book."""
 
     job_type: ProcessingJobType = Field(
-        default=ProcessingJobType.FULL,
-        description="Type of processing to perform",
+        default=ProcessingJobType.UNIFIED,
+        description="Type of processing to perform (unified uses single LLM call for better accuracy)",
     )
     priority: JobPriority = Field(
         default=JobPriority.NORMAL,

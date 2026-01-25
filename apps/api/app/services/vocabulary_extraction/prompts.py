@@ -1,71 +1,44 @@
 """LLM prompt templates for vocabulary extraction."""
 
 # System prompt for vocabulary extraction
-SYSTEM_PROMPT = """You are an expert educational vocabulary extractor specializing in language learning materials.
-Your task is to identify and extract vocabulary words from educational text, providing definitions, translations, and metadata.
-Always respond with valid JSON only. Do not include any explanatory text outside the JSON array.
-Focus on words that are important for language learners at the specified difficulty level.
-Be precise with parts of speech and provide clear, learner-friendly definitions."""
+SYSTEM_PROMPT = """You are a vocabulary extraction API that returns JSON only.
+Extract vocabulary words from educational text with definitions and translations.
+CRITICAL: Return ONLY a raw JSON array. No markdown. No code blocks. No explanation. No text before or after the JSON."""
 
 # Main vocabulary extraction prompt
-VOCABULARY_EXTRACTION_PROMPT = """Extract vocabulary words from this educational text for language learners.
+VOCABULARY_EXTRACTION_PROMPT = """Extract {max_words} vocabulary words from this {difficulty}-level educational module.
 
-For each vocabulary word, provide:
-1. **word**: The vocabulary word in its base form
-2. **translation**: Turkish translation of the word
-3. **definition**: Clear, learner-friendly definition in English
-4. **part_of_speech**: One of: noun, verb, adjective, adverb, pronoun, preposition, conjunction, interjection
-5. **level**: CEFR difficulty level (A1/A2/B1/B2/C1/C2)
-6. **example**: An example sentence from the text (or create one if not available)
+MODULE TITLE: {module_title}
 
-Text to analyze (difficulty level: {difficulty}):
----
+TEXT:
 {module_text}
----
 
-Guidelines:
-- Extract {max_words} most important vocabulary words for language learners
-- Focus on words appropriate for the {difficulty} level
-- Prioritize words that appear frequently or are central to the content's topics
-- Include a mix of parts of speech when possible
-- Skip very common words (the, a, is, are) unless they have special usage
-- Skip proper nouns and names
-- For verbs, use the infinitive form (without "to")
-- For nouns, use the singular form
+IMPORTANT: Focus on words that are KEY to learning the module's topic "{module_title}".
+- Extract words that students need to learn for this specific topic
+- Prioritize nouns, verbs, and adjectives directly related to the theme
+- Skip words that are not essential to understanding the topic
+- Use infinitive for verbs, singular for nouns
 
-Respond with ONLY a valid JSON array:
-[
-  {{
-    "word": "beautiful",
-    "translation": "güzel",
-    "definition": "pleasing to the senses or mind aesthetically",
-    "part_of_speech": "adjective",
-    "level": "A2",
-    "example": "It's a beautiful day today."
-  }}
-]"""
+Return a JSON array with these fields for each word:
+- word: base form
+- translation: Turkish translation
+- definition: simple English definition
+- part_of_speech: noun/verb/adjective/adverb
+- level: A1/A2/B1/B2/C1/C2
+- example: example sentence
+
+OUTPUT FORMAT - Return ONLY this JSON array, nothing else:
+[{{"word":"elephant","translation":"fil","definition":"a large animal with a trunk","part_of_speech":"noun","level":"A1","example":"The elephant is big."}}]"""
 
 # Fallback prompt for simpler extraction
-SIMPLE_VOCABULARY_PROMPT = """Extract the main vocabulary words from this educational text.
+SIMPLE_VOCABULARY_PROMPT = """Extract {max_words} vocabulary words about "{module_title}" from this text. Return ONLY a JSON array.
+Focus on words essential to the topic. Skip unrelated common words.
 
-Text:
----
+TEXT:
 {module_text}
----
 
-List {max_words} important vocabulary words for language learners.
-
-Respond with ONLY a valid JSON array:
-[
-  {{
-    "word": "example",
-    "translation": "örnek",
-    "definition": "a thing serving as a model or illustration",
-    "part_of_speech": "noun",
-    "level": "A2",
-    "example": "This is an example sentence."
-  }}
-]"""
+OUTPUT (JSON array only, no other text):
+[{{"word":"cat","translation":"kedi","definition":"a small pet animal","part_of_speech":"noun","level":"A1","example":"I have a cat."}}]"""
 
 # Bilingual extraction prompt (for Turkish + English content)
 BILINGUAL_VOCABULARY_PROMPT = """Extract vocabulary from this bilingual (English-Turkish) educational text.
@@ -100,6 +73,7 @@ Respond with ONLY a valid JSON array:
 
 def build_vocabulary_extraction_prompt(
     module_text: str,
+    module_title: str = "",
     difficulty: str = "B1",
     max_words: int = 50,
     max_length: int = 8000,
@@ -109,6 +83,7 @@ def build_vocabulary_extraction_prompt(
 
     Args:
         module_text: The text content to analyze.
+        module_title: Title of the module for topic context.
         difficulty: Target CEFR difficulty level.
         max_words: Maximum number of words to extract.
         max_length: Maximum text length to include.
@@ -122,6 +97,7 @@ def build_vocabulary_extraction_prompt(
 
     return VOCABULARY_EXTRACTION_PROMPT.format(
         module_text=module_text,
+        module_title=module_title or "Unknown",
         difficulty=difficulty,
         max_words=max_words,
     )
@@ -129,6 +105,7 @@ def build_vocabulary_extraction_prompt(
 
 def build_simple_vocabulary_prompt(
     module_text: str,
+    module_title: str = "",
     max_words: int = 30,
     max_length: int = 4000,
 ) -> str:
@@ -137,6 +114,7 @@ def build_simple_vocabulary_prompt(
 
     Args:
         module_text: The text content to analyze.
+        module_title: Title of the module for topic context.
         max_words: Maximum number of words to extract.
         max_length: Maximum text length to include.
 
@@ -148,6 +126,7 @@ def build_simple_vocabulary_prompt(
 
     return SIMPLE_VOCABULARY_PROMPT.format(
         module_text=module_text,
+        module_title=module_title or "this topic",
         max_words=max_words,
     )
 

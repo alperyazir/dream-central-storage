@@ -212,21 +212,71 @@ class AIDataStorage:
             logger.error("Failed to save metadata %s: %s", path, e)
             raise
 
+    def save_full_text(self, result: PDFExtractionResult) -> str:
+        """
+        Save combined full text of all pages to a single file.
+
+        Args:
+            result: PDF extraction result containing all page texts.
+
+        Returns:
+            Path to the saved full text file.
+        """
+        client = get_minio_client(self.settings)
+        bucket = self.settings.minio_publishers_bucket
+
+        path = self._build_ai_data_path(
+            result.publisher_id,
+            result.book_id,
+            result.book_name,
+            "text",
+            "full_text.txt",
+        )
+
+        # Combine all pages with page markers
+        parts = []
+        for page in result.pages:
+            parts.append(f"\n{'='*60}")
+            parts.append(f"PAGE {page.page_number}")
+            parts.append(f"{'='*60}\n")
+            parts.append(page.text)
+            parts.append("\n")
+
+        full_text = "\n".join(parts)
+        text_bytes = full_text.encode("utf-8")
+        data = BytesIO(text_bytes)
+
+        try:
+            client.put_object(
+                bucket,
+                path,
+                data,
+                length=len(text_bytes),
+                content_type="text/plain; charset=utf-8",
+            )
+            logger.info("Saved full text: %s (%d bytes)", path, len(text_bytes))
+            return path
+        except S3Error as e:
+            logger.error("Failed to save full text %s: %s", path, e)
+            raise
+
     def save_all(self, result: PDFExtractionResult) -> dict[str, list[str] | str]:
         """
-        Save all extracted data (text files + metadata).
+        Save all extracted data (text files + full text + metadata).
 
         Args:
             result: PDF extraction result.
 
         Returns:
-            Dictionary with 'text_files' and 'metadata' paths.
+            Dictionary with 'text_files', 'full_text', and 'metadata' paths.
         """
         text_paths = self.save_extracted_text(result)
+        full_text_path = self.save_full_text(result)
         metadata_path = self.save_extraction_metadata(result)
 
         return {
             "text_files": text_paths,
+            "full_text": full_text_path,
             "metadata": metadata_path,
         }
 

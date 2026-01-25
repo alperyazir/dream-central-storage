@@ -1,7 +1,8 @@
 import { ApiClient, apiClient } from './api';
 import { buildAuthHeaders } from './http';
 
-export type ProcessingJobType = 'full' | 'text_only' | 'vocabulary_only' | 'audio_only';
+// Main 4 options for UI
+export type ProcessingJobType = 'full' | 'text_only' | 'llm_only' | 'audio_only' | 'unified' | 'analysis_only' | 'vocabulary_only';
 export type ProcessingStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'partial' | 'cancelled';
 export type JobPriority = 'high' | 'normal' | 'low';
 
@@ -285,3 +286,270 @@ export const getExtendedStatusLabel = (status: ExtendedProcessingStatus): string
   if (status === 'not_started') return 'Not Started';
   return getStatusLabel(status as ProcessingStatus);
 };
+
+// =============================================================================
+// Processing Settings Types and Functions
+// =============================================================================
+
+export interface GlobalProcessingSettings {
+  ai_auto_process_on_upload: boolean;
+  ai_auto_process_skip_existing: boolean;
+  llm_primary_provider: string;
+  llm_fallback_provider: string;
+  tts_primary_provider: string;
+  tts_fallback_provider: string;
+  queue_max_concurrency: number;
+  vocabulary_max_words_per_module: number;
+  audio_generation_languages: string;
+  audio_generation_concurrency: number;
+}
+
+export interface GlobalProcessingSettingsUpdate {
+  ai_auto_process_on_upload?: boolean;
+  ai_auto_process_skip_existing?: boolean;
+  llm_primary_provider?: string;
+  llm_fallback_provider?: string;
+  tts_primary_provider?: string;
+  tts_fallback_provider?: string;
+  queue_max_concurrency?: number;
+  vocabulary_max_words_per_module?: number;
+  audio_generation_languages?: string;
+  audio_generation_concurrency?: number;
+}
+
+export interface PublisherProcessingSettings {
+  publisher_id: number;
+  publisher_name: string;
+  ai_auto_process_enabled: boolean | null; // null = use global
+  ai_processing_priority: 'high' | 'normal' | 'low' | null;
+  ai_audio_languages: string | null;
+}
+
+export interface PublisherProcessingSettingsUpdate {
+  ai_auto_process_enabled?: boolean | null;
+  ai_processing_priority?: 'high' | 'normal' | 'low' | null;
+  ai_audio_languages?: string | null;
+}
+
+/**
+ * Get global AI processing settings.
+ */
+export const getProcessingSettings = (
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient
+): Promise<GlobalProcessingSettings> =>
+  client.get<GlobalProcessingSettings>('/processing/settings', {
+    headers: buildAuthHeaders(token, tokenType),
+  });
+
+/**
+ * Update global AI processing settings.
+ */
+export const updateProcessingSettings = (
+  settings: GlobalProcessingSettingsUpdate,
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient
+): Promise<GlobalProcessingSettings> =>
+  client.put<GlobalProcessingSettings, GlobalProcessingSettingsUpdate>(
+    '/processing/settings',
+    settings,
+    { headers: buildAuthHeaders(token, tokenType) }
+  );
+
+/**
+ * Get AI processing settings for a specific publisher.
+ */
+export const getPublisherProcessingSettings = (
+  publisherId: number,
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient
+): Promise<PublisherProcessingSettings> =>
+  client.get<PublisherProcessingSettings>(
+    `/processing/publishers/${publisherId}/settings`,
+    { headers: buildAuthHeaders(token, tokenType) }
+  );
+
+/**
+ * Update AI processing settings for a specific publisher.
+ */
+export const updatePublisherProcessingSettings = (
+  publisherId: number,
+  settings: PublisherProcessingSettingsUpdate,
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient
+): Promise<PublisherProcessingSettings> =>
+  client.put<PublisherProcessingSettings, PublisherProcessingSettingsUpdate>(
+    `/processing/publishers/${publisherId}/settings`,
+    settings,
+    { headers: buildAuthHeaders(token, tokenType) }
+  );
+
+// =============================================================================
+// AI Data Viewer Types and Functions
+// =============================================================================
+
+export interface StageResult {
+  status: string;
+  completed_at: string | null;
+  error_message: string | null;
+}
+
+export interface AIMetadata {
+  book_id: string;
+  processing_status: string;
+  processing_started_at: string | null;
+  processing_completed_at: string | null;
+  total_pages: number;
+  total_modules: number;
+  total_vocabulary: number;
+  total_audio_files: number;
+  languages: string[];
+  primary_language: string;
+  difficulty_range: string[];
+  stages: Record<string, StageResult>;
+  errors: Array<{ stage: string; message: string }>;
+}
+
+export interface ModuleSummary {
+  module_id: number;
+  title: string;
+  pages: number[];
+  word_count: number;
+}
+
+export interface ModuleListResponse {
+  book_id: string;
+  total_modules: number;
+  modules: ModuleSummary[];
+}
+
+export interface ModuleDetail {
+  module_id: number;
+  title: string;
+  pages: number[];
+  text: string;
+  topics: string[];
+  vocabulary_ids: string[];
+  language: string;
+  difficulty: string;
+  word_count: number;
+  extracted_at: string | null;
+}
+
+export interface VocabularyWordAudio {
+  word: string | null;
+  translation: string | null;
+}
+
+export interface VocabularyWord {
+  id: string;
+  word: string;
+  translation: string;
+  definition: string;
+  part_of_speech: string;
+  level: string;
+  example: string;
+  module_id: number | null;
+  module_title: string | null;
+  page: number | null;
+  audio: VocabularyWordAudio | null;
+}
+
+export interface VocabularyResponse {
+  book_id: string;
+  language: string;
+  translation_language: string;
+  total_words: number;
+  words: VocabularyWord[];
+  extracted_at: string | null;
+}
+
+/**
+ * Get AI metadata for a book.
+ */
+export const getAIMetadata = (
+  bookId: number,
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient
+): Promise<AIMetadata> =>
+  client.get<AIMetadata>(`/books/${bookId}/ai-data/metadata`, {
+    headers: buildAuthHeaders(token, tokenType),
+  });
+
+/**
+ * Get modules list for a book.
+ */
+export const getAIModules = (
+  bookId: number,
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient
+): Promise<ModuleListResponse> =>
+  client.get<ModuleListResponse>(`/books/${bookId}/ai-data/modules`, {
+    headers: buildAuthHeaders(token, tokenType),
+  });
+
+/**
+ * Get module detail for a book.
+ */
+export const getAIModuleDetail = (
+  bookId: number,
+  moduleId: number,
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient
+): Promise<ModuleDetail> =>
+  client.get<ModuleDetail>(`/books/${bookId}/ai-data/modules/${moduleId}`, {
+    headers: buildAuthHeaders(token, tokenType),
+  });
+
+/**
+ * Get vocabulary for a book.
+ */
+export const getAIVocabulary = (
+  bookId: number,
+  token: string,
+  tokenType: string = 'Bearer',
+  params: { module_id?: number; page?: number; page_size?: number } = {},
+  client: ApiClient = apiClient
+): Promise<VocabularyResponse> => {
+  const searchParams = new URLSearchParams();
+  if (params.module_id !== undefined) searchParams.set('module_id', params.module_id.toString());
+  if (params.page !== undefined) searchParams.set('page', params.page.toString());
+  if (params.page_size !== undefined) searchParams.set('page_size', params.page_size.toString());
+
+  const queryString = searchParams.toString();
+  const url = `/books/${bookId}/ai-data/vocabulary${queryString ? `?${queryString}` : ''}`;
+
+  return client.get<VocabularyResponse>(url, {
+    headers: buildAuthHeaders(token, tokenType),
+  });
+};
+
+export interface AudioUrlResponse {
+  word: string;
+  language: string;
+  url: string;
+  expires_in: number;
+}
+
+/**
+ * Get presigned URL for vocabulary audio.
+ */
+export const getVocabularyAudioUrl = (
+  bookId: number,
+  language: string,
+  word: string,
+  token: string,
+  tokenType: string = 'Bearer',
+  client: ApiClient = apiClient
+): Promise<AudioUrlResponse> =>
+  client.get<AudioUrlResponse>(
+    `/books/${bookId}/ai-data/audio/vocabulary/${language}/${encodeURIComponent(word)}.mp3`,
+    { headers: buildAuthHeaders(token, tokenType) }
+  );

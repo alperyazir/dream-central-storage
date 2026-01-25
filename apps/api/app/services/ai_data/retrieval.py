@@ -11,7 +11,7 @@ from minio.error import S3Error
 from app.core.config import get_settings
 from app.services.ai_data.models import ProcessingMetadata
 from app.services.ai_data.service import get_ai_data_metadata_service
-from app.services.minio import get_minio_client
+from app.services.minio import get_minio_client, get_minio_client_external
 from app.services.segmentation.storage import get_module_storage
 from app.services.vocabulary_extraction.storage import get_vocabulary_storage
 
@@ -189,9 +189,11 @@ class AIDataRetrievalService:
             logger.error("Failed to check audio file: %s", e)
             raise
 
-        # Generate presigned URL
+        # Generate presigned URL using external client (for browser access)
+        # The signature includes the host, so we must use the external endpoint
+        external_client = get_minio_client_external(self.settings)
         try:
-            presigned_url = client.presigned_get_object(
+            presigned_url = external_client.presigned_get_object(
                 bucket_name=bucket,
                 object_name=audio_path,
                 expires=timedelta(seconds=expires_in),
@@ -235,6 +237,43 @@ class AIDataRetrievalService:
         except S3Error as e:
             if e.code == "NoSuchKey":
                 return False
+            raise
+
+    def get_modules_metadata(
+        self,
+        publisher: str,
+        book_id: str,
+        book_name: str,
+    ) -> dict[str, Any] | None:
+        """
+        Get modules metadata.json containing summary info for all modules.
+
+        Args:
+            publisher: Publisher name.
+            book_id: Book identifier.
+            book_name: Book folder name.
+
+        Returns:
+            Modules metadata dictionary or None if not found.
+        """
+        import json
+
+        client = get_minio_client(self.settings)
+        bucket = self.settings.minio_publishers_bucket
+
+        # Path: {publisher}/books/{book_name}/ai-data/modules/metadata.json
+        metadata_path = f"{publisher}/books/{book_name}/ai-data/modules/metadata.json"
+
+        try:
+            response = client.get_object(bucket, metadata_path)
+            data = response.read()
+            response.close()
+            response.release_conn()
+            return json.loads(data.decode("utf-8"))
+        except S3Error as e:
+            if e.code == "NoSuchKey":
+                return None
+            logger.error("Failed to get modules metadata: %s", e)
             raise
 
 

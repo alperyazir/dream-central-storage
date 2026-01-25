@@ -12,7 +12,7 @@ from app.models.book import BookStatusEnum
 class BookBase(BaseModel):
     """Shared attributes required for book metadata operations."""
 
-    publisher: str = Field(..., max_length=255)
+    publisher: str | None = Field(default=None, max_length=255)
     book_name: str = Field(..., max_length=255)  # Derived from ZIP filename
     book_title: str | None = Field(default=None, max_length=255)  # From config.json
     book_cover: str | None = Field(default=None, max_length=512)

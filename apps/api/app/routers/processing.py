@@ -15,6 +15,7 @@ from app.core.config import get_settings
 from app.core.security import decode_access_token, verify_api_key_from_db
 from app.db import get_db
 from app.repositories.book import BookRepository
+from app.repositories.publisher import PublisherRepository
 from app.repositories.user import UserRepository
 from app.schemas.processing import (
     CleanupStatsResponse,
@@ -36,6 +37,7 @@ router = APIRouter(prefix="/books", tags=["AI Processing"])
 dashboard_router = APIRouter(prefix="/processing", tags=["Processing Dashboard"])
 _bearer_scheme = HTTPBearer(auto_error=True)
 _book_repository = BookRepository()
+_publisher_repository = PublisherRepository()
 _user_repository = UserRepository()
 logger = logging.getLogger(__name__)
 
@@ -102,11 +104,11 @@ async def _check_rate_limit(publisher_id: int) -> tuple[bool, int]:
     return True, 0
 
 
-def _book_has_content(book) -> bool:
+def _book_has_content(book, publisher_name: str) -> bool:
     """Check if book has content in MinIO storage."""
     settings = get_settings()
     client = get_minio_client(settings)
-    prefix = f"{book.publisher}/books/{book.book_name}/"
+    prefix = f"{publisher_name}/books/{book.book_name}/"
 
     try:
         objects = list(
@@ -162,8 +164,12 @@ async def trigger_processing(
             detail="Book not found",
         )
 
+    # Get publisher name explicitly (don't rely on lazy loading)
+    publisher = _publisher_repository.get(db, book.publisher_id)
+    publisher_name = publisher.name if publisher else ""
+
     # Validate book has content
-    if not _book_has_content(book):
+    if not _book_has_content(book, publisher_name):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Book has no content to process",
@@ -197,7 +203,7 @@ async def trigger_processing(
             publisher_id=str(book.publisher_id),
             job_type=payload.job_type,
             priority=priority,
-            metadata={"book_name": book.book_name, "publisher": book.publisher},
+            metadata={"book_name": book.book_name, "publisher": publisher_name},
         )
     except JobAlreadyExistsError:
         raise HTTPException(
@@ -326,10 +332,14 @@ async def delete_ai_data(
             detail="Book not found",
         )
 
-    # Cleanup AI data
+    # Get publisher name explicitly (don't rely on lazy loading)
+    publisher = _publisher_repository.get(db, book.publisher_id)
+    publisher_name = publisher.name if publisher else ""
+
+    # Cleanup AI data (use publisher name for correct storage path)
     cleanup_manager = get_ai_data_cleanup_manager()
     stats = cleanup_manager.cleanup_all(
-        publisher_id=str(book.publisher_id),
+        publisher_id=publisher_name,  # Use publisher name, not numeric ID
         book_id=str(book.id),
         book_name=book.book_name,
     )
@@ -341,13 +351,13 @@ async def delete_ai_data(
     )
 
     # Optionally trigger reprocessing
-    if reprocess and _book_has_content(book):
+    if reprocess and _book_has_content(book, publisher_name):
         queue_service = await get_queue_service()
         try:
             job = await queue_service.enqueue_job(
                 book_id=str(book.id),
                 publisher_id=str(book.publisher_id),
-                metadata={"book_name": book.book_name, "publisher": book.publisher},
+                metadata={"book_name": book.book_name, "publisher": publisher_name},
             )
             logger.info(
                 "Triggered reprocessing for book %s (job_id=%s)",
@@ -429,7 +439,7 @@ class BulkReprocessRequest(BaseModel):
     """Request for bulk reprocessing."""
 
     book_ids: List[int]
-    job_type: Optional[str] = "full"
+    job_type: Optional[str] = "unified"  # unified uses single LLM call for better accuracy
     priority: Optional[str] = "normal"
 
 
@@ -481,12 +491,19 @@ async def list_books_with_processing_status(
     # Apply pagination
     books = query.offset((page - 1) * page_size).limit(page_size).all()
 
+    # Build publisher name lookup (to avoid lazy loading issues)
+    publisher_ids = list(set(book.publisher_id for book in books))
+    publishers = {p.id: p.name for p in db.query(_publisher_repository.model).filter(
+        _publisher_repository.model.id.in_(publisher_ids)
+    ).all()} if publisher_ids else {}
+
     # Get processing status for each book
     queue_service = await get_queue_service()
     retrieval_service = get_ai_data_retrieval_service()
 
     result_books = []
     for book in books:
+        publisher_name = publishers.get(book.publisher_id, "")
         # Get most recent job for this book
         jobs = await queue_service.list_jobs(book_id=str(book.id), limit=1)
 
@@ -508,12 +525,12 @@ async def list_books_with_processing_status(
                 last_processed_at = job.completed_at.isoformat() if hasattr(job.completed_at, 'isoformat') else str(job.completed_at)
         else:
             # Check if metadata exists (means it was processed at some point)
-            metadata = retrieval_service.get_metadata(book.publisher, str(book.id), book.book_name)
+            metadata = retrieval_service.get_metadata(publisher_name, str(book.id), book.book_name)
             if metadata:
                 processing_status = "completed"
                 progress = 100
-                if "processing_completed_at" in metadata:
-                    last_processed_at = metadata["processing_completed_at"]
+                if metadata.processing_completed_at:
+                    last_processed_at = metadata.processing_completed_at.isoformat() if hasattr(metadata.processing_completed_at, 'isoformat') else str(metadata.processing_completed_at)
 
         # Apply status filter
         if status and processing_status != status:
@@ -524,7 +541,7 @@ async def list_books_with_processing_status(
             book_name=book.book_name,
             book_title=book.book_title or book.book_name,
             publisher_id=book.publisher_id,
-            publisher_name=book.publisher,
+            publisher_name=publisher_name,
             processing_status=processing_status,
             progress=progress,
             current_step=current_step,
@@ -568,12 +585,15 @@ async def get_processing_queue(
         # Get book info
         book = _book_repository.get_by_id(db, int(job.book_id))
         if book:
+            # Get publisher name explicitly
+            publisher = _publisher_repository.get(db, book.publisher_id)
+            publisher_name = publisher.name if publisher else ""
             queue_items.append(ProcessingQueueItem(
                 job_id=job.job_id,
                 book_id=int(job.book_id),
                 book_name=book.book_name,
                 book_title=book.book_title or book.book_name,
-                publisher_name=book.publisher,
+                publisher_name=publisher_name,
                 status=job.status.value if hasattr(job.status, 'value') else str(job.status),
                 progress=job.progress,
                 current_step=job.current_step or "",
@@ -629,8 +649,8 @@ async def clear_processing_error(
             detail=f"Job is not in failed state (current: {job.status.value})",
         )
 
-    # Cancel/remove the failed job
-    await queue_service.cancel_job(job.job_id)
+    # Delete the failed job
+    await queue_service.delete_job(job.job_id)
 
     logger.info("Cleared processing error for book %s (job_id=%s)", book_id, job.job_id)
 
@@ -667,12 +687,12 @@ async def bulk_reprocess(
     job_ids = []
 
     # Parse job type and priority
-    job_type = ProcessingJobType.FULL
+    job_type = ProcessingJobType.UNIFIED
     if request.job_type:
         try:
             job_type = ProcessingJobType(request.job_type)
         except ValueError:
-            job_type = ProcessingJobType.FULL
+            job_type = ProcessingJobType.UNIFIED
 
     priority = JobPriority.NORMAL
     if request.priority:
@@ -688,7 +708,11 @@ async def bulk_reprocess(
             skipped += 1
             continue
 
-        if not _book_has_content(book):
+        # Get publisher name explicitly
+        publisher = _publisher_repository.get(db, book.publisher_id)
+        publisher_name = publisher.name if publisher else ""
+
+        if not _book_has_content(book, publisher_name):
             errors.append(f"Book {book_id} has no content")
             skipped += 1
             continue
@@ -699,7 +723,7 @@ async def bulk_reprocess(
                 publisher_id=str(book.publisher_id),
                 job_type=job_type,
                 priority=priority,
-                metadata={"book_name": book.book_name, "publisher": book.publisher},
+                metadata={"book_name": book.book_name, "publisher": publisher_name},
             )
             job_ids.append(job.job_id)
             triggered += 1
@@ -721,4 +745,243 @@ async def bulk_reprocess(
         skipped=skipped,
         errors=errors,
         job_ids=job_ids,
+    )
+
+
+# =============================================================================
+# Processing Settings Endpoints
+# =============================================================================
+
+
+class GlobalProcessingSettings(BaseModel):
+    """Global AI processing settings from environment."""
+
+    ai_auto_process_on_upload: bool
+    ai_auto_process_skip_existing: bool
+    llm_primary_provider: str
+    llm_fallback_provider: str
+    tts_primary_provider: str
+    tts_fallback_provider: str
+    queue_max_concurrency: int
+    vocabulary_max_words_per_module: int
+    audio_generation_languages: str
+    audio_generation_concurrency: int
+
+
+class GlobalProcessingSettingsUpdate(BaseModel):
+    """Request to update global AI processing settings."""
+
+    ai_auto_process_on_upload: Optional[bool] = None
+    ai_auto_process_skip_existing: Optional[bool] = None
+    llm_primary_provider: Optional[str] = None
+    llm_fallback_provider: Optional[str] = None
+    tts_primary_provider: Optional[str] = None
+    tts_fallback_provider: Optional[str] = None
+    queue_max_concurrency: Optional[int] = None
+    vocabulary_max_words_per_module: Optional[int] = None
+    audio_generation_languages: Optional[str] = None
+    audio_generation_concurrency: Optional[int] = None
+
+
+class PublisherProcessingSettings(BaseModel):
+    """Publisher-specific AI processing settings."""
+
+    publisher_id: int
+    publisher_name: str
+    ai_auto_process_enabled: Optional[bool] = None  # None = use global
+    ai_processing_priority: Optional[str] = None  # high, normal, low
+    ai_audio_languages: Optional[str] = None  # Override languages
+
+
+class PublisherProcessingSettingsUpdate(BaseModel):
+    """Request to update publisher AI processing settings."""
+
+    ai_auto_process_enabled: Optional[bool] = None
+    ai_processing_priority: Optional[str] = None
+    ai_audio_languages: Optional[str] = None
+
+
+@dashboard_router.get(
+    "/settings",
+    response_model=GlobalProcessingSettings,
+)
+async def get_processing_settings(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    db: Session = Depends(get_db),
+) -> GlobalProcessingSettings:
+    """Get global AI processing settings.
+
+    Returns current environment-based settings for AI processing.
+    """
+    _require_auth(credentials, db)
+
+    settings = get_settings()
+
+    return GlobalProcessingSettings(
+        ai_auto_process_on_upload=settings.ai_auto_process_on_upload,
+        ai_auto_process_skip_existing=settings.ai_auto_process_skip_existing,
+        llm_primary_provider=settings.llm_primary_provider,
+        llm_fallback_provider=settings.llm_fallback_provider,
+        tts_primary_provider=settings.tts_primary_provider,
+        tts_fallback_provider=settings.tts_fallback_provider,
+        queue_max_concurrency=settings.queue_max_concurrency,
+        vocabulary_max_words_per_module=settings.vocabulary_max_words_per_module,
+        audio_generation_languages=settings.audio_generation_languages,
+        audio_generation_concurrency=settings.audio_generation_concurrency,
+    )
+
+
+@dashboard_router.put(
+    "/settings",
+    response_model=GlobalProcessingSettings,
+)
+async def update_processing_settings(
+    request: GlobalProcessingSettingsUpdate,
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    db: Session = Depends(get_db),
+) -> GlobalProcessingSettings:
+    """Update global AI processing settings.
+
+    Note: These settings are environment-based. This endpoint updates the
+    runtime settings but changes are not persisted across restarts.
+    For persistent changes, update environment variables.
+
+    Requires user authentication (not API key).
+    """
+    user_id = _require_auth(credentials, db)
+
+    if user_id == -1:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Settings update requires user authentication",
+        )
+
+    settings = get_settings()
+
+    # Update runtime settings (note: these won't persist across restarts)
+    if request.ai_auto_process_on_upload is not None:
+        settings.ai_auto_process_on_upload = request.ai_auto_process_on_upload
+    if request.ai_auto_process_skip_existing is not None:
+        settings.ai_auto_process_skip_existing = request.ai_auto_process_skip_existing
+    if request.llm_primary_provider is not None:
+        settings.llm_primary_provider = request.llm_primary_provider
+    if request.llm_fallback_provider is not None:
+        settings.llm_fallback_provider = request.llm_fallback_provider
+    if request.tts_primary_provider is not None:
+        settings.tts_primary_provider = request.tts_primary_provider
+    if request.tts_fallback_provider is not None:
+        settings.tts_fallback_provider = request.tts_fallback_provider
+    if request.queue_max_concurrency is not None:
+        settings.queue_max_concurrency = request.queue_max_concurrency
+    if request.vocabulary_max_words_per_module is not None:
+        settings.vocabulary_max_words_per_module = request.vocabulary_max_words_per_module
+    if request.audio_generation_languages is not None:
+        settings.audio_generation_languages = request.audio_generation_languages
+    if request.audio_generation_concurrency is not None:
+        settings.audio_generation_concurrency = request.audio_generation_concurrency
+
+    logger.info("Updated global processing settings by user %s", user_id)
+
+    return GlobalProcessingSettings(
+        ai_auto_process_on_upload=settings.ai_auto_process_on_upload,
+        ai_auto_process_skip_existing=settings.ai_auto_process_skip_existing,
+        llm_primary_provider=settings.llm_primary_provider,
+        llm_fallback_provider=settings.llm_fallback_provider,
+        tts_primary_provider=settings.tts_primary_provider,
+        tts_fallback_provider=settings.tts_fallback_provider,
+        queue_max_concurrency=settings.queue_max_concurrency,
+        vocabulary_max_words_per_module=settings.vocabulary_max_words_per_module,
+        audio_generation_languages=settings.audio_generation_languages,
+        audio_generation_concurrency=settings.audio_generation_concurrency,
+    )
+
+
+@dashboard_router.get(
+    "/publishers/{publisher_id}/settings",
+    response_model=PublisherProcessingSettings,
+)
+async def get_publisher_processing_settings(
+    publisher_id: int,
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    db: Session = Depends(get_db),
+) -> PublisherProcessingSettings:
+    """Get AI processing settings for a specific publisher.
+
+    Returns publisher-specific overrides for AI processing.
+    Null values indicate "use global default".
+    """
+    _require_auth(credentials, db)
+
+    publisher = _publisher_repository.get(db, publisher_id)
+    if publisher is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Publisher not found",
+        )
+
+    return PublisherProcessingSettings(
+        publisher_id=publisher.id,
+        publisher_name=publisher.name,
+        ai_auto_process_enabled=publisher.ai_auto_process_enabled,
+        ai_processing_priority=publisher.ai_processing_priority,
+        ai_audio_languages=publisher.ai_audio_languages,
+    )
+
+
+@dashboard_router.put(
+    "/publishers/{publisher_id}/settings",
+    response_model=PublisherProcessingSettings,
+)
+async def update_publisher_processing_settings(
+    publisher_id: int,
+    request: PublisherProcessingSettingsUpdate,
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    db: Session = Depends(get_db),
+) -> PublisherProcessingSettings:
+    """Update AI processing settings for a specific publisher.
+
+    Set values to null to reset to "use global default".
+    Requires user authentication (not API key).
+    """
+    user_id = _require_auth(credentials, db)
+
+    if user_id == -1:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Settings update requires user authentication",
+        )
+
+    publisher = _publisher_repository.get(db, publisher_id)
+    if publisher is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Publisher not found",
+        )
+
+    # Validate priority if provided
+    if request.ai_processing_priority is not None:
+        valid_priorities = ["high", "normal", "low"]
+        if request.ai_processing_priority not in valid_priorities:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid priority. Must be one of: {', '.join(valid_priorities)}",
+            )
+
+    # Update publisher settings
+    _publisher_repository.update_ai_settings(
+        db,
+        publisher,
+        ai_auto_process_enabled=request.ai_auto_process_enabled,
+        ai_processing_priority=request.ai_processing_priority,
+        ai_audio_languages=request.ai_audio_languages,
+    )
+
+    logger.info("Updated processing settings for publisher %s by user %s", publisher_id, user_id)
+
+    return PublisherProcessingSettings(
+        publisher_id=publisher.id,
+        publisher_name=publisher.name,
+        ai_auto_process_enabled=publisher.ai_auto_process_enabled,
+        ai_processing_priority=publisher.ai_processing_priority,
+        ai_audio_languages=publisher.ai_audio_languages,
     )

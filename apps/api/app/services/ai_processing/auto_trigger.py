@@ -10,6 +10,9 @@ from app.services.ai_data import get_ai_data_retrieval_service
 from app.services.queue import get_queue_service
 from app.services.queue.models import JobPriority, ProcessingJobType
 
+# Use UNIFIED by default for better accuracy and lower cost
+DEFAULT_JOB_TYPE = ProcessingJobType.UNIFIED
+
 if TYPE_CHECKING:
     from app.core.config import Settings
     from app.services.queue.models import ProcessingJob
@@ -118,6 +121,7 @@ class AutoProcessingService:
         book_name: str,
         force: bool = False,
         priority: JobPriority = JobPriority.NORMAL,
+        job_type: ProcessingJobType | None = None,
     ) -> ProcessingJob | None:
         """
         Trigger AI processing for a book if appropriate.
@@ -128,6 +132,7 @@ class AutoProcessingService:
             book_name: Book folder name.
             force: If True, process even if already processed.
             priority: Job priority level.
+            job_type: Processing job type. Defaults to UNIFIED for single LLM call.
 
         Returns:
             ProcessingJob if enqueued, None if skipped.
@@ -136,15 +141,19 @@ class AutoProcessingService:
         if not self.should_auto_process(publisher, str(book_id), book_name, force):
             return None
 
+        # Use UNIFIED by default for better accuracy and lower cost
+        actual_job_type = job_type or DEFAULT_JOB_TYPE
+
         try:
             queue_service = await get_queue_service()
             job = await queue_service.enqueue_job(
                 book_id=str(book_id),
                 publisher_id=publisher,
-                job_type=ProcessingJobType.FULL,
+                job_type=actual_job_type,
                 priority=priority,
                 metadata={
                     "book_name": book_name,
+                    "publisher": publisher,  # Required for storage path construction
                     "auto_triggered": True,
                     "force_reprocess": force,
                 },

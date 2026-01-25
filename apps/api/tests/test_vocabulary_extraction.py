@@ -683,7 +683,8 @@ class TestVocabularyStorage:
             book_id="book-456",
             book_name="Test Book",
         )
-        assert path == "pub-123/books/book-456/Test Book/ai-data/vocabulary.json"
+        # Note: book_id is not in the path, only publisher_id and book_name
+        assert path == "pub-123/books/Test Book/ai-data/vocabulary.json"
 
     def test_build_module_path(self, storage):
         """Test building module JSON path."""
@@ -693,7 +694,8 @@ class TestVocabularyStorage:
             book_name="Test Book",
             module_id=1,
         )
-        assert path == "pub-123/books/book-456/Test Book/ai-data/modules/module_1.json"
+        # Note: book_id is not in the path, only publisher_id and book_name
+        assert path == "pub-123/books/Test Book/ai-data/modules/module_1.json"
 
     def test_build_metadata_path(self, storage):
         """Test building metadata path."""
@@ -702,7 +704,8 @@ class TestVocabularyStorage:
             book_id="book-456",
             book_name="Test Book",
         )
-        assert path == "pub-123/books/book-456/Test Book/ai-data/vocabulary_metadata.json"
+        # Note: book_id is not in the path, only publisher_id and book_name
+        assert path == "pub-123/books/Test Book/ai-data/vocabulary_metadata.json"
 
     @patch("app.services.vocabulary_extraction.storage.get_minio_client")
     def test_load_vocabulary_not_found(self, mock_get_client, storage):

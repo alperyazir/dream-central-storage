@@ -11,6 +11,7 @@ const createMockClient = () => {
     get,
     request: vi.fn(),
     post: vi.fn(),
+    put: vi.fn(),
     postForm: vi.fn(),
     delete: vi.fn()
   };

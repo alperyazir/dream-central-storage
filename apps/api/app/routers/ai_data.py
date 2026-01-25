@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -14,12 +14,15 @@ from app.core.config import get_settings
 from app.core.security import decode_access_token, verify_api_key_from_db
 from app.db import get_db
 from app.repositories.book import BookRepository
+from app.repositories.publisher import PublisherRepository
 from app.repositories.user import UserRepository
 from app.schemas.ai_data import (
     AudioUrlResponse,
     ModuleDetailResponse,
     ModuleListResponse,
+    ModuleMetadataSummary,
     ModuleSummary,
+    ModulesMetadataResponse,
     ProcessingMetadataResponse,
     StageResultResponse,
     VocabularyResponse,
@@ -31,6 +34,7 @@ from app.services.ai_data import get_ai_data_retrieval_service
 router = APIRouter(prefix="/books", tags=["AI Data"])
 _bearer_scheme = HTTPBearer(auto_error=True)
 _book_repository = BookRepository()
+_publisher_repository = PublisherRepository()
 _user_repository = UserRepository()
 logger = logging.getLogger(__name__)
 
@@ -89,7 +93,10 @@ def _get_book_info(db: Session, book_id: int) -> tuple[str, str]:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Book not found",
         )
-    return book.publisher, book.book_name
+    # Get publisher name explicitly (don't rely on lazy loading)
+    publisher = _publisher_repository.get(db, book.publisher_id)
+    publisher_name = publisher.name if publisher else ""
+    return publisher_name, book.book_name
 
 
 # =============================================================================
@@ -137,8 +144,21 @@ def get_ai_metadata(
         )
 
     # Convert stages to response format
+    # Legacy stages replaced by chunked_analysis/unified_analysis
+    legacy_stages = {"segmentation", "topic_analysis", "vocabulary"}
+    uses_unified_analysis = (
+        "chunked_analysis" in metadata.stages
+        and metadata.stages["chunked_analysis"].status.value == "completed"
+    ) or (
+        "unified_analysis" in metadata.stages
+        and metadata.stages["unified_analysis"].status.value == "completed"
+    )
+
     stages_response = {}
     for stage_name, stage_result in metadata.stages.items():
+        # Hide legacy stages when unified/chunked analysis is used
+        if uses_unified_analysis and stage_name in legacy_stages:
+            continue
         stages_response[stage_name] = StageResultResponse(
             status=stage_result.status.value,
             completed_at=stage_result.completed_at.isoformat() if stage_result.completed_at else None,
@@ -229,6 +249,75 @@ def list_ai_modules(
 
 
 @router.get(
+    "/{book_id}/ai-data/modules/metadata",
+    response_model=ModulesMetadataResponse,
+)
+def get_ai_modules_metadata(
+    book_id: int,
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    """Get modules metadata.json with summary info for all modules.
+
+    Returns analysis metadata including book info, processing method,
+    and detailed summaries for each module (page ranges, topics, vocabulary counts).
+
+    Args:
+        book_id: ID of the book
+
+    Returns:
+        ModulesMetadataResponse with full metadata
+
+    Raises:
+        401: Invalid authentication
+        404: Book not found or metadata not found
+    """
+    _require_auth(credentials, db)
+    publisher, book_name = _get_book_info(db, book_id)
+
+    retrieval_service = get_ai_data_retrieval_service()
+    metadata = retrieval_service.get_modules_metadata(publisher, str(book_id), book_name)
+
+    if metadata is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Modules metadata not found for this book",
+        )
+
+    # Build module summaries
+    module_summaries = [
+        ModuleMetadataSummary(
+            module_id=m.get("module_id", 0),
+            title=m.get("title", ""),
+            start_page=m.get("start_page", 0),
+            end_page=m.get("end_page", 0),
+            page_count=m.get("page_count", 0),
+            word_count=m.get("word_count", 0),
+            topics=m.get("topics", []),
+            difficulty_level=m.get("difficulty_level", ""),
+            vocabulary_count=m.get("vocabulary_count", 0),
+        )
+        for m in metadata.get("modules", [])
+    ]
+
+    response_data = ModulesMetadataResponse(
+        book_id=metadata.get("book_id", str(book_id)),
+        publisher_id=metadata.get("publisher_id", ""),
+        book_name=metadata.get("book_name", ""),
+        total_pages=metadata.get("total_pages", 0),
+        module_count=metadata.get("module_count", 0),
+        method=metadata.get("method", ""),
+        primary_language=metadata.get("primary_language", ""),
+        difficulty_range=metadata.get("difficulty_range", []),
+        modules=module_summaries,
+    )
+
+    response = JSONResponse(content=response_data.model_dump())
+    response.headers["Cache-Control"] = f"public, max-age={CACHE_MODULES}"
+    return response
+
+
+@router.get(
     "/{book_id}/ai-data/modules/{module_id}",
     response_model=ModuleDetailResponse,
 )
@@ -265,15 +354,21 @@ def get_ai_module(
             detail=f"Module {module_id} not found",
         )
 
+    # Map stored fields to API response fields
+    # Storage uses: difficulty_level, vocabulary (inline array)
+    # API expects: difficulty, vocabulary_ids
+    vocabulary_data = module.get("vocabulary", [])
+    vocabulary_ids = [v.get("word", "") for v in vocabulary_data] if vocabulary_data else module.get("vocabulary_ids", [])
+
     response_data = ModuleDetailResponse(
         module_id=module.get("module_id", 0),
         title=module.get("title", ""),
         pages=module.get("pages", []),
         text=module.get("text", ""),
         topics=module.get("topics", []),
-        vocabulary_ids=module.get("vocabulary_ids", []),
+        vocabulary_ids=vocabulary_ids,
         language=module.get("language", ""),
-        difficulty=module.get("difficulty", ""),
+        difficulty=module.get("difficulty_level", module.get("difficulty", "")),
         word_count=module.get("word_count", 0),
         extracted_at=module.get("extracted_at"),
     )
@@ -349,6 +444,7 @@ def get_ai_vocabulary(
                 level=word_data.get("level", ""),
                 example=word_data.get("example", ""),
                 module_id=word_data.get("module_id"),
+                module_title=word_data.get("module_title"),
                 page=word_data.get("page"),
                 audio=audio,
             )
@@ -374,34 +470,37 @@ def get_ai_vocabulary(
 
 
 @router.get(
-    "/{book_id}/ai-data/audio/vocabulary/{lang}/{word}.mp3",
-    response_model=AudioUrlResponse,
+    "/{book_id}/ai-data/audio/vocabulary/{lang}/{word_id}.mp3",
 )
-def get_vocabulary_audio_url(
+def stream_vocabulary_audio(
     book_id: int,
     lang: str,
-    word: str,
+    word_id: str,
+    range_header: str | None = Header(None, alias="Range"),
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
-) -> JSONResponse:
-    """Get presigned URL for a vocabulary audio file.
+):
+    """Stream vocabulary audio file directly.
 
-    Generates a presigned URL for downloading the audio pronunciation
-    of a vocabulary word. URLs are valid for 1 hour.
+    Streams the audio pronunciation of a vocabulary word.
+    Supports HTTP Range requests for seeking.
 
     Args:
         book_id: ID of the book
         lang: Language code (e.g., 'en', 'tr')
-        word: The vocabulary word
+        word_id: The vocabulary word ID (e.g., 'word_1', 'word_2')
 
     Returns:
-        AudioUrlResponse with presigned URL
+        Audio file stream (audio/mpeg)
 
     Raises:
-        400: Invalid language code
+        400: Invalid language code or word_id format
         401: Invalid authentication
         404: Book not found or audio file not found
     """
+    from minio.error import S3Error
+    from app.services.minio import get_minio_client
+
     _require_auth(credentials, db)
 
     # Validate language code
@@ -411,40 +510,87 @@ def get_vocabulary_audio_url(
             detail=f"Unsupported language code: {lang}. Supported: {', '.join(sorted(SUPPORTED_LANGUAGES))}",
         )
 
-    # Basic word validation - alphanumeric, hyphens, underscores
-    if not re.match(r"^[\w\-]+$", word, re.UNICODE):
+    # Basic word_id validation - alphanumeric, hyphens, underscores
+    if not re.match(r"^[\w\-]+$", word_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid word format",
+            detail="Invalid word_id format",
         )
 
     publisher, book_name = _get_book_info(db, book_id)
+    settings = get_settings()
+    client = get_minio_client(settings)
 
-    retrieval_service = get_ai_data_retrieval_service()
-    expires_in = 3600  # 1 hour
+    # Build audio file path
+    audio_path = f"{publisher}/books/{book_name}/ai-data/audio/vocabulary/{lang}/{word_id}.mp3"
 
-    presigned_url = retrieval_service.get_audio_url(
-        publisher=publisher,
-        book_id=str(book_id),
-        book_name=book_name,
-        language=lang,
-        word=word,
-        expires_in=expires_in,
-    )
+    # Get file metadata
+    try:
+        stat = client.stat_object(settings.minio_publishers_bucket, audio_path)
+    except S3Error as e:
+        if e.code == "NoSuchKey":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Audio file not found for word_id '{word_id}' in language '{lang}'",
+            )
+        raise
 
-    if presigned_url is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Audio file not found for word '{word}' in language '{lang}'",
+    file_size = stat.size
+    start = 0
+    end = file_size - 1
+
+    # Parse Range header if present
+    if range_header:
+        range_match = re.match(r"bytes=(\d*)-(\d*)", range_header)
+        if range_match:
+            start_str, end_str = range_match.groups()
+            if start_str:
+                start = int(start_str)
+            if end_str:
+                end = int(end_str)
+            else:
+                end = file_size - 1
+
+            if start >= file_size or end >= file_size or start > end:
+                raise HTTPException(
+                    status_code=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE,
+                    detail="Range not satisfiable",
+                )
+
+    content_length = end - start + 1
+
+    # Stream the file
+    def iter_file():
+        response = client.get_object(
+            settings.minio_publishers_bucket,
+            audio_path,
+            offset=start,
+            length=content_length,
+        )
+        try:
+            for chunk in response.stream(8192):
+                yield chunk
+        finally:
+            response.close()
+            response.release_conn()
+
+    headers = {
+        "Content-Length": str(content_length),
+        "Accept-Ranges": "bytes",
+        "Cache-Control": f"public, max-age={CACHE_AUDIO}",
+    }
+
+    if range_header:
+        headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+        return StreamingResponse(
+            iter_file(),
+            status_code=status.HTTP_206_PARTIAL_CONTENT,
+            media_type="audio/mpeg",
+            headers=headers,
         )
 
-    response_data = AudioUrlResponse(
-        word=word,
-        language=lang,
-        url=presigned_url,
-        expires_in=expires_in,
+    return StreamingResponse(
+        iter_file(),
+        media_type="audio/mpeg",
+        headers=headers,
     )
-
-    response = JSONResponse(content=response_data.model_dump())
-    response.headers["Cache-Control"] = f"public, max-age={CACHE_AUDIO}"
-    return response

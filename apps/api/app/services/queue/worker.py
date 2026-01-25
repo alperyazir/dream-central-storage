@@ -12,6 +12,7 @@ from arq.worker import Worker
 from app.core.config import get_settings
 from app.services.queue.tasks import (
     process_book_task,
+    process_material_task,
     on_job_start,
     on_job_end,
 )
@@ -45,7 +46,7 @@ class WorkerSettings:
     """
 
     # Task functions to register
-    functions = [process_book_task]
+    functions = [process_book_task, process_material_task]
 
     # Lifecycle hooks
     on_startup = on_job_start

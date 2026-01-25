@@ -122,3 +122,36 @@ class PublisherRepository(BaseRepository[Publisher]):
         session.commit()
 
         logger.info(f"Successfully deleted publisher '{publisher.name}' and {book_count} books")
+
+    def get_ai_settings(self, publisher: Publisher) -> dict[str, object]:
+        """Get AI processing settings for a publisher.
+
+        Returns a dict with ai_auto_process_enabled, ai_processing_priority, ai_audio_languages.
+        None values indicate "use global default".
+        """
+        return {
+            "ai_auto_process_enabled": publisher.ai_auto_process_enabled,
+            "ai_processing_priority": publisher.ai_processing_priority,
+            "ai_audio_languages": publisher.ai_audio_languages,
+        }
+
+    def update_ai_settings(
+        self,
+        session: Session,
+        publisher: Publisher,
+        *,
+        ai_auto_process_enabled: bool | None = None,
+        ai_processing_priority: str | None = None,
+        ai_audio_languages: str | None = None,
+    ) -> Publisher:
+        """Update AI processing settings for a publisher.
+
+        Pass None to reset a setting to "use global default".
+        """
+        publisher.ai_auto_process_enabled = ai_auto_process_enabled
+        publisher.ai_processing_priority = ai_processing_priority
+        publisher.ai_audio_languages = ai_audio_languages
+        session.flush()
+        session.refresh(publisher)
+        session.commit()
+        return publisher

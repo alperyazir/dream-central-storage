@@ -79,7 +79,7 @@ const CONTENT_TYPE_RULES: Record<string, {
 }> = {
   books: {
     accept: '.zip',
-    maxSize: 500 * 1024 * 1024, // 500MB
+    maxSize: 2 * 1024 * 1024 * 1024, // 2GB
     multiple: true,
     acceptedFormats: '.zip',
   },

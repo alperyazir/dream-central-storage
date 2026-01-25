@@ -395,6 +395,12 @@ async def upload_new_book(
             override_publisher.name,
             publisher_id,
         )
+    elif not book_data.get("publisher"):
+        # No publisher_id provided and no publisher in config.json
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="config.json does not have publisher_name and no publisher_id was provided",
+        )
 
     # Default new uploads to published status
     if book_data.get("status") is None or book_data["status"] == BookStatusEnum.DRAFT:

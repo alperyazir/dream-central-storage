@@ -30,6 +30,21 @@ from .processing import (
     ProcessingTriggerRequest,
     QueueStatsResponse,
 )
+from .teacher import (
+    FileTypeStats,
+    MaterialCreate,
+    MaterialListItem,
+    MaterialListResponse,
+    MaterialRead,
+    MaterialUpdate,
+    StorageStatsResponse,
+    TeacherCreate,
+    TeacherListItem,
+    TeacherListResponse,
+    TeacherRead,
+    TeacherUpdate,
+    TeacherWithMaterials,
+)
 from .webhook import (
     WebhookDeliveryLogRead,
     WebhookEventBookData,
@@ -64,6 +79,12 @@ __all__ = [
     "BookCreate",
     "BookRead",
     "BookUpdate",
+    # Material schemas
+    "MaterialCreate",
+    "MaterialListItem",
+    "MaterialListResponse",
+    "MaterialRead",
+    "MaterialUpdate",
     # Processing schemas
     "CleanupStatsResponse",
     "ProcessingJobResponse",
@@ -77,9 +98,18 @@ __all__ = [
     "PublisherUpdate",
     "PublisherWithBooks",
     # Storage schemas
+    "FileTypeStats",
     "RestoreRequest",
     "RestoreResponse",
+    "StorageStatsResponse",
     "TrashEntryRead",
+    # Teacher schemas
+    "TeacherCreate",
+    "TeacherListItem",
+    "TeacherListResponse",
+    "TeacherRead",
+    "TeacherUpdate",
+    "TeacherWithMaterials",
     # Auth schemas
     "LoginRequest",
     "TokenResponse",

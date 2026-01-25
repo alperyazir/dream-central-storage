@@ -49,14 +49,14 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expires_minutes: int = 30
 
-    cors_allowed_origins: str | list[str] = "http://localhost:5173"
+    cors_allowed_origins: str | list[str] = "http://localhost:5173,http://localhost:5174"
 
     # LLM Provider Configuration
     deepseek_api_key: str = ""
     gemini_api_key: str = ""
-    llm_primary_provider: str = "deepseek"
-    llm_fallback_provider: str = "gemini"
-    llm_default_model: str = "deepseek-chat"
+    llm_primary_provider: str = "gemini"
+    llm_fallback_provider: str = "deepseek"
+    llm_default_model: str = "gemini-2.5-flash"
     llm_max_tokens: int = 4096
     llm_timeout_seconds: int = 60
     llm_max_retries: int = 3
@@ -93,8 +93,10 @@ class Settings(BaseSettings):
 
     # Segmentation Configuration
     segmentation_min_module_pages: int = 3  # min pages per module
+    segmentation_max_module_pages: int = 30  # max pages per module before warning
     segmentation_max_modules: int = 50  # max modules per book
     segmentation_ai_enabled: bool = True  # enable AI-assisted segmentation
+    segmentation_ai_fallback_on_poor_quality: bool = True  # use AI if header/TOC poor
     segmentation_default_strategy: str = "auto"  # auto, manual, header, toc, ai
 
     # Topic Analysis Configuration
@@ -104,18 +106,18 @@ class Settings(BaseSettings):
     topic_analysis_max_text_length: int = 8000  # max chars to send to LLM
 
     # Vocabulary Extraction Configuration
-    vocabulary_max_words_per_module: int = 50  # max vocabulary words per module
+    vocabulary_max_words_per_module: int = 200  # max vocabulary words per module
     vocabulary_min_word_length: int = 3  # min word length to include
     vocabulary_temperature: float = 0.3  # LLM temperature for extraction
     vocabulary_max_text_length: int = 8000  # max chars to send to LLM
 
     # Audio Generation Configuration
     audio_generation_concurrency: int = 5  # concurrent TTS requests for batch
-    audio_generation_languages: str = "en,tr"  # languages to generate audio for
+    audio_generation_languages: str = "en"  # languages to generate audio for
     audio_retry_failed: bool = True  # retry failed audio generation
 
     # Auto-Processing Configuration
-    ai_auto_process_on_upload: bool = True  # trigger AI processing on book upload
+    ai_auto_process_on_upload: bool = False  # trigger AI processing on book upload
     ai_auto_process_skip_existing: bool = True  # skip if book already processed
 
     model_config = SettingsConfigDict(

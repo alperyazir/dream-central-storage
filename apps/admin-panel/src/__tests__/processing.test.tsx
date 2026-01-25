@@ -78,7 +78,7 @@ describe('ProcessingPage', () => {
     vi.clearAllMocks();
 
     // Mock auth store
-    (authStore.useAuthStore as Mock).mockImplementation((selector: (state: unknown) => unknown) => {
+    (authStore.useAuthStore as unknown as Mock).mockImplementation((selector: (state: unknown) => unknown) => {
       const state = {
         token: 'test-token',
         tokenType: 'Bearer',

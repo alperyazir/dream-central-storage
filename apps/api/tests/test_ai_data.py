@@ -199,12 +199,13 @@ class TestAIDataStructure:
             book_id="book-456",
             book_name="my-book",
         )
-        assert structure.base_path == "pub-123/books/book-456/my-book/ai-data"
-        assert structure.text_path == "pub-123/books/book-456/my-book/ai-data/text"
-        assert structure.modules_path == "pub-123/books/book-456/my-book/ai-data/modules"
-        assert structure.vocabulary_path == "pub-123/books/book-456/my-book/ai-data/vocabulary.json"
-        assert structure.audio_path == "pub-123/books/book-456/my-book/ai-data/audio"
-        assert structure.metadata_path == "pub-123/books/book-456/my-book/ai-data/metadata.json"
+        # Note: book_id is not in the path, only publisher_id and book_name
+        assert structure.base_path == "pub-123/books/my-book/ai-data"
+        assert structure.text_path == "pub-123/books/my-book/ai-data/text"
+        assert structure.modules_path == "pub-123/books/my-book/ai-data/modules"
+        assert structure.vocabulary_path == "pub-123/books/my-book/ai-data/vocabulary.json"
+        assert structure.audio_path == "pub-123/books/my-book/ai-data/audio"
+        assert structure.metadata_path == "pub-123/books/my-book/ai-data/metadata.json"
 
     def test_get_all_directories(self):
         """Test getting all directory paths."""
@@ -303,7 +304,8 @@ class TestAIDataMetadataService:
         """Test building metadata path."""
         service = AIDataMetadataService(settings=mock_settings)
         path = service._build_metadata_path("pub-123", "book-456", "my-book")
-        assert path == "pub-123/books/book-456/my-book/ai-data/metadata.json"
+        # Note: book_id is not in the path, only publisher_id and book_name
+        assert path == "pub-123/books/my-book/ai-data/metadata.json"
 
     @patch("app.services.ai_data.service.get_minio_client")
     def test_create_metadata(self, mock_get_client, mock_settings, mock_minio_client):
@@ -321,7 +323,7 @@ class TestAIDataMetadataService:
         assert metadata.processing_status == ProcessingStatus.PROCESSING
         assert metadata.llm_provider == "deepseek"
         assert metadata.tts_provider == "edge"
-        assert len(metadata.stages) == 5
+        assert len(metadata.stages) == 6
         assert "text_extraction" in metadata.stages
 
         # Verify MinIO put_object was called
@@ -518,8 +520,8 @@ class TestAIDataStructureManager:
         """Test getting all AI data paths."""
         manager = AIDataStructureManager(settings=mock_settings)
         structure = manager.get_ai_data_paths("pub-123", "book-456", "my-book")
-
-        assert structure.base_path == "pub-123/books/book-456/my-book/ai-data"
+        # Note: book_id is not in the path, only publisher_id and book_name
+        assert structure.base_path == "pub-123/books/my-book/ai-data"
         assert "text" in structure.text_path
         assert "modules" in structure.modules_path
 

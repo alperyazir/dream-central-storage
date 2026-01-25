@@ -22,12 +22,35 @@ class ProcessingStatus(str, Enum):
 
 
 class ProcessingJobType(str, Enum):
-    """Type of processing job."""
+    """Type of processing job.
 
-    FULL = "full"  # All processing steps
+    Main 4 options for UI (Books):
+    - FULL: Complete pipeline (text + LLM + audio)
+    - TEXT_ONLY: Just PDF extraction
+    - LLM_ONLY: AI analysis only (requires text extraction done)
+    - AUDIO_ONLY: Audio generation only (requires LLM analysis done)
+
+    Material options (Teacher Materials):
+    - MATERIAL_FULL: Full material processing (text + LLM + audio)
+    - MATERIAL_TEXT_ONLY: Extract text only
+    - MATERIAL_LLM_ONLY: AI analysis only
+    """
+
+    # Main 4 options for books
+    FULL = "full"  # Complete pipeline: text extraction + LLM analysis + audio
     TEXT_ONLY = "text_only"  # PDF extraction only
-    VOCABULARY_ONLY = "vocabulary_only"
-    AUDIO_ONLY = "audio_only"
+    LLM_ONLY = "llm_only"  # AI analysis only (chunked approach)
+    AUDIO_ONLY = "audio_only"  # Audio generation only
+
+    # Material processing options
+    MATERIAL_FULL = "material_full"  # Complete material pipeline
+    MATERIAL_TEXT_ONLY = "material_text_only"  # Material text extraction only
+    MATERIAL_LLM_ONLY = "material_llm_only"  # Material AI analysis only
+
+    # Legacy/advanced options (kept for backwards compatibility)
+    UNIFIED = "unified"  # Legacy: single LLM call approach
+    ANALYSIS_ONLY = "analysis_only"  # Legacy: text + LLM, no audio
+    VOCABULARY_ONLY = "vocabulary_only"  # Legacy: vocabulary extraction only
 
 
 class JobPriority(str, Enum):
@@ -77,6 +100,48 @@ PROCESSING_STAGES = {
     "topic_analysis": 20,  # AI topic extraction
     "vocabulary": 20,  # AI vocabulary extraction
     "audio_generation": 25,  # TTS for vocabulary
+}
+
+# Full processing stages (chunked LLM approach - recommended)
+FULL_PROCESSING_STAGES = {
+    "text_extraction": 20,  # PDF -> text files
+    "chunked_analysis": 55,  # Two-phase: detect modules + extract vocabulary per module
+    "audio_generation": 25,  # TTS for vocabulary
+}
+
+# LLM-only stages (chunked analysis, no text extraction or audio)
+LLM_ONLY_STAGES = {
+    "chunked_analysis": 100,  # Two-phase chunked analysis
+}
+
+# Unified processing stages (single LLM call for analysis - legacy)
+UNIFIED_PROCESSING_STAGES = {
+    "text_extraction": 25,  # PDF -> text files
+    "unified_analysis": 50,  # Single LLM call: modules + topics + vocabulary
+    "audio_generation": 25,  # TTS for vocabulary
+}
+
+# Analysis-only stages (no audio generation - legacy)
+ANALYSIS_ONLY_STAGES = {
+    "text_extraction": 40,  # PDF -> text files
+    "unified_analysis": 60,  # Single LLM call: modules + topics + vocabulary
+}
+
+# Material processing stages (full pipeline)
+MATERIAL_FULL_STAGES = {
+    "material_text_extraction": 25,  # Extract text from PDF/TXT/DOCX
+    "material_analysis": 50,  # AI analysis of content
+    "material_audio": 25,  # Audio generation for vocabulary
+}
+
+# Material text extraction only
+MATERIAL_TEXT_ONLY_STAGES = {
+    "material_text_extraction": 100,
+}
+
+# Material LLM analysis only (requires text extraction done)
+MATERIAL_LLM_ONLY_STAGES = {
+    "material_analysis": 100,
 }
 
 

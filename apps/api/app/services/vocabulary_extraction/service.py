@@ -81,14 +81,33 @@ class VocabularyExtractionService:
         Raises:
             InvalidLLMResponseError: If JSON parsing fails.
         """
+        # Clean up response - remove markdown code blocks
+        cleaned = response.strip()
+
+        # Remove markdown code blocks like ```json ... ``` or ``` ... ```
+        cleaned = re.sub(r'^```(?:json)?\s*\n?', '', cleaned)
+        cleaned = re.sub(r'\n?```\s*$', '', cleaned)
+        cleaned = cleaned.strip()
+
+        # Try direct parse first (cleanest case)
+        try:
+            result = json.loads(cleaned)
+            if isinstance(result, list):
+                return result
+        except json.JSONDecodeError:
+            pass
+
         # Try to extract JSON array from response
-        # LLM might include markdown code blocks or extra text
-        json_match = re.search(r'\[[\s\S]*\]', response)
+        json_match = re.search(r'\[[\s\S]*?\](?=\s*$|\s*```)', cleaned)
+        if not json_match:
+            # Try more aggressive match
+            json_match = re.search(r'\[[\s\S]*\]', cleaned)
+
         if not json_match:
             raise InvalidLLMResponseError(
                 book_id=book_id,
                 module_id=module_id,
-                response=response,
+                response=response[:500],
                 parse_error="No JSON array found in response",
             )
 
@@ -99,7 +118,7 @@ class VocabularyExtractionService:
                 raise InvalidLLMResponseError(
                     book_id=book_id,
                     module_id=module_id,
-                    response=response,
+                    response=response[:500],
                     parse_error="Response is not a JSON array",
                 )
             return result
@@ -107,7 +126,7 @@ class VocabularyExtractionService:
             raise InvalidLLMResponseError(
                 book_id=book_id,
                 module_id=module_id,
-                response=response,
+                response=response[:500],
                 parse_error=str(e),
             ) from e
 
@@ -246,6 +265,7 @@ class VocabularyExtractionService:
         # Try main prompt first
         prompt = build_vocabulary_extraction_prompt(
             module_text,
+            module_title=module_title,
             difficulty=difficulty,
             max_words=max_words,
             max_length=max_text,
@@ -296,6 +316,7 @@ class VocabularyExtractionService:
             try:
                 simple_prompt = build_simple_vocabulary_prompt(
                     module_text,
+                    module_title=module_title,
                     max_words=max_words // 2,
                     max_length=max_text // 2,
                 )

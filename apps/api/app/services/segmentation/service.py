@@ -235,6 +235,58 @@ class SegmentationService:
                 return None
             raise
 
+    def _is_poor_quality_segmentation(
+        self,
+        boundaries: list[ModuleBoundary],
+        total_pages: int,
+    ) -> bool:
+        """
+        Check if segmentation result is poor quality.
+
+        Poor quality indicators:
+        - Any module would have more than max_module_pages
+        - Too many empty/small modules (same start page)
+        """
+        if len(boundaries) < 2:
+            return True
+
+        max_pages = self.settings.segmentation_max_module_pages
+        sorted_bounds = sorted(boundaries, key=lambda b: b.start_page)
+
+        # Check for oversized modules
+        for i, boundary in enumerate(sorted_bounds):
+            if i + 1 < len(sorted_bounds):
+                end_page = sorted_bounds[i + 1].start_page - 1
+            else:
+                end_page = total_pages
+
+            module_size = end_page - boundary.start_page + 1
+            if module_size > max_pages:
+                logger.debug(
+                    "Poor quality: module '%s' has %d pages (max: %d)",
+                    boundary.title,
+                    module_size,
+                    max_pages,
+                )
+                return True
+
+        # Check for too many empty modules (same start page)
+        empty_count = 0
+        for i, boundary in enumerate(sorted_bounds[:-1]):
+            next_start = sorted_bounds[i + 1].start_page
+            if boundary.start_page >= next_start:
+                empty_count += 1
+
+        if empty_count > len(boundaries) // 3:  # More than 1/3 empty
+            logger.debug(
+                "Poor quality: %d/%d modules would be empty",
+                empty_count,
+                len(boundaries),
+            )
+            return True
+
+        return False
+
     async def _detect_boundaries(
         self,
         pages: dict[int, str],
@@ -243,6 +295,7 @@ class SegmentationService:
         progress_callback: Callable[[int, int], None] | None = None,
     ) -> tuple[list[ModuleBoundary], SegmentationMethod]:
         """Try strategies in order until one succeeds."""
+        total_pages = max(pages.keys()) if pages else 0
 
         # 1. Manual definitions (highest priority)
         if manual_definitions:
@@ -259,24 +312,33 @@ class SegmentationService:
 
         # 2. TOC-based
         logger.debug("Trying TOC-based segmentation")
-        boundaries = self._toc_strategy.detect_boundaries(pages)
-        if len(boundaries) >= 2:
-            return boundaries, SegmentationMethod.TOC_BASED
+        toc_boundaries = self._toc_strategy.detect_boundaries(pages)
+        if len(toc_boundaries) >= 2:
+            if not self._is_poor_quality_segmentation(toc_boundaries, total_pages):
+                return toc_boundaries, SegmentationMethod.TOC_BASED
+            logger.info("TOC-based segmentation has poor quality, trying alternatives")
 
         if progress_callback:
             progress_callback(40, 100)
 
         # 3. Header-based
         logger.debug("Trying header-based segmentation")
-        boundaries = self._header_strategy.detect_boundaries(pages)
-        if len(boundaries) >= 2:
-            return boundaries, SegmentationMethod.HEADER_BASED
+        header_boundaries = self._header_strategy.detect_boundaries(pages)
+        if len(header_boundaries) >= 2:
+            if not self._is_poor_quality_segmentation(header_boundaries, total_pages):
+                return header_boundaries, SegmentationMethod.HEADER_BASED
+            logger.info("Header-based segmentation has poor quality, trying AI")
 
         if progress_callback:
             progress_callback(50, 100)
 
-        # 4. AI-assisted (if enabled)
-        if self.settings.segmentation_ai_enabled:
+        # 4. AI-assisted (if enabled) - try if no good results yet or as fallback
+        use_ai = self.settings.segmentation_ai_enabled and (
+            self.settings.segmentation_ai_fallback_on_poor_quality
+            or len(header_boundaries) < 2
+        )
+
+        if use_ai:
             logger.debug("Trying AI-assisted segmentation")
             try:
                 boundaries = await self._ai_strategy.detect_boundaries_async(pages)
@@ -285,8 +347,21 @@ class SegmentationService:
             except Exception as e:
                 logger.warning("AI segmentation failed: %s", e)
 
-        # 5. Fallback - single module or page split
-        total_pages = max(pages.keys()) if pages else 0
+        # 5. Use best non-AI result if available (even if poor quality)
+        if len(header_boundaries) >= 2:
+            logger.warning(
+                "Using header-based segmentation despite poor quality "
+                "(AI unavailable or failed)"
+            )
+            return header_boundaries, SegmentationMethod.HEADER_BASED
+        if len(toc_boundaries) >= 2:
+            logger.warning(
+                "Using TOC-based segmentation despite poor quality "
+                "(AI unavailable or failed)"
+            )
+            return toc_boundaries, SegmentationMethod.TOC_BASED
+
+        # 6. Fallback - single module or page split
         min_pages = self.settings.segmentation_min_module_pages
 
         if total_pages > min_pages * 3:
@@ -312,17 +387,48 @@ class SegmentationService:
         # Sort boundaries by start page
         sorted_boundaries = sorted(boundaries, key=lambda b: b.start_page)
 
+        # Filter out boundaries that would create empty modules
+        # (multiple headers on the same page like TOC listings)
+        filtered_boundaries: list[ModuleBoundary] = []
         for i, boundary in enumerate(sorted_boundaries):
+            # Check if this boundary has a different start page than the next one
+            if i + 1 < len(sorted_boundaries):
+                next_start = sorted_boundaries[i + 1].start_page
+                # Only keep if it actually covers at least one page
+                if boundary.start_page < next_start:
+                    filtered_boundaries.append(boundary)
+                else:
+                    logger.debug(
+                        "Skipping boundary '%s' at page %d (same page as next)",
+                        boundary.title,
+                        boundary.start_page,
+                    )
+            else:
+                # Last boundary - always keep
+                filtered_boundaries.append(boundary)
+
+        # Re-sort after filtering (should already be sorted but be safe)
+        filtered_boundaries.sort(key=lambda b: b.start_page)
+
+        for i, boundary in enumerate(filtered_boundaries):
             start_page = boundary.start_page
 
             # End page is one before next boundary, or last page
-            if i + 1 < len(sorted_boundaries):
-                end_page = sorted_boundaries[i + 1].start_page - 1
+            if i + 1 < len(filtered_boundaries):
+                end_page = filtered_boundaries[i + 1].start_page - 1
             else:
                 end_page = total_pages
 
             # Collect pages for this module
             module_pages = list(range(start_page, end_page + 1))
+
+            # Skip if no pages (shouldn't happen after filtering, but be safe)
+            if not module_pages:
+                logger.warning(
+                    "Module '%s' has no pages, skipping",
+                    boundary.title,
+                )
+                continue
 
             # Collect text
             text_parts = []
@@ -333,7 +439,7 @@ class SegmentationService:
             text = "\n\n".join(text_parts)
 
             module = Module(
-                module_id=i + 1,
+                module_id=len(modules) + 1,  # Sequential ID after filtering
                 title=boundary.title,
                 pages=module_pages,
                 start_page=start_page,

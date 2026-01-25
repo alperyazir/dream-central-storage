@@ -46,6 +46,38 @@ class ModuleDetailResponse(BaseModel):
     extracted_at: str | None = Field(None, description="When module was extracted")
 
 
+class ModuleMetadataSummary(BaseModel):
+    """Summary of a module in metadata response."""
+
+    module_id: int = Field(..., description="Module identifier")
+    title: str = Field(..., description="Module title")
+    start_page: int = Field(..., description="Start page number")
+    end_page: int = Field(..., description="End page number")
+    page_count: int = Field(0, description="Number of pages in module")
+    word_count: int = Field(0, description="Number of words in module")
+    topics: list[str] = Field(default_factory=list, description="Topics covered in module")
+    difficulty_level: str = Field("", description="CEFR difficulty level")
+    vocabulary_count: int = Field(0, description="Number of vocabulary words")
+
+
+class ModulesMetadataResponse(BaseModel):
+    """Response schema for modules metadata.json."""
+
+    book_id: str = Field(..., description="Book identifier")
+    publisher_id: str = Field(..., description="Publisher identifier")
+    book_name: str = Field(..., description="Book folder name")
+    total_pages: int = Field(0, description="Total pages in book")
+    module_count: int = Field(0, description="Total number of modules")
+    method: str = Field("", description="Analysis method used")
+    primary_language: str = Field("", description="Primary language")
+    difficulty_range: list[str] = Field(
+        default_factory=list, description="CEFR difficulty range"
+    )
+    modules: list[ModuleMetadataSummary] = Field(
+        default_factory=list, description="List of module summaries"
+    )
+
+
 # =============================================================================
 # Vocabulary Schemas
 # =============================================================================
@@ -69,6 +101,7 @@ class VocabularyWordResponse(BaseModel):
     level: str = Field("", description="CEFR level")
     example: str = Field("", description="Example sentence")
     module_id: int | None = Field(None, description="Module where word appears")
+    module_title: str | None = Field(None, description="Module title where word appears")
     page: int | None = Field(None, description="Page where word appears")
     audio: VocabularyWordAudio | None = Field(None, description="Audio file references")
 

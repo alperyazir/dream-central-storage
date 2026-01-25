@@ -72,27 +72,33 @@ class ProgressReporter:
         self,
         stage: str,
         stage_progress: int,
+        step_detail: str | None = None,
     ) -> None:
         """Update job progress based on stage and stage progress.
 
         Args:
             stage: Current processing stage
             stage_progress: Progress within stage (0-100)
+            step_detail: Optional detailed description of current step
         """
         overall_progress = self._calculate_overall_progress(stage, stage_progress)
         self._current_stage = stage
 
+        # Use step_detail if provided, otherwise use stage name
+        current_step = step_detail if step_detail else stage
+
         await self._repository.update_job_progress(
             self._job_id,
             overall_progress,
-            current_step=stage,
+            current_step=current_step,
         )
         logger.debug(
-            "Job %s progress: stage=%s, stage_progress=%d%%, overall=%d%%",
+            "Job %s progress: stage=%s, stage_progress=%d%%, overall=%d%%, detail=%s",
             self._job_id,
             stage,
             stage_progress,
             overall_progress,
+            step_detail or stage,
         )
 
     async def report_step_complete(self, stage: str) -> None:
@@ -267,6 +273,19 @@ class QueueService:
             job_id,
             ProcessingStatus.CANCELLED,
         )
+
+    async def delete_job(self, job_id: str) -> bool:
+        """Delete a job from the queue.
+
+        Used to clear failed jobs so they can be reprocessed.
+
+        Args:
+            job_id: Job ID to delete
+
+        Returns:
+            True if deleted, False if not found
+        """
+        return await self._repository.delete_job(job_id)
 
     async def retry_job(
         self,

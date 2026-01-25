@@ -224,7 +224,7 @@ const ProcessingPage = () => {
     try {
       const request: BulkReprocessRequest = {
         book_ids: Array.from(selectedBooks),
-        job_type: 'full',
+        job_type: 'full',  // Use new chunked approach
         priority: 'normal',
       };
       const response = await bulkReprocess(request, token, tokenType || 'Bearer');

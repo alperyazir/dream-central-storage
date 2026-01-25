@@ -18,12 +18,16 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.security import decode_access_token
 from app.db import get_db
+from app.repositories.material import MaterialRepository
+from app.repositories.teacher import TeacherRepository
 from app.repositories.user import UserRepository
 from app.services import get_minio_client, move_prefix_to_trash, RelocationError
 
 router = APIRouter(prefix="/teachers", tags=["Teachers"])
 _bearer_scheme = HTTPBearer(auto_error=True)
 _user_repository = UserRepository()
+_teacher_repository = TeacherRepository()
+_material_repository = MaterialRepository()
 logger = logging.getLogger(__name__)
 
 # Media MIME types for proper Content-Type headers
@@ -188,6 +192,7 @@ async def upload_teacher_material(
     """Upload a material file to a teacher's storage namespace.
 
     Validates file type and size against configured limits.
+    Also creates database records for the teacher (if not exists) and material.
     """
     _require_admin(credentials, db)
     settings = get_settings()
@@ -212,6 +217,15 @@ async def upload_teacher_material(
             detail=f"File size exceeds maximum allowed size of {settings.teacher_max_file_size_bytes} bytes",
         )
 
+    # Get or create Teacher record in database
+    teacher = _teacher_repository.get_or_create_by_teacher_id(db, teacher_id)
+    logger.info(
+        "Teacher record: id=%d, teacher_id='%s' (created=%s)",
+        teacher.id,
+        teacher.teacher_id,
+        teacher.created_at,
+    )
+
     client = get_minio_client(settings)
     object_key = _build_teacher_object_key(teacher_id, file.filename)
 
@@ -231,14 +245,34 @@ async def upload_teacher_material(
             detail="Failed to upload file",
         ) from exc
 
+    # Extract file extension for file_type
+    file_ext = ""
+    if file.filename and "." in file.filename:
+        file_ext = file.filename.rsplit(".", 1)[-1].lower()
+
+    # Create Material record in database
+    material = _material_repository.create(
+        db,
+        data={
+            "material_name": file.filename,
+            "file_type": file_ext,
+            "content_type": file.content_type or "application/octet-stream",
+            "size": len(contents),
+            "teacher_id": teacher.id,
+            "status": "active",
+        },
+    )
+
     logger.info(
-        "Uploaded teacher material '%s' (%d bytes)",
+        "Uploaded teacher material '%s' (%d bytes) - Material ID: %d",
         object_key,
         len(contents),
+        material.id,
     )
 
     return {
         "teacher_id": teacher_id,
+        "material_id": material.id,
         "filename": file.filename,
         "path": object_key,
         "size": len(contents),

@@ -8,6 +8,13 @@ from app.services.queue.models import (
     ProcessingJobType,
     ProcessingStatus,
     PROCESSING_STAGES,
+    FULL_PROCESSING_STAGES,
+    LLM_ONLY_STAGES,
+    UNIFIED_PROCESSING_STAGES,
+    ANALYSIS_ONLY_STAGES,
+    MATERIAL_FULL_STAGES,
+    MATERIAL_TEXT_ONLY_STAGES,
+    MATERIAL_LLM_ONLY_STAGES,
     QueueError,
 )
 from app.services.queue.repository import JobRepository
@@ -81,16 +88,32 @@ async def process_book_task(
     )
     progress = ProgressReporter(repository, job_id)
 
-    # Merge metadata with book_name
+    # Merge metadata with book_name - extract book_name from metadata if not provided directly
     job_metadata = metadata or {}
     if book_name:
         job_metadata["book_name"] = book_name
+    elif "book_name" in job_metadata:
+        book_name = job_metadata["book_name"]
+
+    # Extract publisher name from metadata - this is the correct value for storage paths
+    # publisher_id parameter may contain numeric ID for backwards compatibility
+    publisher_name = job_metadata.get("publisher", "")
+    if not publisher_name:
+        # Fallback: if no publisher name in metadata, use publisher_id
+        # This handles legacy jobs but may create incorrect paths
+        publisher_name = publisher_id
+        logger.warning(
+            "No publisher name in metadata for job %s, using publisher_id: %s",
+            job_id,
+            publisher_id,
+        )
 
     logger.info(
-        "Starting processing job %s for book %s (type: %s)",
+        "Starting processing job %s for book %s (type: %s, publisher: %s)",
         job_id,
         book_id,
         job_type,
+        publisher_name,
     )
 
     # Update job status to processing
@@ -109,21 +132,22 @@ async def process_book_task(
 
     try:
         # Initialize AI data structure and metadata
+        # Use publisher_name (not publisher_id) for correct storage paths
         if book_name:
             # Check if reprocessing - cleanup existing ai-data if metadata exists
-            if metadata_service.metadata_exists(publisher_id, book_id, book_name):
+            if metadata_service.metadata_exists(publisher_name, book_id, book_name):
                 logger.info("Reprocessing detected, cleaning up existing ai-data")
-                cleanup_manager.cleanup_all(publisher_id, book_id, book_name)
+                cleanup_manager.cleanup_all(publisher_name, book_id, book_name)
 
             # Initialize directory structure
             structure_manager.initialize_ai_data_structure(
-                publisher_id, book_id, book_name
+                publisher_name, book_id, book_name
             )
 
             # Create initial metadata.json
             metadata_service.create_metadata(
                 book_id=book_id,
-                publisher_id=publisher_id,
+                publisher_id=publisher_name,  # Use publisher name for path
                 book_name=book_name,
             )
             logger.info("Initialized ai-data structure and metadata for book %s", book_id)
@@ -147,7 +171,7 @@ async def process_book_task(
                 # Update metadata.json with stage results
                 if book_name and result:
                     metadata_service.update_metadata(
-                        publisher_id=publisher_id,
+                        publisher_id=publisher_name,  # Use publisher name for path
                         book_id=book_id,
                         book_name=book_name,
                         stage_name=stage,
@@ -170,7 +194,7 @@ async def process_book_task(
                 # Update metadata.json with stage failure
                 if book_name:
                     metadata_service.update_metadata(
-                        publisher_id=publisher_id,
+                        publisher_id=publisher_name,  # Use publisher name for path
                         book_id=book_id,
                         book_name=book_name,
                         stage_name=stage,
@@ -202,7 +226,7 @@ async def process_book_task(
             # Finalize metadata with partial status
             if book_name:
                 metadata_service.finalize_metadata(
-                    publisher_id=publisher_id,
+                    publisher_id=publisher_name,  # Use publisher name for path
                     book_id=book_id,
                     book_name=book_name,
                     final_status=AIDataProcessingStatus.PARTIAL,
@@ -225,7 +249,7 @@ async def process_book_task(
         # Finalize metadata with completed status
         if book_name:
             metadata_service.finalize_metadata(
-                publisher_id=publisher_id,
+                publisher_id=publisher_name,  # Use publisher name for path
                 book_id=book_id,
                 book_name=book_name,
                 final_status=AIDataProcessingStatus.COMPLETED,
@@ -249,7 +273,7 @@ async def process_book_task(
         if book_name:
             try:
                 metadata_service.finalize_metadata(
-                    publisher_id=publisher_id,
+                    publisher_id=publisher_name,  # Use publisher name for path
                     book_id=book_id,
                     book_name=book_name,
                     final_status=AIDataProcessingStatus.FAILED,
@@ -270,18 +294,30 @@ def _get_stages_for_job_type(job_type: ProcessingJobType) -> list[str]:
     Returns:
         List of stage names to execute
     """
-    all_stages = list(PROCESSING_STAGES.keys())
-
+    # Main 4 options (new chunked approach)
     if job_type == ProcessingJobType.FULL:
-        return all_stages
+        # Full pipeline with chunked LLM analysis
+        return list(FULL_PROCESSING_STAGES.keys())
     elif job_type == ProcessingJobType.TEXT_ONLY:
-        return ["text_extraction", "segmentation"]
-    elif job_type == ProcessingJobType.VOCABULARY_ONLY:
-        return ["vocabulary"]
+        return ["text_extraction"]
+    elif job_type == ProcessingJobType.LLM_ONLY:
+        # Chunked LLM analysis only
+        return list(LLM_ONLY_STAGES.keys())
     elif job_type == ProcessingJobType.AUDIO_ONLY:
         return ["audio_generation"]
 
-    return all_stages
+    # Legacy options (backwards compatibility)
+    elif job_type == ProcessingJobType.UNIFIED:
+        # Legacy: single LLM call approach
+        return list(UNIFIED_PROCESSING_STAGES.keys())
+    elif job_type == ProcessingJobType.ANALYSIS_ONLY:
+        # Legacy: text + unified analysis (no audio)
+        return list(ANALYSIS_ONLY_STAGES.keys())
+    elif job_type == ProcessingJobType.VOCABULARY_ONLY:
+        return ["vocabulary"]
+
+    # Fallback to full processing
+    return list(FULL_PROCESSING_STAGES.keys())
 
 
 def _is_critical_stage(stage: str) -> bool:
@@ -293,8 +329,13 @@ def _is_critical_stage(stage: str) -> bool:
     Returns:
         True if stage is critical
     """
-    # Text extraction and segmentation are critical - can't proceed without them
-    critical_stages = {"text_extraction", "segmentation"}
+    # Text extraction, segmentation, and analysis stages are critical
+    critical_stages = {
+        "text_extraction",
+        "segmentation",
+        "unified_analysis",
+        "chunked_analysis",
+    }
     return stage in critical_stages
 
 
@@ -340,6 +381,28 @@ async def _run_processing_stage(
 
     if stage == "segmentation":
         return await _run_segmentation(
+            job_id=job_id,
+            book_id=book_id,
+            publisher_id=publisher_id,
+            publisher=metadata.get("publisher", ""),
+            book_name=metadata.get("book_name", ""),
+            progress=progress,
+            text_extraction_result=stage_results.get("text_extraction"),
+        )
+
+    if stage == "unified_analysis":
+        return await _run_unified_analysis(
+            job_id=job_id,
+            book_id=book_id,
+            publisher_id=publisher_id,
+            publisher=metadata.get("publisher", ""),
+            book_name=metadata.get("book_name", ""),
+            progress=progress,
+            text_extraction_result=stage_results.get("text_extraction"),
+        )
+
+    if stage == "chunked_analysis":
+        return await _run_chunked_analysis(
             job_id=job_id,
             book_id=book_id,
             publisher_id=publisher_id,
@@ -562,6 +625,289 @@ async def _run_segmentation(
             for m in result.modules
         ],
     }
+
+
+async def _run_unified_analysis(
+    job_id: str,
+    book_id: str,
+    publisher_id: str,
+    publisher: str,
+    book_name: str,
+    progress: ProgressReporter,
+    text_extraction_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Run unified AI analysis stage.
+
+    Combines segmentation, topic analysis, and vocabulary extraction
+    into a single LLM call for better accuracy and lower cost.
+
+    Args:
+        job_id: Job ID
+        book_id: Book ID
+        publisher_id: Publisher ID
+        publisher: Publisher name (for storage path)
+        book_name: Book folder name
+        progress: Progress reporter
+        text_extraction_result: Result from text extraction stage
+
+    Returns:
+        Unified analysis result data
+
+    Raises:
+        QueueError: If book_name is missing or analysis fails
+    """
+    if not book_name:
+        raise QueueError(
+            "book_name is required for unified analysis",
+            {"job_id": job_id, "book_id": book_id},
+        )
+
+    logger.info(
+        "Starting unified AI analysis for book %s (publisher: %s, name: %s)",
+        book_id,
+        publisher,
+        book_name,
+    )
+
+    # Import unified analysis service
+    from app.services.unified_analysis import (
+        get_unified_analysis_service,
+        get_unified_analysis_storage,
+    )
+
+    # Get services
+    unified_service = get_unified_analysis_service()
+    unified_storage = get_unified_analysis_storage()
+
+    # Load extracted text pages
+    pages = await _load_text_pages_for_analysis(publisher, book_id, book_name)
+
+    if not pages:
+        raise QueueError(
+            "No extracted text found for unified analysis",
+            {"job_id": job_id, "book_id": book_id},
+        )
+
+    # Progress callback
+    def on_progress(current: int, total: int) -> None:
+        pass  # Progress reported via ProgressReporter
+
+    # Report initial progress
+    await progress.report_progress("unified_analysis", 10)
+
+    # Run unified analysis
+    result = await unified_service.analyze_book(
+        book_id=book_id,
+        publisher_id=publisher,
+        book_name=book_name,
+        pages=pages,
+        progress_callback=on_progress,
+    )
+
+    # Report progress at 70%
+    await progress.report_progress("unified_analysis", 70)
+
+    # Save results
+    saved = unified_storage.save_all(result)
+
+    # Report final progress
+    await progress.report_progress("unified_analysis", 100)
+
+    logger.info(
+        "Unified analysis completed: %d modules, %d vocabulary words, %.2fs",
+        result.module_count,
+        result.total_vocabulary,
+        result.processing_time_seconds,
+    )
+
+    return {
+        "module_count": result.module_count,
+        "total_vocabulary": result.total_vocabulary,
+        "total_topics": result.total_topics,
+        "primary_language": result.primary_language,
+        "translation_language": result.translation_language,
+        "difficulty_range": result.difficulty_range,
+        "method": result.method,
+        "processing_time_seconds": result.processing_time_seconds,
+        "saved_modules": saved.get("module_count", 0),
+        "saved_vocabulary": saved.get("vocabulary_count", 0),
+    }
+
+
+async def _run_chunked_analysis(
+    job_id: str,
+    book_id: str,
+    publisher_id: str,
+    publisher: str,
+    book_name: str,
+    progress: ProgressReporter,
+    text_extraction_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Run chunked AI analysis stage.
+
+    Uses two-phase approach:
+    - Phase 1: Detect all modules (structure only)
+    - Phase 2: Extract vocabulary per module (with retries)
+
+    This approach is more reliable for large books.
+
+    Args:
+        job_id: Job ID
+        book_id: Book ID
+        publisher_id: Publisher ID
+        publisher: Publisher name (for storage path)
+        book_name: Book folder name
+        progress: Progress reporter
+        text_extraction_result: Result from text extraction stage
+
+    Returns:
+        Chunked analysis result data
+
+    Raises:
+        QueueError: If book_name is missing or analysis fails
+    """
+    if not book_name:
+        raise QueueError(
+            "book_name is required for chunked analysis",
+            {"job_id": job_id, "book_id": book_id},
+        )
+
+    logger.info(
+        "Starting chunked AI analysis for book %s (publisher: %s, name: %s)",
+        book_id,
+        publisher,
+        book_name,
+    )
+
+    # Import chunked analysis service
+    from app.services.unified_analysis import (
+        get_unified_analysis_service,
+        get_unified_analysis_storage,
+    )
+    from app.services.unified_analysis.models import ChunkedProgress
+
+    # Get services
+    unified_service = get_unified_analysis_service()
+    unified_storage = get_unified_analysis_storage()
+
+    # Load extracted text pages
+    pages = await _load_text_pages_for_analysis(publisher, book_id, book_name)
+
+    if not pages:
+        raise QueueError(
+            "No extracted text found for chunked analysis",
+            {"job_id": job_id, "book_id": book_id},
+        )
+
+    # Progress callbacks - sync wrappers for async progress reporting
+    import asyncio
+
+    def sync_detailed_progress(chunked_progress: ChunkedProgress) -> None:
+        """Sync callback that schedules async progress update."""
+        if chunked_progress.phase == "detecting_modules":
+            step_detail = "Detecting modules..."
+        elif chunked_progress.phase == "extracting_vocabulary":
+            step_detail = f"Module {chunked_progress.current_module}/{chunked_progress.total_modules}: {chunked_progress.module_title}"
+            if chunked_progress.retry_count > 0:
+                step_detail += f" (retry {chunked_progress.retry_count})"
+        elif chunked_progress.phase == "complete":
+            step_detail = "Analysis complete"
+        else:
+            step_detail = "Processing..."
+
+        # Schedule async progress report
+        asyncio.create_task(
+            progress.report_progress("chunked_analysis", chunked_progress.overall_percent, step_detail)
+        )
+
+    # Report initial progress
+    await progress.report_progress("chunked_analysis", 5)
+
+    # Run chunked analysis
+    result = await unified_service.analyze_book_chunked(
+        book_id=book_id,
+        publisher_id=publisher,
+        book_name=book_name,
+        pages=pages,
+        progress_callback=None,
+        detailed_progress_callback=sync_detailed_progress,
+    )
+
+    # Report progress at 90%
+    await progress.report_progress("chunked_analysis", 90)
+
+    # Save results
+    saved = unified_storage.save_all(result)
+
+    # Report final progress
+    await progress.report_progress("chunked_analysis", 100)
+
+    logger.info(
+        "Chunked analysis completed: %d modules, %d vocabulary words, %.2fs",
+        result.module_count,
+        result.total_vocabulary,
+        result.processing_time_seconds,
+    )
+
+    return {
+        "module_count": result.module_count,
+        "total_vocabulary": result.total_vocabulary,
+        "total_topics": result.total_topics,
+        "primary_language": result.primary_language,
+        "translation_language": result.translation_language,
+        "difficulty_range": result.difficulty_range,
+        "method": result.method,
+        "processing_time_seconds": result.processing_time_seconds,
+        "saved_modules": saved.get("module_count", 0),
+        "saved_vocabulary": saved.get("vocabulary_count", 0),
+    }
+
+
+async def _load_text_pages_for_analysis(
+    publisher: str,
+    book_id: str,
+    book_name: str,
+) -> dict[int, str]:
+    """Load extracted text pages for unified analysis."""
+    from minio.error import S3Error
+
+    from app.services.minio import get_minio_client
+
+    settings = get_settings()
+    client = get_minio_client(settings)
+    bucket = settings.minio_publishers_bucket
+
+    pages: dict[int, str] = {}
+
+    # Get extraction metadata to know page count
+    meta_path = f"{publisher}/books/{book_name}/ai-data/text/extraction_metadata.json"
+    try:
+        response = client.get_object(bucket, meta_path)
+        meta_data = response.read()
+        response.close()
+        response.release_conn()
+
+        import json
+        metadata = json.loads(meta_data.decode("utf-8"))
+        total_pages = metadata.get("total_pages", 0)
+
+        # Load each page
+        for page_num in range(1, total_pages + 1):
+            page_path = f"{publisher}/books/{book_name}/ai-data/text/page_{page_num:03d}.txt"
+            try:
+                resp = client.get_object(bucket, page_path)
+                text = resp.read().decode("utf-8")
+                resp.close()
+                resp.release_conn()
+                if text.strip():
+                    pages[page_num] = text
+            except S3Error:
+                continue
+
+    except S3Error as e:
+        logger.warning("Failed to load text metadata: %s", e)
+
+    return pages
 
 
 async def _run_topic_analysis(
@@ -955,3 +1301,530 @@ async def on_job_end(ctx: dict[str, Any]) -> None:
         ctx: arq context
     """
     logger.info("Worker finished job")
+
+
+# =============================================================================
+# Material Processing Task
+# =============================================================================
+
+
+async def process_material_task(
+    ctx: dict[str, Any],
+    job_id: str,
+    material_id: int,
+    teacher_id: str,
+    job_type: str,
+    material_name: str,
+    file_type: str,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Process a teacher material through the AI pipeline.
+
+    This task orchestrates material processing including:
+    - Text extraction from PDF/TXT/DOCX
+    - AI analysis (modules, vocabulary)
+    - Audio generation for vocabulary
+
+    Args:
+        ctx: arq context with Redis connection
+        job_id: Processing job ID
+        material_id: Database ID of the material
+        teacher_id: Teacher ID (folder name)
+        job_type: Type of processing (material_full, material_text_only, etc.)
+        material_name: Material filename
+        file_type: File extension (pdf, txt, docx)
+        metadata: Additional job metadata
+
+    Returns:
+        Result dict with status and output data
+
+    Raises:
+        QueueError: If processing fails
+    """
+    from app.services.material_extraction import get_material_extraction_service
+    from app.services.material_ai_data import get_material_ai_storage
+
+    settings = get_settings()
+    redis_conn = await get_redis_connection(url=settings.redis_url)
+    repository = JobRepository(
+        redis_client=redis_conn.client,
+        job_ttl_seconds=settings.queue_job_ttl_seconds,
+    )
+    progress = ProgressReporter(repository, job_id)
+
+    job_metadata = metadata or {}
+
+    logger.info(
+        "Starting material processing job %s for %s (teacher: %s, type: %s)",
+        job_id,
+        material_name,
+        teacher_id,
+        job_type,
+    )
+
+    # Update job status to processing
+    await repository.update_job_status(job_id, ProcessingStatus.PROCESSING)
+
+    job_type_enum = ProcessingJobType(job_type)
+    stages_to_run = _get_material_stages_for_job_type(job_type_enum)
+    errors: list[dict] = []
+    completed_stages: list[str] = []
+    stage_results: dict[str, Any] = {}
+
+    try:
+        for stage in stages_to_run:
+            try:
+                result = await _run_material_processing_stage(
+                    stage=stage,
+                    job_id=job_id,
+                    material_id=material_id,
+                    teacher_id=teacher_id,
+                    material_name=material_name,
+                    file_type=file_type,
+                    progress=progress,
+                    metadata=job_metadata,
+                    stage_results=stage_results,
+                )
+                if result:
+                    stage_results[stage] = result
+                completed_stages.append(stage)
+                await progress.report_step_complete(stage)
+
+            except Exception as stage_error:
+                logger.error(
+                    "Material stage %s failed for job %s: %s",
+                    stage,
+                    job_id,
+                    stage_error,
+                )
+                errors.append({
+                    "stage": stage,
+                    "error": str(stage_error),
+                })
+
+                # Text extraction is critical
+                if stage == "material_text_extraction":
+                    raise
+
+                # Continue on non-critical errors
+                logger.warning(
+                    "Continuing after non-critical material stage failure: %s",
+                    stage,
+                )
+                continue
+
+        # All stages completed
+        if errors:
+            await repository.update_job_status(
+                job_id,
+                ProcessingStatus.PARTIAL,
+                error_message=f"Partial completion: {len(errors)} stage(s) failed",
+            )
+            logger.warning(
+                "Material job %s completed partially with %d error(s)",
+                job_id,
+                len(errors),
+            )
+            return {
+                "status": "partial",
+                "completed_stages": completed_stages,
+                "errors": errors,
+            }
+
+        await repository.update_job_status(job_id, ProcessingStatus.COMPLETED)
+        logger.info("Material job %s completed successfully", job_id)
+        return {
+            "status": "completed",
+            "completed_stages": completed_stages,
+        }
+
+    except Exception as e:
+        logger.error("Material job %s failed: %s", job_id, e)
+        await repository.update_job_status(
+            job_id,
+            ProcessingStatus.FAILED,
+            error_message=str(e),
+        )
+        raise QueueError(f"Material processing failed: {e}") from e
+
+
+def _get_material_stages_for_job_type(job_type: ProcessingJobType) -> list[str]:
+    """Get processing stages for a material job type.
+
+    Args:
+        job_type: Type of processing job
+
+    Returns:
+        List of stage names to execute
+    """
+    if job_type == ProcessingJobType.MATERIAL_FULL:
+        return list(MATERIAL_FULL_STAGES.keys())
+    elif job_type == ProcessingJobType.MATERIAL_TEXT_ONLY:
+        return list(MATERIAL_TEXT_ONLY_STAGES.keys())
+    elif job_type == ProcessingJobType.MATERIAL_LLM_ONLY:
+        return list(MATERIAL_LLM_ONLY_STAGES.keys())
+    else:
+        # Default to full processing
+        return list(MATERIAL_FULL_STAGES.keys())
+
+
+async def _run_material_processing_stage(
+    stage: str,
+    job_id: str,
+    material_id: int,
+    teacher_id: str,
+    material_name: str,
+    file_type: str,
+    progress: ProgressReporter,
+    metadata: dict[str, Any] | None = None,
+    stage_results: dict[str, Any] | None = None,
+) -> Any:
+    """Run a single material processing stage.
+
+    Args:
+        stage: Stage name
+        job_id: Job ID
+        material_id: Material database ID
+        teacher_id: Teacher ID
+        material_name: Material filename
+        file_type: File extension
+        progress: Progress reporter
+        metadata: Job metadata
+        stage_results: Results from previous stages
+
+    Returns:
+        Stage result data
+    """
+    logger.info("Running material stage %s for job %s", stage, job_id)
+    metadata = metadata or {}
+    stage_results = stage_results or {}
+
+    await progress.report_progress(stage, 0)
+
+    if stage == "material_text_extraction":
+        return await _run_material_text_extraction(
+            job_id=job_id,
+            material_id=material_id,
+            teacher_id=teacher_id,
+            material_name=material_name,
+            file_type=file_type,
+            progress=progress,
+        )
+
+    if stage == "material_analysis":
+        return await _run_material_analysis(
+            job_id=job_id,
+            material_id=material_id,
+            teacher_id=teacher_id,
+            material_name=material_name,
+            progress=progress,
+            text_extraction_result=stage_results.get("material_text_extraction"),
+        )
+
+    if stage == "material_audio":
+        return await _run_material_audio_generation(
+            job_id=job_id,
+            material_id=material_id,
+            teacher_id=teacher_id,
+            material_name=material_name,
+            progress=progress,
+            analysis_result=stage_results.get("material_analysis"),
+        )
+
+    await progress.report_progress(stage, 100)
+    logger.info("Completed material stage %s for job %s", stage, job_id)
+    return None
+
+
+async def _run_material_text_extraction(
+    job_id: str,
+    material_id: int,
+    teacher_id: str,
+    material_name: str,
+    file_type: str,
+    progress: ProgressReporter,
+) -> dict[str, Any]:
+    """Run material text extraction stage.
+
+    Args:
+        job_id: Job ID
+        material_id: Material database ID
+        teacher_id: Teacher ID
+        material_name: Material filename
+        file_type: File extension
+        progress: Progress reporter
+
+    Returns:
+        Extraction result data
+    """
+    from app.services.material_extraction import get_material_extraction_service
+    from app.services.material_ai_data import get_material_ai_storage
+
+    logger.info(
+        "Starting material text extraction for %s (teacher: %s, type: %s)",
+        material_name,
+        teacher_id,
+        file_type,
+    )
+
+    extraction_service = get_material_extraction_service()
+    ai_storage = get_material_ai_storage()
+
+    # Progress callback
+    def on_progress(current: int, total: int) -> None:
+        pass  # Progress reported via ProgressReporter
+
+    # Extract text from material
+    result = await extraction_service.extract_material_text(
+        material_id=material_id,
+        teacher_id=teacher_id,
+        material_name=material_name,
+        file_type=file_type,
+        progress_callback=on_progress,
+    )
+
+    # Report progress at 80%
+    await progress.report_progress("material_text_extraction", 80)
+
+    # Save extracted text to storage
+    saved = ai_storage.save_extracted_text(result)
+
+    # Report final progress
+    await progress.report_progress("material_text_extraction", 100)
+
+    logger.info(
+        "Material text extraction completed: %d pages, %d words, method=%s",
+        result.total_pages,
+        result.total_word_count,
+        result.method.value,
+    )
+
+    return {
+        "total_pages": result.total_pages,
+        "total_word_count": result.total_word_count,
+        "method": result.method.value,
+        "saved_files": len(saved.get("text_files", [])),
+    }
+
+
+async def _run_material_analysis(
+    job_id: str,
+    material_id: int,
+    teacher_id: str,
+    material_name: str,
+    progress: ProgressReporter,
+    text_extraction_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Run material AI analysis stage.
+
+    Args:
+        job_id: Job ID
+        material_id: Material database ID
+        teacher_id: Teacher ID
+        material_name: Material filename
+        progress: Progress reporter
+        text_extraction_result: Result from text extraction
+
+    Returns:
+        Analysis result data
+    """
+    from app.services.material_ai_data import get_material_ai_storage
+    from app.services.unified_analysis import get_unified_analysis_service
+
+    logger.info(
+        "Starting material AI analysis for %s (teacher: %s)",
+        material_name,
+        teacher_id,
+    )
+
+    ai_storage = get_material_ai_storage()
+    analysis_service = get_unified_analysis_service()
+
+    # Load extracted text
+    pages = ai_storage.load_extracted_text(teacher_id, material_name)
+
+    if not pages:
+        logger.warning("No extracted text found for material %s", material_name)
+        await progress.report_progress("material_analysis", 100)
+        return {
+            "module_count": 0,
+            "total_vocabulary": 0,
+            "error": "No text found to analyze",
+        }
+
+    # Report initial progress
+    await progress.report_progress("material_analysis", 10)
+
+    # Run chunked analysis (reuse book analysis logic)
+    # Use material_name as book_name, teacher_id as publisher
+    result = await analysis_service.analyze_book_chunked(
+        book_id=str(material_id),
+        publisher_id=teacher_id,
+        book_name=material_name,
+        pages=pages,
+        progress_callback=None,
+    )
+
+    # Report progress at 80%
+    await progress.report_progress("material_analysis", 80)
+
+    # Save analysis results
+    modules = []
+    vocabulary = []
+
+    for module in result.modules:
+        modules.append({
+            "id": module.module_id,
+            "title": module.title,
+            "pages": list(module.pages),
+            "topics": module.topics,
+            "grammar_points": module.grammar_points,
+            "difficulty": module.difficulty,
+            "vocabulary": [w.model_dump() for w in module.vocabulary] if hasattr(module, 'vocabulary') else [],
+        })
+
+    if result.vocabulary:
+        vocabulary = [w.model_dump() for w in result.vocabulary]
+
+    analysis_metadata = {
+        "module_count": result.module_count,
+        "total_vocabulary": result.total_vocabulary,
+        "total_topics": result.total_topics,
+        "primary_language": result.primary_language,
+        "translation_language": result.translation_language,
+        "difficulty_range": result.difficulty_range,
+        "method": result.method,
+        "processing_time_seconds": result.processing_time_seconds,
+    }
+
+    saved = ai_storage.save_analysis_result(
+        teacher_id=teacher_id,
+        material_name=material_name,
+        modules=modules,
+        vocabulary=vocabulary,
+        analysis_metadata=analysis_metadata,
+    )
+
+    # Report final progress
+    await progress.report_progress("material_analysis", 100)
+
+    logger.info(
+        "Material analysis completed: %d modules, %d vocabulary words",
+        result.module_count,
+        result.total_vocabulary,
+    )
+
+    return {
+        "module_count": result.module_count,
+        "total_vocabulary": result.total_vocabulary,
+        "total_topics": result.total_topics,
+        "primary_language": result.primary_language,
+        "processing_time_seconds": result.processing_time_seconds,
+    }
+
+
+async def _run_material_audio_generation(
+    job_id: str,
+    material_id: int,
+    teacher_id: str,
+    material_name: str,
+    progress: ProgressReporter,
+    analysis_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Run material audio generation stage.
+
+    Args:
+        job_id: Job ID
+        material_id: Material database ID
+        teacher_id: Teacher ID
+        material_name: Material filename
+        progress: Progress reporter
+        analysis_result: Result from AI analysis
+
+    Returns:
+        Audio generation result data
+    """
+    from app.services.material_ai_data import get_material_ai_storage
+    from app.services.audio_generation import get_audio_generation_service
+
+    logger.info(
+        "Starting material audio generation for %s (teacher: %s)",
+        material_name,
+        teacher_id,
+    )
+
+    ai_storage = get_material_ai_storage()
+    audio_service = get_audio_generation_service()
+
+    # Load vocabulary
+    vocab_data = ai_storage.load_vocabulary(teacher_id, material_name)
+    vocabulary_words = vocab_data.get("words", [])
+
+    if not vocabulary_words:
+        logger.info("No vocabulary words to generate audio for")
+        await progress.report_progress("material_audio", 100)
+        return {
+            "total_words": 0,
+            "generated_count": 0,
+            "failed_count": 0,
+        }
+
+    primary_language = vocab_data.get("language", "en")
+    translation_language = vocab_data.get("translation_language", "tr")
+
+    # Report initial progress
+    await progress.report_progress("material_audio", 10)
+
+    # Generate audio
+    result, audio_data = await audio_service.generate_vocabulary_audio(
+        vocabulary=vocabulary_words,
+        book_id=str(material_id),
+        publisher_id=teacher_id,
+        book_name=material_name,
+        language=primary_language,
+        translation_language=translation_language,
+        progress_callback=None,
+    )
+
+    # Report progress at 50%
+    await progress.report_progress("material_audio", 50)
+
+    # Save audio files
+    saved_count = 0
+    failed_count = 0
+
+    for audio_file in result.audio_files:
+        word = audio_file.word
+        lang = audio_file.language
+        if word in audio_data:
+            try:
+                ai_storage.save_audio_file(
+                    teacher_id=teacher_id,
+                    material_name=material_name,
+                    word=word,
+                    language=lang,
+                    audio_data=audio_data[word],
+                )
+                saved_count += 1
+            except Exception as e:
+                logger.warning("Failed to save audio for %s: %s", word, e)
+                failed_count += 1
+
+    # Report final progress
+    await progress.report_progress("material_audio", 100)
+
+    logger.info(
+        "Material audio generation completed: %d/%d generated, %d saved",
+        result.generated_count,
+        len(vocabulary_words),
+        saved_count,
+    )
+
+    return {
+        "total_words": len(vocabulary_words),
+        "generated_count": result.generated_count,
+        "failed_count": result.failed_count,
+        "audio_files_saved": saved_count,
+        "language": primary_language,
+        "translation_language": translation_language,
+    }

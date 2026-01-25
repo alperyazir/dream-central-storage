@@ -91,6 +91,7 @@ class AIDataMetadataService:
                 "topic_analysis": StageResult(status=StageStatus.PENDING),
                 "vocabulary": StageResult(status=StageStatus.PENDING),
                 "audio_generation": StageResult(status=StageStatus.PENDING),
+                "chunked_analysis": StageResult(status=StageStatus.PENDING),
             },
         )
 
@@ -209,6 +210,22 @@ class AIDataMetadataService:
 
         elif stage_name == "audio_generation":
             metadata.total_audio_files = stage_result.get("audio_files_saved", 0)
+
+        elif stage_name in ("chunked_analysis", "unified_analysis"):
+            # Unified/chunked analysis provides modules, vocabulary, language, and difficulty
+            metadata.total_modules = stage_result.get("module_count", 0)
+            metadata.total_vocabulary = stage_result.get("total_vocabulary", 0)
+            primary_lang = stage_result.get("primary_language", "")
+            if primary_lang:
+                metadata.primary_language = primary_lang
+                if primary_lang not in metadata.languages:
+                    metadata.languages.append(primary_lang)
+            translation_lang = stage_result.get("translation_language", "")
+            if translation_lang and translation_lang not in metadata.languages:
+                metadata.languages.append(translation_lang)
+            difficulty = stage_result.get("difficulty_range", [])
+            if difficulty:
+                metadata.difficulty_range = difficulty
 
     def finalize_metadata(
         self,

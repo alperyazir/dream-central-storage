@@ -42,6 +42,21 @@ interface ProcessingDialogProps {
   tokenType: string | null;
 }
 
+// Helper to check if text extraction is done
+const hasTextExtraction = (currentStep: string | undefined): boolean => {
+  if (!currentStep) return false;
+  // If we're past text_extraction or the step mentions analysis/vocabulary/audio
+  const completedIndicators = ['analysis', 'vocabulary', 'audio', 'chunked', 'unified'];
+  return completedIndicators.some(indicator => currentStep.toLowerCase().includes(indicator));
+};
+
+// Helper to check if LLM analysis is done
+const hasLLMAnalysis = (currentStep: string | undefined): boolean => {
+  if (!currentStep) return false;
+  // If we're at audio generation, LLM is done
+  return currentStep.toLowerCase().includes('audio');
+};
+
 const ProcessingDialog = ({
   open,
   onClose,
@@ -205,6 +220,14 @@ const ProcessingDialog = ({
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
                     {status.progress}% complete
                   </Typography>
+                  {/* Show detailed step info for chunked analysis */}
+                  {status.current_step && status.current_step.includes('Extracting vocabulary:') && (
+                    <Alert severity="info" sx={{ mt: 1, py: 0.5 }}>
+                      <Typography variant="caption">
+                        {status.current_step}
+                      </Typography>
+                    </Alert>
+                  )}
                 </Box>
               )}
 
@@ -242,12 +265,37 @@ const ProcessingDialog = ({
                   label="Processing Type"
                   onChange={(e: SelectChangeEvent) => setJobType(e.target.value as ProcessingJobType)}
                 >
-                  <MenuItem value="full">Full Processing (All Steps)</MenuItem>
-                  <MenuItem value="text_only">Text Extraction Only</MenuItem>
-                  <MenuItem value="vocabulary_only">Vocabulary Extraction Only</MenuItem>
-                  <MenuItem value="audio_only">Audio Generation Only</MenuItem>
+                  <MenuItem value="full">
+                    Full Process (Text + AI + Audio)
+                  </MenuItem>
+                  <MenuItem value="text_only">
+                    Text Extraction Only
+                  </MenuItem>
+                  <MenuItem
+                    value="llm_only"
+                    disabled={status?.status !== 'completed' && !hasTextExtraction(status?.current_step)}
+                  >
+                    AI Analysis Only {status?.status !== 'completed' && !hasTextExtraction(status?.current_step) ? '(requires text extraction)' : ''}
+                  </MenuItem>
+                  <MenuItem
+                    value="audio_only"
+                    disabled={status?.status !== 'completed' && !hasLLMAnalysis(status?.current_step)}
+                  >
+                    Audio Generation Only {status?.status !== 'completed' && !hasLLMAnalysis(status?.current_step) ? '(requires AI analysis)' : ''}
+                  </MenuItem>
                 </Select>
               </FormControl>
+
+              {/* Show info about chunked processing */}
+              {(jobType === 'full' || jobType === 'llm_only') && (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  AI Analysis uses a two-phase chunked approach:
+                  <br />
+                  1. Detect all modules/chapters
+                  <br />
+                  2. Extract vocabulary per module (with retries)
+                </Alert>
+              )}
 
               <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
                 <Button

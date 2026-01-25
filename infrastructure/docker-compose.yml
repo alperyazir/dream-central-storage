@@ -71,6 +71,7 @@ services:
       MINIO_ROOT_USER: dream_minio
       MINIO_ROOT_PASSWORD: dream_minio_secret
       MINIO_SERVER_URL: http://localhost:9000
+      MINIO_API_CORS_ALLOW_ORIGIN: "*"
     command: server /data --console-address ":9090"
     ports:
       - "9000:9000"

@@ -24,12 +24,16 @@ from app.services.llm.base import (
 logger = logging.getLogger(__name__)
 
 
-# Gemini pricing per 1M tokens (as of late 2024)
+# Gemini pricing per 1M tokens (as of 2025)
 GEMINI_PRICING = {
     "gemini-pro": {"input": 0.50, "output": 1.50},
     "gemini-1.5-pro": {"input": 1.25, "output": 5.00},
     "gemini-1.5-flash": {"input": 0.075, "output": 0.30},
+    "gemini-2.0-flash": {"input": 0.10, "output": 0.40},
     "gemini-2.0-flash-exp": {"input": 0.0, "output": 0.0},  # Free during preview
+    "gemini-2.0-flash-lite": {"input": 0.075, "output": 0.30},
+    "gemini-2.5-flash": {"input": 0.15, "output": 0.60},
+    "gemini-2.5-flash-lite": {"input": 0.10, "output": 0.40},
 }
 
 
@@ -38,8 +42,8 @@ class GeminiProvider(LLMProvider):
 
     provider_name = "gemini"
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-    DEFAULT_MODEL = "gemini-1.5-flash"
-    DEFAULT_VISION_MODEL = "gemini-1.5-flash"
+    DEFAULT_MODEL = "gemini-2.5-flash"  # Latest flash model
+    DEFAULT_VISION_MODEL = "gemini-2.5-flash"
 
     def __init__(
         self,

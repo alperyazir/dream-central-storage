@@ -748,12 +748,14 @@ class TestTopicStorage:
     def test_build_module_path(self, storage):
         """Test building module file path."""
         path = storage._build_module_path("pub-1", "book-123", "TestBook", 1)
-        assert path == "pub-1/books/book-123/TestBook/ai-data/modules/module_1.json"
+        # Note: book_id is not in the path, only publisher_id and book_name
+        assert path == "pub-1/books/TestBook/ai-data/modules/module_1.json"
 
     def test_build_metadata_path(self, storage):
         """Test building metadata file path."""
         path = storage._build_metadata_path("pub-1", "book-123", "TestBook")
-        assert path == "pub-1/books/book-123/TestBook/ai-data/modules/topic_analysis_metadata.json"
+        # Note: book_id is not in the path, only publisher_id and book_name
+        assert path == "pub-1/books/TestBook/ai-data/modules/topic_analysis_metadata.json"
 
     @patch("app.services.topic_analysis.storage.get_minio_client")
     def test_get_module_found(self, mock_get_client, storage):

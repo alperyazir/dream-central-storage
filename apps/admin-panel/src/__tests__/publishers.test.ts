@@ -21,6 +21,7 @@ const createMockClient = () => {
   const client: ApiClient = {
     get,
     post,
+    put: vi.fn(),
     request,
     postForm: vi.fn(),
     delete: deleteFn,

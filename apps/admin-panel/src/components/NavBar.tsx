@@ -7,6 +7,8 @@ import MenuBookIcon from '@mui/icons-material/MenuBook';
 import AppsIcon from '@mui/icons-material/Apps';
 import SchoolIcon from '@mui/icons-material/School';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import SettingsIcon from '@mui/icons-material/Settings';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LogoutIcon from '@mui/icons-material/Logout';
 import LoginIcon from '@mui/icons-material/Login';
@@ -61,6 +63,18 @@ const NavBar = () => {
           <NavLink to="/processing" className={({ isActive }) => (isActive ? 'active' : '')}>
             <SmartToyIcon fontSize="small" />
             <span>AI Processing</span>
+          </NavLink>
+        </li>
+        <li>
+          <NavLink to="/processing/settings" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <SettingsIcon fontSize="small" />
+            <span>AI Settings</span>
+          </NavLink>
+        </li>
+        <li>
+          <NavLink to="/ai-data" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <VisibilityIcon fontSize="small" />
+            <span>AI Data Viewer</span>
           </NavLink>
         </li>
         <li>

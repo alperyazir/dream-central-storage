@@ -8,10 +8,13 @@ import PublishersPage from './pages/Publishers';
 import PublisherDetailPage from './pages/PublisherDetail';
 import BooksPage from './pages/Books';
 import AppsPage from './pages/Apps';
-import TeachersPage from './pages/Teachers';
+import TeachersPage from './pages/TeachersManagement';
 import LoginPage from './pages/Login';
 import TrashPage from './pages/Trash';
 import ProcessingPage from './pages/Processing';
+import ProcessingSettingsPage from './pages/ProcessingSettings';
+import AIDataViewerPage from './pages/AIDataViewer';
+import TeacherDetailPage from './pages/TeacherDetail';
 import ProtectedRoute from './routes/ProtectedRoute';
 import { useAuthStore } from './stores/auth';
 import { useThemeStore } from './stores/theme';
@@ -58,7 +61,10 @@ const App = () => {
           <Route path="books" element={<BooksPage />} />
           <Route path="apps" element={<AppsPage />} />
           <Route path="teachers" element={<TeachersPage />} />
+          <Route path="teachers/:id" element={<TeacherDetailPage />} />
           <Route path="processing" element={<ProcessingPage />} />
+          <Route path="processing/settings" element={<ProcessingSettingsPage />} />
+          <Route path="ai-data" element={<AIDataViewerPage />} />
           <Route path="trash" element={<TrashPage />} />
         </Route>
       </Route>
