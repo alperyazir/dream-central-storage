@@ -53,6 +53,13 @@ from .webhook import (
     WebhookSubscriptionRead,
     WebhookSubscriptionUpdate,
 )
+from .standalone_app import (
+    BundleRequest,
+    BundleResponse,
+    TemplateInfo,
+    TemplateListResponse,
+    TemplateUploadResponse,
+)
 
 __all__ = [
     # AI Data schemas
@@ -121,4 +128,10 @@ __all__ = [
     "WebhookDeliveryLogRead",
     "WebhookEventPayload",
     "WebhookEventBookData",
+    # Standalone app schemas
+    "BundleRequest",
+    "BundleResponse",
+    "TemplateInfo",
+    "TemplateListResponse",
+    "TemplateUploadResponse",
 ]

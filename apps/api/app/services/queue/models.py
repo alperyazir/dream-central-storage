@@ -34,6 +34,9 @@ class ProcessingJobType(str, Enum):
     - MATERIAL_FULL: Full material processing (text + LLM + audio)
     - MATERIAL_TEXT_ONLY: Extract text only
     - MATERIAL_LLM_ONLY: AI analysis only
+
+    Bundle options:
+    - BUNDLE: Create standalone app bundle
     """
 
     # Main 4 options for books
@@ -46,6 +49,9 @@ class ProcessingJobType(str, Enum):
     MATERIAL_FULL = "material_full"  # Complete material pipeline
     MATERIAL_TEXT_ONLY = "material_text_only"  # Material text extraction only
     MATERIAL_LLM_ONLY = "material_llm_only"  # Material AI analysis only
+
+    # Bundle creation
+    BUNDLE = "bundle"  # Create standalone app bundle
 
     # Legacy/advanced options (kept for backwards compatibility)
     UNIFIED = "unified"  # Legacy: single LLM call approach
@@ -142,6 +148,15 @@ MATERIAL_TEXT_ONLY_STAGES = {
 # Material LLM analysis only (requires text extraction done)
 MATERIAL_LLM_ONLY_STAGES = {
     "material_analysis": 100,
+}
+
+# Bundle creation stages
+BUNDLE_STAGES = {
+    "download_template": 10,  # Download template from MinIO
+    "extract_template": 10,  # Extract template zip
+    "download_assets": 40,  # Download book assets from MinIO
+    "create_bundle": 30,  # Create bundle zip
+    "upload_bundle": 10,  # Upload bundle to MinIO
 }
 
 

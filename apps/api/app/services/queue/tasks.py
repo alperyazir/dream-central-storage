@@ -1828,3 +1828,273 @@ async def _run_material_audio_generation(
         "language": primary_language,
         "translation_language": translation_language,
     }
+
+
+# =============================================================================
+# Bundle Creation Task
+# =============================================================================
+
+
+async def create_bundle_task(
+    ctx: dict[str, Any],
+    job_id: str,
+    platform: str,
+    book_id: int,
+    publisher_name: str,
+    book_name: str,
+    force: bool = False,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Create a standalone app bundle asynchronously.
+
+    This task orchestrates bundle creation including:
+    - Downloading the app template
+    - Extracting the template
+    - Downloading book assets
+    - Creating the bundle zip
+    - Uploading to MinIO
+
+    Args:
+        ctx: arq context with Redis connection
+        job_id: Processing job ID
+        platform: Target platform (mac, win, linux)
+        book_id: Book database ID
+        publisher_name: Publisher name (for storage path)
+        book_name: Book name
+        force: If True, recreate bundle even if it exists
+        metadata: Additional job metadata
+
+    Returns:
+        Result dict with download_url, file_name, file_size
+
+    Raises:
+        QueueError: If bundle creation fails
+    """
+    import os
+    import tempfile
+    import zipfile
+    from datetime import timedelta
+
+    from app.services import get_minio_client, get_minio_client_external
+    from app.services.standalone_apps import (
+        TEMPLATE_PREFIX,
+        BUNDLE_PREFIX,
+        ALLOWED_PLATFORMS,
+        PRESIGNED_URL_EXPIRY_SECONDS,
+        TemplateNotFoundError,
+        InvalidPlatformError,
+    )
+
+    settings = get_settings()
+    redis_conn = await get_redis_connection(url=settings.redis_url)
+    repository = JobRepository(
+        redis_client=redis_conn.client,
+        job_ttl_seconds=settings.queue_job_ttl_seconds,
+    )
+
+    # Helper to update progress directly (bundle uses different stages than book processing)
+    async def update_progress(progress: int, step: str) -> None:
+        await repository.update_job_progress(job_id, progress, current_step=step)
+
+    logger.info(
+        "Starting bundle creation job %s for book %s (platform: %s, publisher: %s)",
+        job_id,
+        book_name,
+        platform,
+        publisher_name,
+    )
+
+    # Update job status to processing
+    await repository.update_job_status(job_id, ProcessingStatus.PROCESSING)
+
+    try:
+        # Validate platform
+        normalized_platform = platform.lower()
+        if normalized_platform not in ALLOWED_PLATFORMS:
+            raise InvalidPlatformError(
+                f"Invalid platform '{platform}'. Allowed: {', '.join(sorted(ALLOWED_PLATFORMS))}"
+            )
+
+        client = get_minio_client(settings)
+        external_client = get_minio_client_external(settings)
+        apps_bucket = settings.minio_apps_bucket
+        publishers_bucket = settings.minio_publishers_bucket
+
+        template_object_name = f"{TEMPLATE_PREFIX}/{normalized_platform}.zip"
+
+        # Check template exists
+        await update_progress(5, "Checking template...")
+        try:
+            client.stat_object(apps_bucket, template_object_name)
+        except Exception as exc:
+            raise TemplateNotFoundError(
+                f"Template for platform '{normalized_platform}' not found"
+            ) from exc
+
+        # Check if bundle already exists (unless force=True)
+        if not force:
+            bundle_prefix = f"{BUNDLE_PREFIX}/{publisher_name}/{book_name}/"
+            try:
+                existing_bundles = list(
+                    client.list_objects(apps_bucket, prefix=bundle_prefix, recursive=True)
+                )
+                for obj in existing_bundles:
+                    file_name = obj.object_name.split("/")[-1]
+                    if f"({normalized_platform})" in file_name.lower():
+                        logger.info(
+                            "Found existing bundle for %s/%s platform %s",
+                            publisher_name,
+                            book_name,
+                            normalized_platform,
+                        )
+                        download_url = external_client.presigned_get_object(
+                            bucket_name=apps_bucket,
+                            object_name=obj.object_name,
+                            expires=timedelta(seconds=PRESIGNED_URL_EXPIRY_SECONDS),
+                        )
+
+                        await update_progress(100, "Bundle ready (cached)")
+                        await repository.update_job_status(job_id, ProcessingStatus.COMPLETED)
+
+                        return {
+                            "status": "completed",
+                            "cached": True,
+                            "download_url": download_url,
+                            "file_name": file_name,
+                            "file_size": obj.size,
+                        }
+            except Exception:
+                pass  # No existing bundle, continue to create
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 1. Download template (5-15%)
+            await update_progress(10, "Downloading template...")
+            template_path = os.path.join(temp_dir, "template.zip")
+            client.fget_object(apps_bucket, template_object_name, template_path)
+            await update_progress(15, "Template downloaded")
+
+            # 2. Extract template (15-25%)
+            await update_progress(20, "Extracting template...")
+            extract_dir = os.path.join(temp_dir, "app")
+            os.makedirs(extract_dir, exist_ok=True)
+
+            with zipfile.ZipFile(template_path, "r") as zf:
+                zf.extractall(extract_dir)
+            await update_progress(25, "Template extracted")
+
+            # 3. Find the root app folder
+            root_items = os.listdir(extract_dir)
+            app_root = extract_dir
+            app_folder_name = None
+
+            for item in root_items:
+                item_path = os.path.join(extract_dir, item)
+                if os.path.isdir(item_path):
+                    if os.path.isdir(os.path.join(item_path, "data")):
+                        app_root = item_path
+                        app_folder_name = item
+                        break
+
+            # 4. Create book directory
+            data_dir = os.path.join(app_root, "data")
+            if not os.path.isdir(data_dir):
+                os.makedirs(data_dir, exist_ok=True)
+
+            book_dir = os.path.join(data_dir, "books", book_name)
+            os.makedirs(book_dir, exist_ok=True)
+
+            # 5. Download book assets (25-70%)
+            await update_progress(25, "Downloading book assets...")
+            book_prefix = f"{publisher_name}/books/{book_name}/"
+            objects = list(client.list_objects(
+                publishers_bucket, prefix=book_prefix, recursive=True
+            ))
+
+            asset_count = 0
+            total_objects = len([o for o in objects if not o.is_dir])
+
+            for i, obj in enumerate(objects):
+                if obj.is_dir:
+                    continue
+
+                relative_path = obj.object_name[len(book_prefix):]
+                if not relative_path:
+                    continue
+
+                dest_path = os.path.join(book_dir, relative_path)
+                dest_parent = os.path.dirname(dest_path)
+                if dest_parent:
+                    os.makedirs(dest_parent, exist_ok=True)
+
+                client.fget_object(publishers_bucket, obj.object_name, dest_path)
+                asset_count += 1
+
+                # Update progress (25-70%)
+                if total_objects > 0:
+                    pct = 25 + int((i + 1) / total_objects * 45)
+                    await update_progress(pct, f"Downloaded {asset_count}/{total_objects} assets")
+
+            logger.info("Copied %d assets for book %s/%s", asset_count, publisher_name, book_name)
+            await update_progress(70, f"Downloaded {asset_count} assets")
+
+            # 6. Create bundle zip (70-90%)
+            await update_progress(75, "Creating bundle...")
+            if app_folder_name:
+                bundle_name = f"{app_folder_name} - {book_name}"
+            else:
+                bundle_name = f"({normalized_platform}) FlowBook - {book_name}"
+            bundle_path = os.path.join(temp_dir, f"{bundle_name}.zip")
+
+            with zipfile.ZipFile(bundle_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                for root, _dirs, files in os.walk(extract_dir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, extract_dir)
+                        zf.write(file_path, arcname)
+            await update_progress(90, "Bundle created")
+
+            # 7. Upload bundle (90-100%)
+            await update_progress(92, "Uploading bundle...")
+            bundle_object_name = f"{BUNDLE_PREFIX}/{publisher_name}/{book_name}/{bundle_name}.zip"
+            bundle_size = os.path.getsize(bundle_path)
+
+            client.fput_object(
+                apps_bucket,
+                bundle_object_name,
+                bundle_path,
+                content_type="application/zip",
+            )
+            await update_progress(98, "Bundle uploaded")
+
+            # 8. Generate presigned URL
+            download_url = external_client.presigned_get_object(
+                bucket_name=apps_bucket,
+                object_name=bundle_object_name,
+                expires=timedelta(seconds=PRESIGNED_URL_EXPIRY_SECONDS),
+            )
+
+            await update_progress(100, "Bundle ready")
+            await repository.update_job_status(job_id, ProcessingStatus.COMPLETED)
+
+            logger.info(
+                "Bundle creation completed: %s (%d bytes)",
+                bundle_name,
+                bundle_size,
+            )
+
+            return {
+                "status": "completed",
+                "cached": False,
+                "download_url": download_url,
+                "file_name": f"{bundle_name}.zip",
+                "file_size": bundle_size,
+            }
+
+    except Exception as e:
+        logger.error("Bundle creation job %s failed: %s", job_id, e)
+        await repository.update_job_status(
+            job_id,
+            ProcessingStatus.FAILED,
+            error_message=str(e),
+        )
+        raise QueueError(f"Bundle creation failed: {e}") from e

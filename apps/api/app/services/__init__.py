@@ -1,6 +1,6 @@
 """Service layer utilities for external integrations."""
 
-from .minio import ensure_buckets, get_minio_client
+from .minio import ensure_buckets, get_minio_client, get_minio_client_external
 from .storage import (
     UploadConflictError,
     UploadError,
@@ -25,6 +25,7 @@ from .storage import (
 
 __all__ = [
     "get_minio_client",
+    "get_minio_client_external",
     "ensure_buckets",
     "upload_book_archive",
     "upload_app_archive",
