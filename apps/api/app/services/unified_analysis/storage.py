@@ -141,6 +141,7 @@ class UnifiedAnalysisStorage:
                     "word_count": m.word_count,
                     "topics": m.topics,
                     "difficulty_level": m.difficulty_level,
+                    "summary": m.summary,
                     "vocabulary_count": len(m.vocabulary),
                 }
                 for m in result.modules

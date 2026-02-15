@@ -37,10 +37,12 @@ class ModuleDetailResponse(BaseModel):
     pages: list[int] = Field(default_factory=list, description="Page numbers in module")
     text: str = Field("", description="Full text content of the module")
     topics: list[str] = Field(default_factory=list, description="Topics covered in module")
+    grammar_points: list[str] = Field(default_factory=list, description="Grammar points taught in module")
     vocabulary_ids: list[str] = Field(
         default_factory=list, description="Vocabulary word IDs in module"
     )
     language: str = Field("", description="Primary language of module")
+    summary: str = Field("", description="2-3 sentence summary of module content and learning objectives")
     difficulty: str = Field("", description="CEFR difficulty level")
     word_count: int = Field(0, description="Number of words in module")
     extracted_at: str | None = Field(None, description="When module was extracted")
@@ -57,6 +59,7 @@ class ModuleMetadataSummary(BaseModel):
     word_count: int = Field(0, description="Number of words in module")
     topics: list[str] = Field(default_factory=list, description="Topics covered in module")
     difficulty_level: str = Field("", description="CEFR difficulty level")
+    summary: str = Field("", description="2-3 sentence summary of module content and learning objectives")
     vocabulary_count: int = Field(0, description="Number of vocabulary words")
 
 

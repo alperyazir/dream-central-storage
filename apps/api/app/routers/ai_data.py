@@ -295,6 +295,7 @@ def get_ai_modules_metadata(
             word_count=m.get("word_count", 0),
             topics=m.get("topics", []),
             difficulty_level=m.get("difficulty_level", ""),
+            summary=m.get("summary", ""),
             vocabulary_count=m.get("vocabulary_count", 0),
         )
         for m in metadata.get("modules", [])
@@ -366,8 +367,10 @@ def get_ai_module(
         pages=module.get("pages", []),
         text=module.get("text", ""),
         topics=module.get("topics", []),
+        grammar_points=module.get("grammar_points", []),
         vocabulary_ids=vocabulary_ids,
         language=module.get("language", ""),
+        summary=module.get("summary", ""),
         difficulty=module.get("difficulty_level", module.get("difficulty", "")),
         word_count=module.get("word_count", 0),
         extracted_at=module.get("extracted_at"),

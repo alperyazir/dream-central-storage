@@ -495,6 +495,18 @@ const AIDataViewerPage = () => {
                               ))}
                             </Stack>
                           </Box>
+                          {moduleDetails[module.module_id].grammar_points?.length > 0 && (
+                            <Box>
+                              <Typography variant="subtitle2" color="text.secondary">
+                                Grammar Points
+                              </Typography>
+                              <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ mt: 0.5 }}>
+                                {moduleDetails[module.module_id].grammar_points.map((gp, i) => (
+                                  <Chip key={i} label={gp} size="small" color="secondary" variant="outlined" />
+                                ))}
+                              </Stack>
+                            </Box>
+                          )}
                           <Box>
                             <Typography variant="subtitle2" color="text.secondary">
                               Language / Difficulty
@@ -504,6 +516,16 @@ const AIDataViewerPage = () => {
                               {moduleDetails[module.module_id].difficulty || '-'}
                             </Typography>
                           </Box>
+                          {moduleDetails[module.module_id].summary && (
+                            <Box>
+                              <Typography variant="subtitle2" color="text.secondary">
+                                Summary
+                              </Typography>
+                              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                                {moduleDetails[module.module_id].summary}
+                              </Typography>
+                            </Box>
+                          )}
                           <Box>
                             <Typography variant="subtitle2" color="text.secondary">
                               Text Preview

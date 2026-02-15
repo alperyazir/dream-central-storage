@@ -36,6 +36,7 @@ class AnalyzedModule:
     grammar_points: list[str] = field(default_factory=list)
     difficulty_level: str = "intermediate"
     language: str = "en"
+    summary: str = ""
 
     # Vocabulary results
     vocabulary: list[VocabularyWord] = field(default_factory=list)
@@ -67,6 +68,7 @@ class AnalyzedModule:
             "grammar_points": self.grammar_points,
             "difficulty_level": self.difficulty_level,
             "language": self.language,
+            "summary": self.summary,
             "vocabulary": [
                 {
                     "word": v.word,

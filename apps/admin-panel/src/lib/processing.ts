@@ -433,8 +433,10 @@ export interface ModuleDetail {
   pages: number[];
   text: string;
   topics: string[];
+  grammar_points: string[];
   vocabulary_ids: string[];
   language: string;
+  summary: string;
   difficulty: string;
   word_count: number;
   extracted_at: string | null;

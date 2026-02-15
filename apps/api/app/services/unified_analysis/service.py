@@ -118,7 +118,7 @@ IMPORTANT:
 - Identify ALL units'''
 
 
-PHASE2_EXTRACT_VOCABULARY_PROMPT = '''Extract vocabulary from this educational content.
+PHASE2_EXTRACT_VOCABULARY_PROMPT = '''Extract vocabulary and write a brief summary for this educational content.
 
 ## Module Information
 - Title: {module_title}
@@ -130,12 +130,16 @@ PHASE2_EXTRACT_VOCABULARY_PROMPT = '''Extract vocabulary from this educational c
 {module_text}
 
 ## Task
-Extract important vocabulary words from this content.
+1. Write a 2-3 sentence summary describing what this module covers and its learning objectives.
+2. Identify the key grammar points taught or practiced in this module (e.g., "Present Simple", "Comparatives", "Modal verbs: can/could").
+3. Extract important vocabulary words from this content.
 
 ## Response Format
 Return ONLY valid JSON:
 {{
   "module_title": "{module_title}",
+  "summary": "A 2-3 sentence summary of the module content and learning objectives.",
+  "grammar_points": ["Grammar point 1", "Grammar point 2"],
   "vocabulary": [
     {{
       "word": "example",
@@ -395,8 +399,10 @@ class UnifiedAnalysisService:
             module_pages = list(range(start_page, end_page + 1))
             module_text = self._get_pages_text(pages, start_page, end_page)
 
-            # Extract vocabulary with retries
+            # Extract vocabulary, summary, and grammar points with retries
             vocabulary: list[VocabularyWord] = []
+            summary = ""
+            grammar_points: list[str] = []
             for attempt in range(max_retries):
                 try:
                     vocab_data = await self._phase2_extract_vocabulary(
@@ -408,6 +414,8 @@ class UnifiedAnalysisService:
                         module_text=module_text,
                     )
                     vocabulary = self._parse_vocabulary(vocab_data)
+                    summary = vocab_data.get("summary", "")
+                    grammar_points = vocab_data.get("grammar_points", [])
                     break
                 except Exception as e:
                     module_progress.retry_count = attempt + 1
@@ -437,9 +445,10 @@ class UnifiedAnalysisService:
                 pages=module_pages,
                 text=module_text,
                 topics=mod_data.get("topics", []),
-                grammar_points=mod_data.get("grammar_points", []),
+                grammar_points=grammar_points,
                 difficulty_level=difficulty,
                 language=primary_language,
+                summary=summary,
                 vocabulary=vocabulary,
             )
             modules.append(module)
@@ -749,6 +758,7 @@ class UnifiedAnalysisService:
                 grammar_points=mod_data.get("grammar_points", []),
                 difficulty_level=difficulty,
                 language=primary_language,
+                summary=mod_data.get("summary", ""),
                 vocabulary=vocabulary,
             )
             modules.append(module)
