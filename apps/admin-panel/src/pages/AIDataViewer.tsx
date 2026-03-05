@@ -50,6 +50,8 @@ import {
   VocabularyWord,
   VocabularyResponse,
 } from '../lib/processing';
+import { ManifestRead, listAIContent } from '../lib/aiContent';
+import AIContentTab from '../components/AIContentTab';
 import { useAuthStore } from '../stores/auth';
 
 import '../styles/page.css';
@@ -94,6 +96,10 @@ const AIDataViewerPage = () => {
   const [vocabLanguage, setVocabLanguage] = useState<string>('en');
   const [vocabTranslationLang, setVocabTranslationLang] = useState<string>('tr');
 
+  // AI Content (Activities) state
+  const [aiContent, setAiContent] = useState<ManifestRead[]>([]);
+  const [aiContentLoading, setAiContentLoading] = useState(false);
+
   // Audio playback state
   const [playingWord, setPlayingWord] = useState<string | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
@@ -129,6 +135,7 @@ const AIDataViewerPage = () => {
     setVocabulary([]);
     setModuleDetails({});
     setExpandedModule(null);
+    setAiContent([]);
 
     try {
       // Load metadata
@@ -147,6 +154,11 @@ const AIDataViewerPage = () => {
       setTotalVocabulary(vocabData.total_words);
       setVocabLanguage(vocabData.language || 'en');
       setVocabTranslationLang(vocabData.translation_language || 'tr');
+
+      // Load AI content manifests (non-blocking — don't fail the whole page)
+      listAIContent(selectedBook.book_id, token, tokenType ?? undefined)
+        .then((data) => setAiContent(data))
+        .catch((err) => console.error('Failed to load AI content:', err));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load AI data');
     } finally {
@@ -332,6 +344,7 @@ const AIDataViewerPage = () => {
               <Tab label="Metadata" />
               <Tab label={`Modules (${modules.length})`} />
               <Tab label={`Vocabulary (${totalVocabulary})`} />
+              <Tab label={`Activities (${aiContent.length})`} />
             </Tabs>
           </Box>
 
@@ -675,6 +688,19 @@ const AIDataViewerPage = () => {
                 Showing first 100 of {totalVocabulary} words
               </Typography>
             )}
+          </TabPanel>
+
+          {/* Activities Tab */}
+          <TabPanel value={tabIndex} index={3}>
+            <AIContentTab
+              bookId={selectedBook.book_id}
+              manifests={aiContent}
+              token={token!}
+              tokenType={tokenType || 'Bearer'}
+              onDeleted={(contentId) =>
+                setAiContent((prev) => prev.filter((m) => m.content_id !== contentId))
+              }
+            />
           </TabPanel>
         </>
       )}
