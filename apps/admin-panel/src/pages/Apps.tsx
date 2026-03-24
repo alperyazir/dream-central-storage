@@ -1,25 +1,15 @@
-import { Box, Typography } from '@mui/material';
-import StandaloneAppsManager from '../components/StandaloneAppsManager';
-
-import '../styles/page.css';
+import StandaloneAppsManager from 'components/StandaloneAppsManager'
 
 const AppsPage = () => {
   return (
-    <Box component="section" className="page-container">
-      <Box className="page-header">
-        <Box>
-          <Typography variant="h4" component="h1" className="page-title">
-            Standalone App Templates
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Upload pre-signed app templates for each platform. These will be bundled with book content.
-          </Typography>
-        </Box>
-      </Box>
-
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Standalone App Templates</h1>
+        <p className="text-muted-foreground">Upload pre-signed app templates for each platform. These will be bundled with book content.</p>
+      </div>
       <StandaloneAppsManager />
-    </Box>
-  );
-};
+    </div>
+  )
+}
 
-export default AppsPage;
+export default AppsPage

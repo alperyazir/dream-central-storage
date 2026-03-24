@@ -1,530 +1,158 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  IconButton,
-  InputAdornment,
-  Paper,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TableSortLabel,
-  Tabs,
-  Tab,
-  TextField,
-  Tooltip,
-  Typography,
-} from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import RestoreIcon from '@mui/icons-material/Restore';
-import EditIcon from '@mui/icons-material/Edit';
-import SearchIcon from '@mui/icons-material/Search';
-import ClearIcon from '@mui/icons-material/Clear';
-import SchoolIcon from '@mui/icons-material/School';
-import StorageIcon from '@mui/icons-material/Storage';
-import FolderIcon from '@mui/icons-material/Folder';
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Loader2, Pencil, Plus, RotateCcw, Trash2, XCircle } from 'lucide-react'
 
-import {
-  fetchTeachers,
-  fetchTrashedTeachers,
-  TeacherListItem,
-  deleteTeacher,
-  restoreTeacher,
-  permanentDeleteTeacher,
-  formatBytes,
-} from '../lib/teacherManagement';
-import { useAuthStore } from '../stores/auth';
-import TeacherFormDialog from '../components/TeacherFormDialog';
+import { Card, CardContent } from 'components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from 'components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from 'components/ui/tabs'
+import { Input } from 'components/ui/input'
+import { Button } from 'components/ui/button'
+import { Badge } from 'components/ui/badge'
+import { Alert, AlertDescription } from 'components/ui/alert'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from 'components/ui/dialog'
+import TeacherFormDialog from 'components/TeacherFormDialog'
+import { useAuthStore } from 'stores/auth'
+import { fetchTeachers, fetchTrashedTeachers, deleteTeacher, restoreTeacher, permanentDeleteTeacher, formatBytes, type TeacherListItem } from 'lib/teacherManagement'
 
-import '../styles/page.css';
+type SortField = 'teacher_id' | 'display_name' | 'material_count' | 'total_storage_size' | 'status'
+type SortDir = 'asc' | 'desc'
 
-type SortDirection = 'asc' | 'desc';
-type SortField = 'teacher_id' | 'display_name' | 'material_count' | 'total_storage_size' | 'status' | 'created_at';
+const statusVariant = (s: string) => {
+  if (s === 'active') return 'success' as const
+  if (s === 'inactive') return 'warning' as const
+  return 'destructive' as const
+}
 
 const TeachersManagementPage = () => {
-  const navigate = useNavigate();
-  const token = useAuthStore((state) => state.token);
-  const tokenType = useAuthStore((state) => state.tokenType);
-  const [teachers, setTeachers] = useState<TeacherListItem[]>([]);
-  const [trashedTeachers, setTrashedTeachers] = useState<TeacherListItem[]>([]);
-  const [activeTab, setActiveTab] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortField, setSortField] = useState<SortField>('teacher_id');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [deleteTarget, setDeleteTarget] = useState<TeacherListItem | null>(null);
-  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<TeacherListItem | null>(null);
-  const [formDialogOpen, setFormDialogOpen] = useState(false);
-  const [editingTeacher, setEditingTeacher] = useState<TeacherListItem | null>(null);
+  const navigate = useNavigate()
+  const { token, tokenType } = useAuthStore()
+  const tt = tokenType ?? 'Bearer'
 
-  const loadTeachers = async () => {
-    if (!token) return;
-    setLoading(true);
-    setError('');
+  const [teachers, setTeachers] = useState<TeacherListItem[]>([])
+  const [trashed, setTrashed] = useState<TeacherListItem[]>([])
+  const [tab, setTab] = useState('active')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<{ f: SortField; d: SortDir }>({ f: 'teacher_id', d: 'asc' })
+  const [deleteTarget, setDeleteTarget] = useState<TeacherListItem | null>(null)
+  const [permDeleteTarget, setPermDeleteTarget] = useState<TeacherListItem | null>(null)
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState<TeacherListItem | null>(null)
+
+  const load = async () => {
+    if (!token) return
+    setLoading(true); setError('')
     try {
-      const [activeData, trashedData] = await Promise.all([
-        fetchTeachers(token, tokenType || 'Bearer'),
-        fetchTrashedTeachers(token, tokenType || 'Bearer'),
-      ]);
-      setTeachers(activeData);
-      setTrashedTeachers(trashedData);
-    } catch (err) {
-      console.error('Failed to fetch teachers:', err);
-      setError('Failed to load teachers. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadTeachers();
-  }, [token]);
-
-  const handleDeleteClick = (teacher: TeacherListItem) => {
-    setDeleteTarget(teacher);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!deleteTarget || !token) return;
-    try {
-      await deleteTeacher(deleteTarget.id, token, tokenType || 'Bearer');
-      await loadTeachers();
-      setDeleteTarget(null);
-    } catch (err) {
-      console.error('Failed to delete teacher:', err);
-      setError('Failed to delete teacher. Please try again.');
-      setDeleteTarget(null);
-    }
-  };
-
-  const handleRestore = async (teacher: TeacherListItem) => {
-    if (!token) return;
-    try {
-      await restoreTeacher(teacher.id, token, tokenType || 'Bearer');
-      await loadTeachers();
-    } catch (err) {
-      console.error('Failed to restore teacher:', err);
-      setError('Failed to restore teacher. Please try again.');
-    }
-  };
-
-  const handlePermanentDeleteClick = (teacher: TeacherListItem) => {
-    setPermanentDeleteTarget(teacher);
-  };
-
-  const handlePermanentDeleteConfirm = async () => {
-    if (!permanentDeleteTarget || !token) return;
-    try {
-      await permanentDeleteTeacher(permanentDeleteTarget.id, token, tokenType || 'Bearer');
-      await loadTeachers();
-      setPermanentDeleteTarget(null);
-    } catch (err) {
-      console.error('Failed to permanently delete teacher:', err);
-      setError('Failed to permanently delete teacher. Please try again.');
-      setPermanentDeleteTarget(null);
-    }
-  };
-
-  const handleEditClick = (teacher: TeacherListItem) => {
-    setEditingTeacher(teacher);
-    setFormDialogOpen(true);
-  };
-
-  const handleAddClick = () => {
-    setEditingTeacher(null);
-    setFormDialogOpen(true);
-  };
-
-  const handleFormClose = () => {
-    setFormDialogOpen(false);
-    setEditingTeacher(null);
-  };
-
-  const handleFormSuccess = () => {
-    setFormDialogOpen(false);
-    setEditingTeacher(null);
-    loadTeachers();
-  };
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-
-  const handleRowClick = (teacher: TeacherListItem) => {
-    navigate(`/teachers/${teacher.id}`);
-  };
-
-  const currentTeachers = activeTab === 0 ? teachers : trashedTeachers;
-
-  const filteredTeachers = useMemo(() => {
-    let filtered = currentTeachers;
-
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (t) =>
-          t.teacher_id.toLowerCase().includes(query) ||
-          (t.display_name && t.display_name.toLowerCase().includes(query)) ||
-          (t.email && t.email.toLowerCase().includes(query))
-      );
-    }
-
-    // Sort
-    filtered = [...filtered].sort((a, b) => {
-      let aVal: string | number = '';
-      let bVal: string | number = '';
-
-      switch (sortField) {
-        case 'teacher_id':
-          aVal = a.teacher_id;
-          bVal = b.teacher_id;
-          break;
-        case 'display_name':
-          aVal = a.display_name || '';
-          bVal = b.display_name || '';
-          break;
-        case 'material_count':
-          aVal = a.material_count;
-          bVal = b.material_count;
-          break;
-        case 'total_storage_size':
-          aVal = a.total_storage_size;
-          bVal = b.total_storage_size;
-          break;
-        case 'status':
-          aVal = a.status;
-          bVal = b.status;
-          break;
-        case 'created_at':
-          aVal = new Date(a.created_at).getTime();
-          bVal = new Date(b.created_at).getTime();
-          break;
-      }
-
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-      }
-      return sortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
-    });
-
-    return filtered;
-  }, [currentTeachers, searchQuery, sortField, sortDirection]);
-
-  const getStatusColor = (status: string): 'success' | 'warning' | 'error' | 'default' => {
-    switch (status) {
-      case 'active':
-        return 'success';
-      case 'inactive':
-        return 'warning';
-      case 'suspended':
-        return 'error';
-      default:
-        return 'default';
-    }
-  };
-
-  if (loading) {
-    return (
-      <Box className="page-container" display="flex" alignItems="center" justifyContent="center" minHeight="50vh">
-        <CircularProgress />
-      </Box>
-    );
+      const [active, trash] = await Promise.all([fetchTeachers(token, tt), fetchTrashedTeachers(token, tt)])
+      setTeachers(active); setTrashed(trash)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load') }
+    finally { setLoading(false) }
   }
 
+  useEffect(() => { load() }, [token])
+
+  const filtered = useMemo(() => {
+    const list = tab === 'active' ? teachers : trashed
+    let d = list
+    if (search) {
+      const q = search.toLowerCase()
+      d = d.filter(t => t.teacher_id.toLowerCase().includes(q) || t.display_name?.toLowerCase().includes(q) || t.email?.toLowerCase().includes(q))
+    }
+    const dir = sort.d === 'asc' ? 1 : -1
+    return [...d].sort((a, b) => {
+      const av = (a as any)[sort.f] ?? ''
+      const bv = (b as any)[sort.f] ?? ''
+      if (typeof av === 'number') return (av - (bv as number)) * dir
+      return String(av).localeCompare(String(bv)) * dir
+    })
+  }, [teachers, trashed, tab, search, sort])
+
+  const toggleSort = (f: SortField) => setSort(c => ({ f, d: c.f === f && c.d === 'asc' ? 'desc' : 'asc' }))
+
+  const handleDelete = async () => { if (!deleteTarget || !token) return; try { await deleteTeacher(deleteTarget.id, token, tt); setDeleteTarget(null); load() } catch {} }
+  const handleRestore = async (t: TeacherListItem) => { if (!token) return; try { await restoreTeacher(t.id, token, tt); load() } catch {} }
+  const handlePermDelete = async () => { if (!permDeleteTarget || !token) return; try { await permanentDeleteTeacher(permDeleteTarget.id, token, tt); setPermDeleteTarget(null); load() } catch {} }
+
+  const SortHead = ({ field, label }: { field: SortField; label: string }) => (
+    <TableHead className="cursor-pointer select-none" onClick={() => toggleSort(field)}>
+      {label} {sort.f === field && (sort.d === 'asc' ? '↑' : '↓')}
+    </TableHead>
+  )
+
+  if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin" /></div>
+
   return (
-    <Box className="page-container">
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
-        <Stack direction="row" alignItems="center" spacing={2}>
-          <SchoolIcon color="primary" sx={{ fontSize: 32 }} />
-          <Typography variant="h4" component="h1">
-            Teachers Management
-          </Typography>
-        </Stack>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddClick}>
-          Add Teacher
-        </Button>
-      </Stack>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Teachers</h1>
+        <Button onClick={() => { setEditing(null); setFormOpen(true) }}><Plus className="h-4 w-4" /> Add Teacher</Button>
+      </div>
+      {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-          {error}
-        </Alert>
-      )}
+      <Input placeholder="Search by ID, name, email..." value={search} onChange={e => setSearch(e.target.value)} className="max-w-xs" />
 
-      <Tabs value={activeTab} onChange={(_, val) => setActiveTab(val)} sx={{ mb: 2 }}>
-        <Tab label={`Active (${teachers.length})`} />
-        <Tab label={`Trash (${trashedTeachers.length})`} />
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList><TabsTrigger value="active">Active ({teachers.length})</TabsTrigger><TabsTrigger value="trash">Trash ({trashed.length})</TabsTrigger></TabsList>
+        <TabsContent value={tab}>
+          <Card><CardContent className="p-0">
+            <Table>
+              <TableHeader><TableRow>
+                <SortHead field="teacher_id" label="Teacher ID" />
+                <SortHead field="display_name" label="Name" />
+                <TableHead>Email</TableHead>
+                <SortHead field="material_count" label="Materials" />
+                <SortHead field="total_storage_size" label="Storage" />
+                <SortHead field="status" label="Status" />
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {!filtered.length ? (
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No teachers found</TableCell></TableRow>
+                ) : filtered.map(t => (
+                  <TableRow key={t.id} className="cursor-pointer" onClick={() => navigate(`/teachers/${t.id}`)}>
+                    <TableCell className="font-medium">{t.teacher_id}</TableCell>
+                    <TableCell>{t.display_name || '—'}</TableCell>
+                    <TableCell>{t.email || '—'}</TableCell>
+                    <TableCell className="text-center"><Badge variant="outline">{t.material_count}</Badge></TableCell>
+                    <TableCell>{formatBytes(t.total_storage_size)}</TableCell>
+                    <TableCell><Badge variant={statusVariant(t.status)}>{t.status}</Badge></TableCell>
+                    <TableCell className="text-right" onClick={e => e.stopPropagation()}>
+                      {tab === 'active' ? (
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditing(t); setFormOpen(true) }}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteTarget(t)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        </div>
+                      ) : (
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleRestore(t)}><RotateCcw className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPermDeleteTarget(t)}><XCircle className="h-4 w-4 text-destructive" /></Button>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent></Card>
+        </TabsContent>
       </Tabs>
 
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Stack direction="row" spacing={2} alignItems="center">
-            <TextField
-              placeholder="Search by ID, name, or email..."
-              size="small"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              sx={{ minWidth: 300 }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon color="action" />
-                  </InputAdornment>
-                ),
-                endAdornment: searchQuery && (
-                  <InputAdornment position="end">
-                    <IconButton size="small" onClick={() => setSearchQuery('')}>
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
-            <Box flexGrow={1} />
-            <Typography variant="body2" color="text.secondary">
-              {filteredTeachers.length} teacher{filteredTeachers.length !== 1 ? 's' : ''}
-            </Typography>
-          </Stack>
-        </CardContent>
-      </Card>
-
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>
-                <TableSortLabel
-                  active={sortField === 'teacher_id'}
-                  direction={sortField === 'teacher_id' ? sortDirection : 'asc'}
-                  onClick={() => handleSort('teacher_id')}
-                >
-                  Teacher ID
-                </TableSortLabel>
-              </TableCell>
-              <TableCell>
-                <TableSortLabel
-                  active={sortField === 'display_name'}
-                  direction={sortField === 'display_name' ? sortDirection : 'asc'}
-                  onClick={() => handleSort('display_name')}
-                >
-                  Display Name
-                </TableSortLabel>
-              </TableCell>
-              <TableCell>Email</TableCell>
-              <TableCell align="center">
-                <TableSortLabel
-                  active={sortField === 'material_count'}
-                  direction={sortField === 'material_count' ? sortDirection : 'asc'}
-                  onClick={() => handleSort('material_count')}
-                >
-                  Materials
-                </TableSortLabel>
-              </TableCell>
-              <TableCell align="right">
-                <TableSortLabel
-                  active={sortField === 'total_storage_size'}
-                  direction={sortField === 'total_storage_size' ? sortDirection : 'asc'}
-                  onClick={() => handleSort('total_storage_size')}
-                >
-                  Storage
-                </TableSortLabel>
-              </TableCell>
-              <TableCell align="center">
-                <TableSortLabel
-                  active={sortField === 'status'}
-                  direction={sortField === 'status' ? sortDirection : 'asc'}
-                  onClick={() => handleSort('status')}
-                >
-                  Status
-                </TableSortLabel>
-              </TableCell>
-              <TableCell align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredTeachers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
-                  <Typography color="text.secondary">
-                    {searchQuery ? 'No teachers match your search' : 'No teachers found'}
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredTeachers.map((teacher) => (
-                <TableRow
-                  key={teacher.id}
-                  hover
-                  onClick={() => handleRowClick(teacher)}
-                  sx={{ cursor: 'pointer' }}
-                >
-                  <TableCell>
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                      <SchoolIcon fontSize="small" color="action" />
-                      <Typography variant="body2" fontWeight={500}>
-                        {teacher.teacher_id}
-                      </Typography>
-                    </Stack>
-                  </TableCell>
-                  <TableCell>{teacher.display_name || '—'}</TableCell>
-                  <TableCell>{teacher.email || '—'}</TableCell>
-                  <TableCell align="center">
-                    <Chip
-                      icon={<FolderIcon />}
-                      label={teacher.material_count}
-                      size="small"
-                      variant="outlined"
-                    />
-                  </TableCell>
-                  <TableCell align="right">
-                    <Stack direction="row" alignItems="center" justifyContent="flex-end" spacing={0.5}>
-                      <StorageIcon fontSize="small" color="action" />
-                      <Typography variant="body2">{formatBytes(teacher.total_storage_size)}</Typography>
-                    </Stack>
-                  </TableCell>
-                  <TableCell align="center">
-                    <Chip label={teacher.status} size="small" color={getStatusColor(teacher.status)} />
-                  </TableCell>
-                  <TableCell align="right">
-                    <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                      {activeTab === 0 ? (
-                        <>
-                          <Tooltip title="Edit">
-                            <IconButton
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditClick(teacher);
-                              }}
-                            >
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Move to Trash">
-                            <IconButton
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteClick(teacher);
-                              }}
-                            >
-                              <DeleteOutlineIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </>
-                      ) : (
-                        <>
-                          <Tooltip title="Restore">
-                            <IconButton
-                              size="small"
-                              color="primary"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRestore(teacher);
-                              }}
-                            >
-                              <RestoreIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Delete Permanently">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handlePermanentDeleteClick(teacher);
-                              }}
-                            >
-                              <DeleteForeverIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </>
-                      )}
-                    </Stack>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>
-        <DialogTitle>Move to Trash?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to move teacher "{deleteTarget?.display_name || deleteTarget?.teacher_id}" to
-            trash?
-            {deleteTarget && deleteTarget.material_count > 0 && (
-              <Box component="span" sx={{ display: 'block', mt: 1, color: 'warning.main' }}>
-                This teacher has {deleteTarget.material_count} material(s).
-              </Box>
-            )}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)}>Cancel</Button>
-          <Button onClick={handleDeleteConfirm} color="error">
-            Move to Trash
-          </Button>
-        </DialogActions>
+      <TeacherFormDialog open={formOpen} onClose={() => setFormOpen(false)} onSuccess={() => { setFormOpen(false); load() }} teacher={editing} token={token} tokenType={tt} />
+      <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <DialogContent><DialogHeader><DialogTitle>Delete Teacher?</DialogTitle>
+          <DialogDescription>Soft-delete teacher &quot;{deleteTarget?.teacher_id}&quot;?</DialogDescription>
+        </DialogHeader>
+        <DialogFooter><Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button><Button variant="destructive" onClick={handleDelete}>Delete</Button></DialogFooter></DialogContent>
       </Dialog>
-
-      {/* Permanent Delete Confirmation Dialog */}
-      <Dialog open={!!permanentDeleteTarget} onClose={() => setPermanentDeleteTarget(null)}>
-        <DialogTitle>Permanently Delete?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to permanently delete teacher "
-            {permanentDeleteTarget?.display_name || permanentDeleteTarget?.teacher_id}"?
-            <Box component="span" sx={{ display: 'block', mt: 1, color: 'error.main', fontWeight: 500 }}>
-              This action cannot be undone. All materials and AI data will be deleted.
-            </Box>
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPermanentDeleteTarget(null)}>Cancel</Button>
-          <Button onClick={handlePermanentDeleteConfirm} color="error" variant="contained">
-            Delete Permanently
-          </Button>
-        </DialogActions>
+      <Dialog open={!!permDeleteTarget} onOpenChange={() => setPermDeleteTarget(null)}>
+        <DialogContent><DialogHeader><DialogTitle>Permanently Delete?</DialogTitle>
+          <DialogDescription>Permanently delete &quot;{permDeleteTarget?.teacher_id}&quot;? This cannot be undone.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter><Button variant="outline" onClick={() => setPermDeleteTarget(null)}>Cancel</Button><Button variant="destructive" onClick={handlePermDelete}>Delete Forever</Button></DialogFooter></DialogContent>
       </Dialog>
+    </div>
+  )
+}
 
-      {/* Teacher Form Dialog */}
-      <TeacherFormDialog
-        open={formDialogOpen}
-        onClose={handleFormClose}
-        onSuccess={handleFormSuccess}
-        teacher={editingTeacher}
-        token={token}
-        tokenType={tokenType}
-      />
-    </Box>
-  );
-};
-
-export default TeachersManagementPage;
+export default TeachersManagementPage

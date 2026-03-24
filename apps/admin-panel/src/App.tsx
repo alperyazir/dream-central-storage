@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { Box, CircularProgress, Typography } from '@mui/material';
+import { Loader2 } from 'lucide-react';
 
 import MainLayout from './layouts/MainLayout';
 import DashboardPage from './pages/Dashboard';
@@ -13,8 +13,6 @@ import TeachersPage from './pages/TeachersManagement';
 import LoginPage from './pages/Login';
 import TrashPage from './pages/Trash';
 import ProcessingPage from './pages/Processing';
-import ProcessingSettingsPage from './pages/ProcessingSettings';
-import AIDataViewerPage from './pages/AIDataViewer';
 import TeacherDetailPage from './pages/TeacherDetail';
 import ProtectedRoute from './routes/ProtectedRoute';
 import { useAuthStore } from './stores/auth';
@@ -38,15 +36,10 @@ const App = () => {
 
   if (!isHydrated || isHydrating) {
     return (
-      <Box
-        component="section"
-        sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 2 }}
-      >
-        <CircularProgress aria-label="Preparing session" />
-        <Typography variant="body1" color="text.secondary">
-          Preparing your session…
-        </Typography>
-      </Box>
+      <div className="flex min-h-screen items-center justify-center flex-col gap-2">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-muted-foreground">Preparing your session…</p>
+      </div>
     );
   }
 
@@ -65,8 +58,6 @@ const App = () => {
           <Route path="teachers" element={<TeachersPage />} />
           <Route path="teachers/:id" element={<TeacherDetailPage />} />
           <Route path="processing" element={<ProcessingPage />} />
-          <Route path="processing/settings" element={<ProcessingSettingsPage />} />
-          <Route path="ai-data" element={<AIDataViewerPage />} />
           <Route path="trash" element={<TrashPage />} />
         </Route>
       </Route>

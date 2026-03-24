@@ -1,66 +1,77 @@
-import { useEffect, useState } from 'react';
-import { Avatar, AvatarProps } from '@mui/material';
+import { useEffect, useState } from 'react'
+import { cn } from 'lib/utils'
+import { appConfig } from 'config/environment'
 
-interface AuthenticatedImageProps extends Omit<AvatarProps, 'src'> {
-  src: string;
-  token: string | null;
-  tokenType?: string;
-  fallback?: React.ReactNode;
+interface AuthenticatedImageProps {
+  src: string
+  token: string | null
+  tokenType?: string
+  alt?: string
+  className?: string
+  fallback?: React.ReactNode
 }
 
-const AuthenticatedImage = ({ 
-  src, 
-  token, 
-  tokenType = 'Bearer', 
+export function AuthenticatedImage({
+  src,
+  token,
+  tokenType = 'Bearer',
+  alt,
+  className,
   fallback,
-  ...avatarProps 
-}: AuthenticatedImageProps) => {
-  const [imageSrc, setImageSrc] = useState<string | undefined>(undefined);
-  const [error, setError] = useState(false);
+}: AuthenticatedImageProps) {
+  const [imageSrc, setImageSrc] = useState<string | undefined>()
+  const [error, setError] = useState(false)
 
   useEffect(() => {
     if (!src || !token) {
-      setImageSrc(undefined);
-      return;
+      setError(true)
+      return
     }
 
-    const fetchImage = async () => {
-      try {
-        const response = await fetch(src, {
-          headers: {
-            Authorization: `${tokenType} ${token}`,
-          },
-        });
+    let objectUrl: string | undefined
+    setError(false)
 
-        if (!response.ok) {
-          setError(true);
-          return;
-        }
+    const fullUrl = src.startsWith('http') ? src : `${appConfig.apiBaseUrl}${src}`
 
-        const blob = await response.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        setImageSrc(objectUrl);
-      } catch (err) {
-        console.error('Failed to fetch image:', err);
-        setError(true);
-      }
-    };
+    fetch(fullUrl, {
+      headers: { Authorization: `${tokenType} ${token}` },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to fetch image')
+        return res.blob()
+      })
+      .then((blob) => {
+        objectUrl = URL.createObjectURL(blob)
+        setImageSrc(objectUrl)
+      })
+      .catch(() => setError(true))
 
-    fetchImage();
-
-    // Cleanup object URL on unmount
     return () => {
-      if (imageSrc) {
-        URL.revokeObjectURL(imageSrc);
-      }
-    };
-  }, [src, token, tokenType]);
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [src, token, tokenType])
 
   if (error || !imageSrc) {
-    return <Avatar {...avatarProps}>{fallback}</Avatar>;
+    if (fallback) return <>{fallback}</>
+    return (
+      <div
+        className={cn(
+          'flex items-center justify-center rounded-full bg-muted text-muted-foreground text-sm font-medium',
+          className
+        )}
+      >
+        {alt?.[0]?.toUpperCase() || '?'}
+      </div>
+    )
   }
 
-  return <Avatar {...avatarProps} src={imageSrc} />;
-};
+  return (
+    <img
+      src={imageSrc}
+      alt={alt || ''}
+      className={cn('object-cover', className)}
+    />
+  )
+}
 
-export default AuthenticatedImage;
+export default AuthenticatedImage

@@ -1,686 +1,284 @@
-import { ChangeEvent, useEffect, useReducer, useState } from 'react';
-import {
-  Alert,
-  Autocomplete,
-  Box,
-  Button,
-  Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControl,
-  FormControlLabel,
-  FormHelperText,
-  LinearProgress,
-  Radio,
-  RadioGroup,
-  Step,
-  StepLabel,
-  Stepper,
-  TextField,
-  Typography,
-} from '@mui/material';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ErrorIcon from '@mui/icons-material/Error';
+import { ChangeEvent, useEffect, useReducer, useState } from 'react'
+import { Loader2, Upload, CheckCircle, XCircle } from 'lucide-react'
 
-import { fetchPublishers, Publisher, uploadPublisherAsset } from '../lib/publishers';
-import { uploadNewBookArchive } from '../lib/uploads';
-import { ApiError } from '../lib/api';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from 'components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from 'components/ui/select'
+import { Button } from 'components/ui/button'
+import { Input } from 'components/ui/input'
+import { Label } from 'components/ui/label'
+import { Alert, AlertDescription } from 'components/ui/alert'
+import { Progress } from 'components/ui/progress'
+import { Badge } from 'components/ui/badge'
+import { fetchPublishers, uploadPublisherAsset, type Publisher } from 'lib/publishers'
+import { uploadNewBookArchive } from 'lib/uploads'
+import { ApiError } from 'lib/api'
 
 interface PublisherUploadDialogProps {
-  open: boolean;
-  onClose: () => void;
-  token: string | null;
-  tokenType: string | null;
-  onSuccess: () => void;
-  initialPublisherId?: number;
+  open: boolean
+  onClose: () => void
+  token: string | null
+  tokenType: string | null
+  onSuccess: () => void
+  initialPublisherId?: number
 }
 
-type UploadStep = 'publisher' | 'content-type' | 'files' | 'uploading' | 'success' | 'error';
-
-interface UploadState {
-  step: UploadStep;
-  publisherId: number | null;
-  contentType: string | null;
-  customContentType: string;
-  files: File[];
-  progress: Map<string, number>;
-  error: string | null;
-  uploadResults: UploadResult[];
-}
+type UploadStep = 'publisher' | 'content-type' | 'files' | 'uploading' | 'results'
 
 interface UploadResult {
-  filename: string;
-  success: boolean;
-  error?: string;
-  path?: string;
+  filename: string
+  success: boolean
+  error?: string
+  path?: string
 }
 
-type UploadAction =
-  | { type: 'SET_PUBLISHER'; publisherId: number }
-  | { type: 'SET_CONTENT_TYPE'; contentType: string }
-  | { type: 'SET_CUSTOM_CONTENT_TYPE'; customContentType: string }
+const CONTENT_TYPE_RULES: Record<string, { accept: string; maxSize: number; multiple: boolean; label: string }> = {
+  books: { accept: '.zip', maxSize: 2 * 1024 * 1024 * 1024, multiple: true, label: 'Books (.zip)' },
+  materials: { accept: '.pdf,.docx,.pptx,.jpg,.jpeg,.png,.gif,.mp3,.mp4', maxSize: 100 * 1024 * 1024, multiple: true, label: 'Materials (docs, images, audio, video)' },
+  logos: { accept: '.png,.jpg,.jpeg,.svg', maxSize: 5 * 1024 * 1024, multiple: false, label: 'Logos (.png, .jpg, .svg)' },
+}
+
+const PREDEFINED_TYPES = ['books', 'materials', 'logos']
+
+const deriveError = (e: unknown): string => {
+  if (e instanceof ApiError) { const d = (e.body as any)?.detail; return typeof d === 'string' ? d : `Failed (${e.status})` }
+  return e instanceof Error ? e.message : 'Upload failed'
+}
+
+interface State {
+  step: UploadStep
+  publisherId: number | null
+  contentType: string
+  customType: string
+  files: File[]
+  results: UploadResult[]
+  error: string | null
+}
+
+type Action =
+  | { type: 'SET_PUBLISHER'; id: number }
+  | { type: 'SET_CONTENT_TYPE'; value: string }
+  | { type: 'SET_CUSTOM_TYPE'; value: string }
   | { type: 'SET_FILES'; files: File[] }
-  | { type: 'START_UPLOAD' }
-  | { type: 'UPLOAD_SUCCESS'; results: UploadResult[] }
-  | { type: 'UPLOAD_ERROR'; error: string }
-  | { type: 'NEXT_STEP' }
-  | { type: 'PREV_STEP' }
-  | { type: 'RESET' };
+  | { type: 'SET_STEP'; step: UploadStep }
+  | { type: 'SET_RESULTS'; results: UploadResult[] }
+  | { type: 'SET_ERROR'; error: string }
+  | { type: 'RESET'; initialPublisherId?: number }
 
-// Content type validation rules
-const CONTENT_TYPE_RULES: Record<string, {
-  accept: string;
-  maxSize: number;
-  multiple: boolean;
-  acceptedFormats: string;
-}> = {
-  books: {
-    accept: '.zip',
-    maxSize: 2 * 1024 * 1024 * 1024, // 2GB
-    multiple: true,
-    acceptedFormats: '.zip',
-  },
-  materials: {
-    accept: '.pdf,.docx,.pptx,.jpg,.jpeg,.png,.gif,.mp3,.mp4',
-    maxSize: 100 * 1024 * 1024, // 100MB
-    multiple: true,
-    acceptedFormats: '.pdf, .docx, .pptx, images, audio, video',
-  },
-  logos: {
-    accept: '.png,.jpg,.jpeg,.svg',
-    maxSize: 5 * 1024 * 1024, // 5MB
-    multiple: false,
-    acceptedFormats: '.png, .jpg, .svg',
-  },
-  default: {
-    accept: '*',
-    maxSize: 100 * 1024 * 1024,
-    multiple: true,
-    acceptedFormats: 'All common formats',
-  },
-};
-
-const RESERVED_ASSET_TYPES = ['trash', 'temp', 'books'];
-const PREDEFINED_TYPES = ['books', 'materials', 'logos'];
-
-const uploadReducer = (state: UploadState, action: UploadAction): UploadState => {
+const reducer = (state: State, action: Action): State => {
   switch (action.type) {
-    case 'SET_PUBLISHER':
-      return { ...state, publisherId: action.publisherId };
-    case 'SET_CONTENT_TYPE':
-      return { ...state, contentType: action.contentType, customContentType: '' };
-    case 'SET_CUSTOM_CONTENT_TYPE':
-      return { ...state, customContentType: action.customContentType };
-    case 'SET_FILES':
-      return { ...state, files: action.files };
-    case 'START_UPLOAD':
-      return { ...state, step: 'uploading', error: null };
-    case 'UPLOAD_SUCCESS':
-      return { ...state, step: 'success', uploadResults: action.results };
-    case 'UPLOAD_ERROR':
-      return { ...state, step: 'error', error: action.error };
-    case 'NEXT_STEP': {
-      const stepOrder: UploadStep[] = ['publisher', 'content-type', 'files'];
-      const currentIndex = stepOrder.indexOf(state.step);
-      return currentIndex < stepOrder.length - 1
-        ? { ...state, step: stepOrder[currentIndex + 1] }
-        : state;
-    }
-    case 'PREV_STEP': {
-      const prevStepOrder: UploadStep[] = ['publisher', 'content-type', 'files'];
-      const prevIndex = prevStepOrder.indexOf(state.step);
-      return prevIndex > 0
-        ? { ...state, step: prevStepOrder[prevIndex - 1] }
-        : state;
-    }
-    case 'RESET':
-      return {
-        step: 'publisher',
-        publisherId: null,
-        contentType: null,
-        customContentType: '',
-        files: [],
-        progress: new Map(),
-        error: null,
-        uploadResults: [],
-      };
-    default:
-      return state;
+    case 'SET_PUBLISHER': return { ...state, publisherId: action.id }
+    case 'SET_CONTENT_TYPE': return { ...state, contentType: action.value, customType: '' }
+    case 'SET_CUSTOM_TYPE': return { ...state, customType: action.value }
+    case 'SET_FILES': return { ...state, files: action.files }
+    case 'SET_STEP': return { ...state, step: action.step }
+    case 'SET_RESULTS': return { ...state, step: 'results', results: action.results }
+    case 'SET_ERROR': return { ...state, error: action.error }
+    case 'RESET': return { step: action.initialPublisherId ? 'content-type' : 'publisher', publisherId: action.initialPublisherId ?? null, contentType: '', customType: '', files: [], results: [], error: null }
+    default: return state
   }
-};
+}
 
-const deriveErrorMessage = (error: unknown): string => {
-  if (error instanceof ApiError) {
-    const detail = (error.body as { detail?: unknown } | null)?.detail;
-    if (typeof detail === 'string') {
-      return detail;
-    }
-    return `Upload failed (${error.status}). Please try again.`;
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return 'Upload failed. Please try again.';
-};
-
-const PublisherUploadDialog = ({
-  open,
-  onClose,
-  token,
-  tokenType,
-  onSuccess,
-  initialPublisherId,
-}: PublisherUploadDialogProps) => {
-  const [state, dispatch] = useReducer(uploadReducer, {
+export function PublisherUploadDialog({ open, onClose, token, tokenType, onSuccess, initialPublisherId }: PublisherUploadDialogProps) {
+  const [state, dispatch] = useReducer(reducer, {
     step: initialPublisherId ? 'content-type' : 'publisher',
-    publisherId: initialPublisherId || null,
-    contentType: null,
-    customContentType: '',
-    files: [],
-    progress: new Map(),
-    error: null,
-    uploadResults: [],
-  });
+    publisherId: initialPublisherId ?? null,
+    contentType: '', customType: '', files: [], results: [], error: null,
+  })
 
-  const [publishers, setPublishers] = useState<Publisher[]>([]);
-  const [loadingPublishers, setLoadingPublishers] = useState(false);
-  const [publisherError, setPublisherError] = useState('');
-  const [customTypeError, setCustomTypeError] = useState('');
-  const [fileError, setFileError] = useState('');
+  const [publishers, setPublishers] = useState<Publisher[]>([])
+  const [loadingPubs, setLoadingPubs] = useState(false)
+  const [fileError, setFileError] = useState('')
 
-  // Load publishers - always fetch when dialog opens
   useEffect(() => {
     if (open && token) {
-      setLoadingPublishers(true);
+      setLoadingPubs(true)
       fetchPublishers(token, tokenType || 'Bearer')
-        .then((data) => {
-          setPublishers(data);
-          // If initialPublisherId is provided, ensure it's set in state
-          if (initialPublisherId) {
-            dispatch({ type: 'SET_PUBLISHER', publisherId: initialPublisherId });
-          }
-        })
-        .catch((err) => {
-          setPublisherError(deriveErrorMessage(err));
-        })
-        .finally(() => setLoadingPublishers(false));
+        .then(setPublishers)
+        .catch(() => {})
+        .finally(() => setLoadingPubs(false))
     }
-  }, [open, token, tokenType, initialPublisherId]);
+  }, [open, token, tokenType])
 
-  // Reset on close
   useEffect(() => {
-    if (!open) {
-      dispatch({ type: 'RESET' });
-      setCustomTypeError('');
-      setFileError('');
-      setPublisherError('');
+    if (!open) { dispatch({ type: 'RESET', initialPublisherId }); setFileError('') }
+  }, [open, initialPublisherId])
+
+  const selectedPub = publishers.find(p => p.id === state.publisherId)
+  const effectiveType = state.contentType === 'custom' ? state.customType.toLowerCase() : state.contentType
+  const rules = CONTENT_TYPE_RULES[effectiveType] || { accept: '*', maxSize: 100 * 1024 * 1024, multiple: true, label: 'Files' }
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    setFileError('')
+    if (!rules.multiple && files.length > 1) { setFileError('Only one file allowed'); return }
+    for (const f of files) {
+      if (f.size > rules.maxSize) { setFileError(`"${f.name}" exceeds max size (${Math.round(rules.maxSize / 1024 / 1024)}MB)`); return }
     }
-  }, [open]);
-
-  const selectedPublisher = publishers.find((p) => p.id === state.publisherId);
-
-  const validateCustomContentType = (value: string): boolean => {
-    if (!value.trim()) {
-      setCustomTypeError('Content type is required');
-      return false;
-    }
-    if (!/^[a-z0-9_-]+$/i.test(value)) {
-      setCustomTypeError('Only alphanumeric characters, hyphens, and underscores allowed');
-      return false;
-    }
-    if (RESERVED_ASSET_TYPES.includes(value.toLowerCase())) {
-      setCustomTypeError(`"${value}" is a reserved name and cannot be used`);
-      return false;
-    }
-    setCustomTypeError('');
-    return true;
-  };
-
-  const getContentTypeRules = () => {
-    const type = state.contentType === 'custom'
-      ? state.customContentType.toLowerCase()
-      : state.contentType;
-    return CONTENT_TYPE_RULES[type || 'default'] || CONTENT_TYPE_RULES.default;
-  };
-
-  const validateFiles = (files: File[]): boolean => {
-    const rules = getContentTypeRules();
-
-    if (!rules.multiple && files.length > 1) {
-      setFileError(`Only one file allowed for ${state.contentType} uploads`);
-      return false;
-    }
-
-    for (const file of files) {
-      if (file.size > rules.maxSize) {
-        const maxSizeMB = rules.maxSize / (1024 * 1024);
-        setFileError(`File "${file.name}" exceeds maximum size of ${maxSizeMB}MB`);
-        return false;
-      }
-
-      if (rules.accept !== '*') {
-        const acceptedExtensions = rules.accept.split(',');
-        const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-        if (!acceptedExtensions.includes(fileExtension)) {
-          setFileError(`File type not allowed. Accepted formats: ${rules.acceptedFormats}`);
-          return false;
-        }
-      }
-    }
-
-    setFileError('');
-    return true;
-  };
-
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = event.target.files;
-    if (selectedFiles && selectedFiles.length > 0) {
-      const filesArray = Array.from(selectedFiles);
-      if (validateFiles(filesArray)) {
-        dispatch({ type: 'SET_FILES', files: filesArray });
-      }
-    }
-  };
-
-  const handleNext = () => {
-    if (state.step === 'publisher' && !state.publisherId) {
-      setPublisherError('Please select a publisher');
-      return;
-    }
-
-    if (state.step === 'content-type') {
-      if (!state.contentType) {
-        setCustomTypeError('Please select a content type');
-        return;
-      }
-      if (state.contentType === 'custom' && !validateCustomContentType(state.customContentType)) {
-        return;
-      }
-    }
-
-    if (state.step === 'files' && state.files.length === 0) {
-      setFileError('Please select at least one file');
-      return;
-    }
-
-    dispatch({ type: 'NEXT_STEP' });
-  };
-
-  const handleBack = () => {
-    dispatch({ type: 'PREV_STEP' });
-  };
+    dispatch({ type: 'SET_FILES', files })
+    e.target.value = ''
+  }
 
   const handleUpload = async () => {
-    if (!token || !state.publisherId) return;
+    if (!token || !state.publisherId || !state.files.length) return
+    dispatch({ type: 'SET_STEP', step: 'uploading' })
 
-    dispatch({ type: 'START_UPLOAD' });
+    const results: UploadResult[] = []
+    const tt = tokenType || 'Bearer'
 
-    try {
-      const results: UploadResult[] = [];
-
-      if (state.contentType === 'books') {
-        // Use existing book upload endpoint with publisher override
-        for (const file of state.files) {
-          try {
-            await uploadNewBookArchive(file, token, tokenType || 'Bearer', undefined, {
-              publisherId: state.publisherId!,
-            });
-            results.push({
-              filename: file.name,
-              success: true,
-              path: `publishers/${selectedPublisher?.name}/books/${file.name}`,
-            });
-          } catch (error) {
-            results.push({
-              filename: file.name,
-              success: false,
-              error: deriveErrorMessage(error),
-            });
-          }
+    for (const file of state.files) {
+      try {
+        if (effectiveType === 'books') {
+          await uploadNewBookArchive(file, token, tt, undefined, { publisherId: state.publisherId })
+          results.push({ filename: file.name, success: true, path: `books/${file.name}` })
+        } else {
+          const r = await uploadPublisherAsset(state.publisherId, effectiveType, file, token, tt)
+          results.push({ filename: file.name, success: true, path: r.path })
         }
-      } else {
-        // For other content types, use asset upload endpoint (Story 9.4)
-        const assetType = state.contentType === 'custom'
-          ? state.customContentType.toLowerCase()
-          : state.contentType!;
-
-        for (const file of state.files) {
-          try {
-            const result = await uploadPublisherAsset(
-              state.publisherId,
-              assetType,
-              file,
-              token,
-              tokenType || 'Bearer'
-            );
-            results.push({
-              filename: file.name,
-              success: true,
-              path: result.path,
-            });
-          } catch (error) {
-            results.push({
-              filename: file.name,
-              success: false,
-              error: deriveErrorMessage(error),
-            });
-          }
-        }
+      } catch (e) {
+        results.push({ filename: file.name, success: false, error: deriveError(e) })
       }
-
-      dispatch({ type: 'UPLOAD_SUCCESS', results });
-      onSuccess();
-
-      // Auto-close if all successful
-      if (results.every(r => r.success)) {
-        setTimeout(() => {
-          onClose();
-        }, 2000);
-      }
-    } catch (error) {
-      dispatch({ type: 'UPLOAD_ERROR', error: deriveErrorMessage(error) });
     }
-  };
 
-  const handleClose = () => {
-    if (state.step !== 'uploading') {
-      onClose();
-    }
-  };
+    dispatch({ type: 'SET_RESULTS', results })
+    onSuccess()
+    if (results.every(r => r.success)) setTimeout(onClose, 2000)
+  }
 
-  const getStepIndex = (): number => {
-    const steps: UploadStep[] = initialPublisherId
-      ? ['content-type', 'files']
-      : ['publisher', 'content-type', 'files'];
-    return steps.indexOf(state.step);
-  };
+  const canProceed = () => {
+    if (state.step === 'publisher') return !!state.publisherId
+    if (state.step === 'content-type') return !!state.contentType && (state.contentType !== 'custom' || state.customType.trim().length > 0)
+    if (state.step === 'files') return state.files.length > 0
+    return false
+  }
 
-  const canGoNext = (): boolean => {
-    if (state.step === 'publisher') return !!state.publisherId;
-    if (state.step === 'content-type') {
-      if (!state.contentType) return false;
-      if (state.contentType === 'custom') {
-        return !!state.customContentType.trim() && !customTypeError;
-      }
-      return true;
-    }
-    if (state.step === 'files') return state.files.length > 0 && !fileError;
-    return false;
-  };
+  const nextStep = () => {
+    const order: UploadStep[] = initialPublisherId ? ['content-type', 'files'] : ['publisher', 'content-type', 'files']
+    const i = order.indexOf(state.step)
+    if (i < order.length - 1) dispatch({ type: 'SET_STEP', step: order[i + 1] })
+    else handleUpload()
+  }
+
+  const prevStep = () => {
+    const order: UploadStep[] = initialPublisherId ? ['content-type', 'files'] : ['publisher', 'content-type', 'files']
+    const i = order.indexOf(state.step)
+    if (i > 0) dispatch({ type: 'SET_STEP', step: order[i - 1] })
+  }
+
+  const steps = initialPublisherId ? ['Content Type', 'Files'] : ['Publisher', 'Content Type', 'Files']
+  const stepIndex = (() => {
+    const order: UploadStep[] = initialPublisherId ? ['content-type', 'files'] : ['publisher', 'content-type', 'files']
+    const i = order.indexOf(state.step)
+    return i >= 0 ? i : steps.length
+  })()
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-      <DialogTitle>Upload Publisher Content</DialogTitle>
-      <DialogContent>
-        {!['uploading', 'success', 'error'].includes(state.step) && (
-          <Stepper activeStep={getStepIndex()} sx={{ mb: 4, mt: 2 }}>
-            {!initialPublisherId && <Step><StepLabel>Select Publisher</StepLabel></Step>}
-            <Step><StepLabel>Content Type</StepLabel></Step>
-            <Step><StepLabel>Select Files</StepLabel></Step>
-          </Stepper>
-        )}
+    <Dialog open={open} onOpenChange={o => state.step !== 'uploading' && !o && onClose()}>
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Upload to {selectedPub?.display_name || selectedPub?.name || 'Publisher'}</DialogTitle>
+        </DialogHeader>
 
-        {/* Step 1: Publisher Selection */}
-        {state.step === 'publisher' && (
-          <Box>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Select the publisher for this upload.
-            </Typography>
-            <Autocomplete
-              options={publishers}
-              getOptionLabel={(option) => option.display_name || option.name}
-              loading={loadingPublishers}
-              value={selectedPublisher || null}
-              onChange={(_, value) => {
-                if (value) {
-                  dispatch({ type: 'SET_PUBLISHER', publisherId: value.id });
-                  setPublisherError('');
-                }
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Publisher"
-                  required
-                  error={!!publisherError}
-                  helperText={publisherError}
-                />
+        {/* Step indicator */}
+        <div className="flex items-center gap-2 text-xs">
+          {steps.map((s, i) => (
+            <div key={s} className="flex items-center gap-1">
+              <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium ${i <= stepIndex ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'}`}>{i + 1}</div>
+              <span className={i <= stepIndex ? 'font-medium' : 'text-muted-foreground'}>{s}</span>
+              {i < steps.length - 1 && <div className="mx-1 h-px w-4 bg-border" />}
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-4 min-h-[120px]">
+          {state.step === 'publisher' && (
+            <div className="space-y-2">
+              <Label>Select Publisher</Label>
+              {loadingPubs ? <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading...</div> : (
+                <Select value={state.publisherId ? String(state.publisherId) : undefined} onValueChange={v => dispatch({ type: 'SET_PUBLISHER', id: Number(v) })}>
+                  <SelectTrigger><SelectValue placeholder="Choose publisher..." /></SelectTrigger>
+                  <SelectContent>{publishers.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.display_name || p.name}</SelectItem>)}</SelectContent>
+                </Select>
               )}
-              fullWidth
-            />
-          </Box>
-        )}
+            </div>
+          )}
 
-        {/* Step 2: Content Type Selection */}
-        {state.step === 'content-type' && (
-          <Box>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Select the type of content you're uploading.
-            </Typography>
-            <FormControl component="fieldset" error={!!customTypeError} fullWidth>
-              <RadioGroup
-                value={state.contentType || ''}
-                onChange={(e) => {
-                  dispatch({ type: 'SET_CONTENT_TYPE', contentType: e.target.value });
-                  setCustomTypeError('');
-                }}
-              >
-                {PREDEFINED_TYPES.map((type) => (
-                  <FormControlLabel
-                    key={type}
-                    value={type}
-                    control={<Radio />}
-                    label={
-                      <Box>
-                        <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
-                          {type}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {CONTENT_TYPE_RULES[type].acceptedFormats} (max {CONTENT_TYPE_RULES[type].maxSize / (1024 * 1024)}MB)
-                        </Typography>
-                      </Box>
-                    }
-                  />
-                ))}
-                <FormControlLabel
-                  value="custom"
-                  control={<Radio />}
-                  label="Add New Type"
-                />
-              </RadioGroup>
-              {state.contentType === 'custom' && (
-                <TextField
-                  label="Custom Content Type"
-                  value={state.customContentType}
-                  onChange={(e) => {
-                    dispatch({ type: 'SET_CUSTOM_CONTENT_TYPE', customContentType: e.target.value });
-                    validateCustomContentType(e.target.value);
-                  }}
-                  error={!!customTypeError}
-                  helperText={customTypeError || 'Use lowercase letters, numbers, hyphens, or underscores'}
-                  fullWidth
-                  sx={{ mt: 2 }}
-                />
-              )}
-              {customTypeError && state.contentType !== 'custom' && (
-                <FormHelperText>{customTypeError}</FormHelperText>
-              )}
-            </FormControl>
-          </Box>
-        )}
-
-        {/* Step 3: File Selection */}
-        {state.step === 'files' && (
-          <Box>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Select files to upload.
-            </Typography>
-            <Box
-              sx={{
-                border: '2px dashed',
-                borderColor: fileError ? 'error.main' : 'divider',
-                borderRadius: 2,
-                p: 4,
-                textAlign: 'center',
-                bgcolor: 'background.default',
-                mb: 2,
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '200px',
-                '&:hover': {
-                  borderColor: 'primary.main',
-                  bgcolor: 'action.hover',
-                },
-              }}
-              component="label"
-            >
-              <CloudUploadIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-              <Typography variant="h6" gutterBottom>
-                {state.files.length > 0
-                  ? `${state.files.length} file${state.files.length > 1 ? 's' : ''} selected`
-                  : 'Click to select files'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                or drag and drop here
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-                Accepted: {getContentTypeRules().acceptedFormats}
-              </Typography>
-              <input
-                type="file"
-                accept={getContentTypeRules().accept}
-                multiple={getContentTypeRules().multiple}
-                hidden
-                onChange={handleFileChange}
-                data-testid="publisher-upload-file-input"
-              />
-            </Box>
-
-            {state.files.length > 0 && (
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-                  Selected files:
-                </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {state.files.map((file, index) => (
-                    <Chip key={index} label={file.name} size="small" />
-                  ))}
-                </Box>
-              </Box>
-            )}
-
-            {fileError && (
-              <Alert severity="error" sx={{ mt: 2 }}>
-                {fileError}
-              </Alert>
-            )}
-          </Box>
-        )}
-
-        {/* Uploading State */}
-        {state.step === 'uploading' && (
-          <Box sx={{ textAlign: 'center', py: 4 }}>
-            <Typography variant="h6" gutterBottom>
-              Uploading files...
-            </Typography>
-            <LinearProgress sx={{ mt: 2 }} />
-          </Box>
-        )}
-
-        {/* Success State */}
-        {state.step === 'success' && (
-          <Box>
-            <Alert severity="success" sx={{ mb: 3 }}>
-              Upload completed successfully!
-            </Alert>
-            <Typography variant="subtitle2" sx={{ mb: 2 }}>
-              Upload Results:
-            </Typography>
-            <Box>
-              {state.uploadResults.map((result, index) => (
-                <Box
-                  key={index}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    p: 2,
-                    mb: 1,
-                    bgcolor: result.success ? 'success.light' : 'error.light',
-                    borderRadius: 1,
-                  }}
-                >
-                  {result.success ? (
-                    <CheckCircleIcon color="success" sx={{ mr: 2 }} />
-                  ) : (
-                    <ErrorIcon color="error" sx={{ mr: 2 }} />
-                  )}
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {result.filename}
-                    </Typography>
-                    {result.success ? (
-                      <Typography variant="caption" color="text.secondary">
-                        {selectedPublisher?.display_name || selectedPublisher?.name} / {state.contentType} / {result.path}
-                      </Typography>
-                    ) : (
-                      <Typography variant="caption" color="error">
-                        {result.error}
-                      </Typography>
-                    )}
-                  </Box>
-                </Box>
+          {state.step === 'content-type' && (
+            <div className="space-y-3">
+              <Label>Content Type</Label>
+              {PREDEFINED_TYPES.map(t => (
+                <button key={t} type="button" onClick={() => dispatch({ type: 'SET_CONTENT_TYPE', value: t })}
+                  className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left text-sm transition-colors ${state.contentType === t ? 'border-primary bg-primary/5' : 'hover:bg-muted'}`}>
+                  <div className={`h-2 w-2 rounded-full ${state.contentType === t ? 'bg-primary' : 'bg-muted-foreground/30'}`} />
+                  <div><div className="font-medium capitalize">{t}</div><div className="text-xs text-muted-foreground">{CONTENT_TYPE_RULES[t].label}</div></div>
+                </button>
               ))}
-            </Box>
-          </Box>
-        )}
+              <button type="button" onClick={() => dispatch({ type: 'SET_CONTENT_TYPE', value: 'custom' })}
+                className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left text-sm transition-colors ${state.contentType === 'custom' ? 'border-primary bg-primary/5' : 'hover:bg-muted'}`}>
+                <div className={`h-2 w-2 rounded-full ${state.contentType === 'custom' ? 'bg-primary' : 'bg-muted-foreground/30'}`} />
+                <span className="font-medium">Custom Type</span>
+              </button>
+              {state.contentType === 'custom' && (
+                <Input placeholder="e.g., worksheets" value={state.customType} onChange={e => dispatch({ type: 'SET_CUSTOM_TYPE', value: e.target.value })} />
+              )}
+            </div>
+          )}
 
-        {/* Error State */}
-        {state.step === 'error' && state.error && (
-          <Alert severity="error">{state.error}</Alert>
-        )}
+          {state.step === 'files' && (
+            <div className="space-y-3">
+              <Label>Select Files</Label>
+              <div
+                className="flex min-h-[100px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 transition-colors hover:border-primary/50"
+                onClick={() => document.getElementById('pub-upload-input')?.click()}
+              >
+                <Upload className="mb-2 h-6 w-6 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">{state.files.length ? `${state.files.length} file(s) selected` : 'Click to select files'}</p>
+                <p className="text-xs text-muted-foreground mt-1">Max: {Math.round(rules.maxSize / 1024 / 1024)}MB per file</p>
+                <input id="pub-upload-input" type="file" accept={rules.accept} multiple={rules.multiple} onChange={handleFileChange} className="hidden" />
+              </div>
+              {state.files.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">{state.files.map((f, i) => <Badge key={i} variant="secondary">{f.name}</Badge>)}</div>
+              )}
+              {fileError && <p className="text-xs text-destructive">{fileError}</p>}
+            </div>
+          )}
+
+          {state.step === 'uploading' && (
+            <div className="flex flex-col items-center gap-3 py-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Uploading {state.files.length} file(s)...</p>
+              <Progress value={undefined} className="animate-pulse" />
+            </div>
+          )}
+
+          {state.step === 'results' && (
+            <div className="space-y-2">
+              {state.results.map((r, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm">
+                  {r.success ? <CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> : <XCircle className="h-4 w-4 text-destructive shrink-0" />}
+                  <span className="truncate flex-1">{r.filename}</span>
+                  {r.error && <span className="text-xs text-destructive truncate">{r.error}</span>}
+                </div>
+              ))}
+              {state.results.every(r => r.success) && <Alert><AlertDescription>All uploads completed!</AlertDescription></Alert>}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          {(state.step === 'content-type' || state.step === 'files') && (
+            <Button variant="outline" onClick={prevStep} className="mr-auto">Back</Button>
+          )}
+          {state.step === 'results' ? (
+            <Button onClick={onClose}>Close</Button>
+          ) : state.step !== 'uploading' && (
+            <Button onClick={nextStep} disabled={!canProceed()}>
+              {state.step === 'files' ? 'Upload' : 'Next'}
+            </Button>
+          )}
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        {!['uploading', 'success'].includes(state.step) && (
-          <>
-            <Button onClick={handleClose}>Cancel</Button>
-            {state.step !== 'publisher' && !initialPublisherId && (
-              <Button onClick={handleBack}>Back</Button>
-            )}
-            {state.step !== 'files' ? (
-              <Button
-                onClick={handleNext}
-                variant="contained"
-                disabled={!canGoNext()}
-              >
-                Next
-              </Button>
-            ) : (
-              <Button
-                onClick={handleUpload}
-                variant="contained"
-                disabled={!canGoNext()}
-              >
-                Upload
-              </Button>
-            )}
-          </>
-        )}
-        {state.step === 'success' && (
-          <Button onClick={handleClose} variant="contained">
-            Close
-          </Button>
-        )}
-      </DialogActions>
     </Dialog>
-  );
-};
+  )
+}
 
-export default PublisherUploadDialog;
+export default PublisherUploadDialog

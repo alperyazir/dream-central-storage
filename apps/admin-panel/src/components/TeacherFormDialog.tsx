@@ -1,299 +1,227 @@
-import { useEffect, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Button,
-  Collapse,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  FormControl,
-  FormControlLabel,
-  InputLabel,
-  MenuItem,
-  Select,
-  SelectChangeEvent,
-  Stack,
-  Switch,
-  TextField,
-  Typography,
-} from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import SettingsIcon from '@mui/icons-material/Settings';
+import { useEffect, useState } from 'react'
+import { ChevronDown, ChevronUp, Loader2, RotateCcw } from 'lucide-react'
 
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from 'components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from 'components/ui/select'
+import { Button } from 'components/ui/button'
+import { Input } from 'components/ui/input'
+import { Label } from 'components/ui/label'
+import { Switch } from 'components/ui/switch'
+import { Separator } from 'components/ui/separator'
+import { Alert, AlertDescription } from 'components/ui/alert'
 import {
   createTeacher,
   updateTeacher,
-  TeacherCreate,
-  TeacherUpdate,
-  TeacherListItem,
-  Teacher,
-} from '../lib/teacherManagement';
+  type Teacher,
+  type TeacherListItem,
+} from 'lib/teacherManagement'
 
 interface TeacherFormDialogProps {
-  open: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
-  teacher?: TeacherListItem | Teacher | null;
-  token: string | null;
-  tokenType: string | null;
+  open: boolean
+  onClose: () => void
+  onSuccess: () => void
+  teacher?: TeacherListItem | Teacher | null
+  token: string | null
+  tokenType: string | null
 }
 
-const TeacherFormDialog = ({
-  open,
-  onClose,
-  onSuccess,
-  teacher,
-  token,
-  tokenType,
-}: TeacherFormDialogProps) => {
-  const isEdit = !!teacher;
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [showAISettings, setShowAISettings] = useState(false);
+export function TeacherFormDialog({ open, onClose, onSuccess, teacher, token, tokenType }: TeacherFormDialogProps) {
+  const isEdit = !!teacher
 
-  // Form fields
-  const [teacherId, setTeacherId] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [email, setEmail] = useState('');
-  const [status, setStatus] = useState('active');
-  const [aiAutoProcessEnabled, setAiAutoProcessEnabled] = useState<boolean | null>(null);
-  const [aiProcessingPriority, setAiProcessingPriority] = useState<string>('');
-  const [aiAudioLanguages, setAiAudioLanguages] = useState('');
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [showAISettings, setShowAISettings] = useState(false)
 
-  // Reset form when dialog opens
+  const [teacherId, setTeacherId] = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [email, setEmail] = useState('')
+  const [status, setStatus] = useState('active')
+
+  // AI settings
+  const [aiAutoProcessEnabled, setAiAutoProcessEnabled] = useState<boolean | null>(null)
+  const [aiProcessingPriority, setAiProcessingPriority] = useState('')
+  const [aiAudioLanguages, setAiAudioLanguages] = useState('')
+
   useEffect(() => {
-    if (open) {
-      if (teacher) {
-        setTeacherId(teacher.teacher_id);
-        setDisplayName(teacher.display_name || '');
-        setEmail(teacher.email || '');
-        setStatus(teacher.status || 'active');
-        setAiAutoProcessEnabled(teacher.ai_auto_process_enabled);
-        setAiProcessingPriority(teacher.ai_processing_priority || '');
-        setAiAudioLanguages(teacher.ai_audio_languages || '');
-        setShowAISettings(
-          teacher.ai_auto_process_enabled !== null ||
-          teacher.ai_processing_priority !== null ||
-          teacher.ai_audio_languages !== null
-        );
-      } else {
-        setTeacherId('');
-        setDisplayName('');
-        setEmail('');
-        setStatus('active');
-        setAiAutoProcessEnabled(null);
-        setAiProcessingPriority('');
-        setAiAudioLanguages('');
-        setShowAISettings(false);
-      }
-      setError('');
+    if (!open) return
+    if (teacher) {
+      setTeacherId(teacher.teacher_id)
+      setDisplayName(teacher.display_name || '')
+      setEmail(teacher.email || '')
+      setStatus(teacher.status)
+      setAiAutoProcessEnabled(teacher.ai_auto_process_enabled)
+      setAiProcessingPriority(teacher.ai_processing_priority || '')
+      setAiAudioLanguages(teacher.ai_audio_languages || '')
+      setShowAISettings(
+        teacher.ai_auto_process_enabled !== null ||
+        !!teacher.ai_processing_priority ||
+        !!teacher.ai_audio_languages
+      )
+    } else {
+      setTeacherId('')
+      setDisplayName('')
+      setEmail('')
+      setStatus('active')
+      setAiAutoProcessEnabled(null)
+      setAiProcessingPriority('')
+      setAiAudioLanguages('')
+      setShowAISettings(false)
     }
-  }, [open, teacher]);
+    setError('')
+  }, [open, teacher])
 
   const handleSubmit = async () => {
-    if (!token) return;
+    if (!teacherId.trim()) { setError('Teacher ID is required'); return }
+    if (!token || !tokenType) return
 
-    // Validation
-    if (!teacherId.trim()) {
-      setError('Teacher ID is required');
-      return;
-    }
-
-    if (email && !email.includes('@')) {
-      setError('Please enter a valid email address');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
+    setLoading(true)
+    setError('')
 
     try {
       if (isEdit && teacher) {
-        // Update existing teacher
-        const updateData: TeacherUpdate = {
-          display_name: displayName || undefined,
-          email: email || undefined,
-          status: status,
+        await updateTeacher(teacher.id, {
+          display_name: displayName.trim() || undefined,
+          email: email.trim() || undefined,
+          status,
           ai_auto_process_enabled: aiAutoProcessEnabled,
           ai_processing_priority: aiProcessingPriority || null,
-          ai_audio_languages: aiAudioLanguages || null,
-        };
-        await updateTeacher(teacher.id, updateData, token, tokenType || 'Bearer');
+          ai_audio_languages: aiAudioLanguages.trim() || null,
+        }, token, tokenType)
       } else {
-        // Create new teacher
-        const createData: TeacherCreate = {
+        await createTeacher({
           teacher_id: teacherId.trim(),
-          display_name: displayName || undefined,
-          email: email || undefined,
+          display_name: displayName.trim() || undefined,
+          email: email.trim() || undefined,
           ai_auto_process_enabled: aiAutoProcessEnabled,
           ai_processing_priority: aiProcessingPriority || undefined,
-          ai_audio_languages: aiAudioLanguages || undefined,
-        };
-        await createTeacher(createData, token, tokenType || 'Bearer');
+          ai_audio_languages: aiAudioLanguages.trim() || undefined,
+        }, token, tokenType)
       }
-      onSuccess();
-    } catch (err: unknown) {
-      console.error('Failed to save teacher:', err);
-      if (err && typeof err === 'object' && 'body' in err) {
-        const apiError = err as { body?: { detail?: string } };
-        setError(apiError.body?.detail || 'Failed to save teacher. Please try again.');
-      } else {
-        setError('Failed to save teacher. Please try again.');
-      }
+      onSuccess()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save teacher')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
-
-  const handleAIAutoProcessChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setAiAutoProcessEnabled(event.target.checked);
-  };
-
-  const handleAIAutoProcessReset = () => {
-    setAiAutoProcessEnabled(null);
-  };
+  }
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{isEdit ? 'Edit Teacher' : 'Add New Teacher'}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={3} sx={{ mt: 1 }}>
-          {error && (
-            <Alert severity="error" onClose={() => setError('')}>
-              {error}
-            </Alert>
-          )}
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? 'Edit Teacher' : 'New Teacher'}</DialogTitle>
+        </DialogHeader>
 
-          <TextField
-            label="Teacher ID"
-            value={teacherId}
-            onChange={(e) => setTeacherId(e.target.value)}
-            required
-            disabled={isEdit}
-            helperText={isEdit ? 'Teacher ID cannot be changed' : 'Unique identifier for this teacher'}
-            fullWidth
-          />
-
-          <TextField
-            label="Display Name"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="e.g., John Smith"
-            fullWidth
-          />
-
-          <TextField
-            label="Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="teacher@school.com"
-            fullWidth
-          />
-
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="teacher-id">Teacher ID *</Label>
+            <Input
+              id="teacher-id"
+              value={teacherId}
+              onChange={(e) => setTeacherId(e.target.value)}
+              disabled={isEdit}
+              placeholder={isEdit ? '' : 'e.g., teacher-001'}
+            />
+            <p className="text-xs text-muted-foreground">
+              {isEdit ? 'Teacher ID cannot be changed' : 'Unique identifier for this teacher'}
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="teacher-name">Display Name</Label>
+            <Input id="teacher-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="e.g., John Smith" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="teacher-email">Email</Label>
+            <Input id="teacher-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="teacher@school.com" />
+          </div>
           {isEdit && (
-            <FormControl fullWidth>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={status}
-                label="Status"
-                onChange={(e: SelectChangeEvent) => setStatus(e.target.value)}
-              >
-                <MenuItem value="active">Active</MenuItem>
-                <MenuItem value="inactive">Inactive</MenuItem>
-                <MenuItem value="suspended">Suspended</MenuItem>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                </SelectContent>
               </Select>
-            </FormControl>
+            </div>
           )}
 
-          <Divider />
+          <Separator />
 
-          {/* AI Settings Section */}
-          <Box>
-            <Button
-              startIcon={<SettingsIcon />}
-              endIcon={showAISettings ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-              onClick={() => setShowAISettings(!showAISettings)}
-              sx={{ mb: 1 }}
-            >
-              AI Processing Settings
-            </Button>
+          <button
+            type="button"
+            onClick={() => setShowAISettings(!showAISettings)}
+            className="flex w-full items-center justify-between text-sm font-medium hover:text-primary transition-colors"
+          >
+            AI Processing Settings
+            {showAISettings ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
 
-            <Collapse in={showAISettings}>
-              <Stack spacing={2} sx={{ pl: 2, pt: 1 }}>
-                <Typography variant="caption" color="text.secondary">
-                  Leave settings empty to use global defaults
-                </Typography>
-
-                <Box>
-                  <Stack direction="row" alignItems="center" spacing={2}>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={aiAutoProcessEnabled === true}
-                          onChange={handleAIAutoProcessChange}
-                        />
-                      }
-                      label={
-                        aiAutoProcessEnabled === null
-                          ? 'Auto-process (using default)'
-                          : aiAutoProcessEnabled
-                          ? 'Auto-process enabled'
-                          : 'Auto-process disabled'
-                      }
-                    />
-                    {aiAutoProcessEnabled !== null && (
-                      <Button size="small" onClick={handleAIAutoProcessReset}>
-                        Reset to default
-                      </Button>
-                    )}
-                  </Stack>
-                </Box>
-
-                <FormControl fullWidth size="small">
-                  <InputLabel>Processing Priority</InputLabel>
-                  <Select
-                    value={aiProcessingPriority}
-                    label="Processing Priority"
-                    onChange={(e: SelectChangeEvent) => setAiProcessingPriority(e.target.value)}
-                  >
-                    <MenuItem value="">
-                      <em>Use default</em>
-                    </MenuItem>
-                    <MenuItem value="high">High</MenuItem>
-                    <MenuItem value="normal">Normal</MenuItem>
-                    <MenuItem value="low">Low</MenuItem>
-                  </Select>
-                </FormControl>
-
-                <TextField
-                  label="Audio Languages"
+          {showAISettings && (
+            <div className="space-y-4 pl-1">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Auto-process</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {aiAutoProcessEnabled === null ? '(using default)' : aiAutoProcessEnabled ? 'Enabled' : 'Disabled'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {aiAutoProcessEnabled !== null && (
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setAiAutoProcessEnabled(null)}>
+                      <RotateCcw className="h-3 w-3" />
+                    </Button>
+                  )}
+                  <Switch
+                    checked={aiAutoProcessEnabled ?? false}
+                    onCheckedChange={(c) => setAiAutoProcessEnabled(c)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Processing Priority</Label>
+                <Select value={aiProcessingPriority || 'default'} onValueChange={(v) => setAiProcessingPriority(v === 'default' ? '' : v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Use default</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Audio Languages</Label>
+                <Input
                   value={aiAudioLanguages}
                   onChange={(e) => setAiAudioLanguages(e.target.value)}
                   placeholder="e.g., en,tr"
-                  helperText="Comma-separated language codes for audio generation"
-                  size="small"
-                  fullWidth
                 />
-              </Stack>
-            </Collapse>
-          </Box>
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={loading}>
-          Cancel
-        </Button>
-        <Button onClick={handleSubmit} variant="contained" disabled={loading}>
-          {loading ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Teacher'}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
+                <p className="text-xs text-muted-foreground">Comma-separated language codes</p>
+              </div>
+            </div>
+          )}
+        </div>
 
-export default TeacherFormDialog;
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button onClick={handleSubmit} disabled={loading || !teacherId.trim()}>
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isEdit ? 'Save Changes' : 'Create Teacher'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export default TeacherFormDialog

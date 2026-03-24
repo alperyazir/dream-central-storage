@@ -1,563 +1,152 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  FormControl,
-  IconButton,
-  InputAdornment,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  SelectChangeEvent,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TableSortLabel,
-  TextField,
-  Tooltip,
-  Typography,
-} from '@mui/material';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import SearchIcon from '@mui/icons-material/Search';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import ClearIcon from '@mui/icons-material/Clear';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
+import { useEffect, useMemo, useState } from 'react'
+import { Loader2, Cpu, FolderOpen, Trash2, Upload } from 'lucide-react'
 
-import { fetchBooks, BookRecord, softDeleteBook } from '../lib/books';
-import { useAuthStore } from '../stores/auth';
-import BookUploadDialog from '../components/BookUploadDialog';
-import BookExplorerDrawer from '../features/books/BookExplorerDrawer';
-import ActivityDetailsDialog from '../components/ActivityDetailsDialog';
-import AuthenticatedImage from '../components/AuthenticatedImage';
-import ProcessingDialog from '../components/ProcessingDialog';
+import { Card, CardContent } from 'components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from 'components/ui/table'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from 'components/ui/select'
+import { Input } from 'components/ui/input'
+import { Button } from 'components/ui/button'
+import { Badge } from 'components/ui/badge'
+import { Alert, AlertDescription } from 'components/ui/alert'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from 'components/ui/dialog'
+import BookUploadDialog from 'components/BookUploadDialog'
+import ProcessingDialog from 'components/ProcessingDialog'
+import { useAuthStore } from 'stores/auth'
+import { fetchBooks, softDeleteBook, type BookRecord } from 'lib/books'
 
-import '../styles/page.css';
+type SortField = 'bookTitle' | 'publisher' | 'language' | 'category' | 'activityCount'
+type SortDir = 'asc' | 'desc'
 
-type SortDirection = 'asc' | 'desc';
-type SortField = 'book_title' | 'publisher' | 'language' | 'category' | 'activity_count';
-
-interface BookListRow {
-  id: number;
-  bookName: string;
-  bookTitle: string;
-  bookCover?: string;
-  activityCount?: number;
-  activityDetails?: Record<string, number>;
-  totalSize?: number;
-  publisherId: number;
-  publisher: string;
-  language: string;
-  category: string;
-  status: string;
+interface BookRow {
+  id: number; bookName: string; bookTitle: string; publisher: string; publisherId: number;
+  language: string; category: string; activityCount: number; status: string;
 }
 
-const mapBookRecords = (records: BookRecord[]): BookListRow[] =>
-  records.map((record) => ({
-    id: record.id,
-    bookName: record.book_name,
-    bookTitle: record.book_title || record.book_name,
-    bookCover: record.book_cover,
-    activityCount: record.activity_count,
-    activityDetails: record.activity_details,
-    totalSize: record.total_size,
-    publisherId: record.publisher_id,
-    publisher: record.publisher,
-    language: record.language,
-    category: record.category || '',
-    status: record.status,
-    createdAt: record.created_at,
-    updatedAt: record.updated_at,
-  }));
-
 const BooksPage = () => {
-  const token = useAuthStore((state) => state.token);
-  const tokenType = useAuthStore((state) => state.tokenType);
-  const [books, setBooks] = useState<BookListRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [publisherFilter, setPublisherFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [sortField, setSortField] = useState<SortField>('book_title');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [selectedBook, setSelectedBook] = useState<BookListRow | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<BookListRow | null>(null);
-  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [activityDialogBook, setActivityDialogBook] = useState<BookListRow | null>(null);
-  const [processingBook, setProcessingBook] = useState<BookListRow | null>(null);
+  const { token, tokenType } = useAuthStore()
+  const tt = tokenType ?? 'Bearer'
 
-  const loadBooks = async () => {
-    if (!token) return;
-    setLoading(true);
-    setError('');
+  const [books, setBooks] = useState<BookRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [pubFilter, setPubFilter] = useState('all')
+  const [catFilter, setCatFilter] = useState('all')
+  const [sort, setSort] = useState<{ f: SortField; d: SortDir }>({ f: 'bookTitle', d: 'asc' })
+  const [deleteTarget, setDeleteTarget] = useState<BookRow | null>(null)
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [processingBook, setProcessingBook] = useState<BookRow | null>(null)
+
+  const load = async () => {
+    if (!token) return
+    setLoading(true); setError('')
     try {
-      const data = await fetchBooks(token, tokenType || 'Bearer');
-      setBooks(mapBookRecords(data));
-    } catch (err) {
-      console.error('Failed to fetch books:', err);
-      setError('Failed to load books. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+      const recs = await fetchBooks(token, tt)
+      setBooks(recs.map(r => ({
+        id: r.id, bookName: r.book_name, bookTitle: r.book_title || r.book_name,
+        publisher: r.publisher, publisherId: r.publisher_id,
+        language: r.language, category: r.category || '', activityCount: r.activity_count || 0, status: r.status
+      })))
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load') }
+    finally { setLoading(false) }
+  }
 
-  const getBookCoverUrl = (publisher: string, bookName: string): string => {
-    return `/api/storage/books/${encodeURIComponent(publisher)}/${encodeURIComponent(bookName)}/object?path=${encodeURIComponent('images/book_cover.png')}`;
-  };
+  useEffect(() => { load() }, [token])
 
-  useEffect(() => {
-    loadBooks();
-  }, [token]);
+  const pubs = useMemo(() => [...new Set(books.map(b => b.publisher))].sort(), [books])
+  const cats = useMemo(() => [...new Set(books.map(b => b.category).filter(Boolean))].sort(), [books])
 
-  const handleDeleteClick = (book: BookListRow) => {
-    setDeleteTarget(book);
-  };
+  const filtered = useMemo(() => {
+    let d = books
+    if (search) { const q = search.toLowerCase(); d = d.filter(b => b.bookTitle.toLowerCase().includes(q) || b.bookName.toLowerCase().includes(q) || b.publisher.toLowerCase().includes(q)) }
+    if (pubFilter !== 'all') d = d.filter(b => b.publisher === pubFilter)
+    if (catFilter !== 'all') d = d.filter(b => b.category === catFilter)
+    const dir = sort.d === 'asc' ? 1 : -1
+    return [...d].sort((a, b) => {
+      if (sort.f === 'activityCount') return (a.activityCount - b.activityCount) * dir
+      return String((a as any)[sort.f] ?? '').localeCompare(String((b as any)[sort.f] ?? '')) * dir
+    })
+  }, [books, search, pubFilter, catFilter, sort])
 
-  const handleDeleteConfirm = async () => {
-    if (!deleteTarget || !token) return;
+  const toggleSort = (f: SortField) => setSort(c => ({ f, d: c.f === f && c.d === 'asc' ? 'desc' : 'asc' }))
+  const handleDelete = async () => {
+    if (!deleteTarget || !token) return
+    try { await softDeleteBook(deleteTarget.id, token, tt); setDeleteTarget(null); load() } catch {}
+  }
 
-    try {
-      await softDeleteBook(deleteTarget.id, token, tokenType || 'Bearer');
-      await loadBooks();
-      setDeleteTarget(null);
-    } catch (err) {
-      console.error('Failed to delete book:', err);
-      setError('Failed to delete book. Please try again.');
-    }
-  };
+  const SortHead = ({ field, label }: { field: SortField; label: string }) => (
+    <TableHead className="cursor-pointer select-none" onClick={() => toggleSort(field)}>
+      {label} {sort.f === field && (sort.d === 'asc' ? '↑' : '↓')}
+    </TableHead>
+  )
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-
-  const handleViewContents = (book: BookListRow) => {
-    setSelectedBook(book);
-  };
-
-  const handleActivityClick = (book: BookListRow) => {
-    setActivityDialogBook(book);
-  };
-
-  const handleProcessClick = (book: BookListRow) => {
-    setProcessingBook(book);
-  };
-
-  const formatBytes = (bytes?: number): string => {
-    if (typeof bytes !== 'number' || bytes === 0) return '—';
-    const units = ['B', 'KB', 'MB', 'GB'];
-    const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-    const value = bytes / Math.pow(1024, exponent);
-    return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
-  };
-
-  const publishers = useMemo(() => {
-    const set = new Set(books.map((b) => b.publisher));
-    return Array.from(set).sort();
-  }, [books]);
-
-  const categories = useMemo(() => {
-    const set = new Set(books.map((b) => b.category).filter(Boolean));
-    return Array.from(set).sort();
-  }, [books]);
-
-  const filteredAndSortedBooks = useMemo(() => {
-    let result = [...books];
-
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (book) =>
-          book.bookTitle.toLowerCase().includes(query) ||
-          book.bookName.toLowerCase().includes(query) ||
-          book.publisher.toLowerCase().includes(query)
-      );
-    }
-
-    // Apply publisher filter
-    if (publisherFilter) {
-      result = result.filter((book) => book.publisher === publisherFilter);
-    }
-
-    // Apply category filter
-    if (categoryFilter) {
-      result = result.filter((book) => book.category === categoryFilter);
-    }
-
-    // Apply sorting
-    result.sort((a, b) => {
-      let aVal: string | number = '';
-      let bVal: string | number = '';
-
-      switch (sortField) {
-        case 'book_title':
-          aVal = a.bookTitle;
-          bVal = b.bookTitle;
-          break;
-        case 'publisher':
-          aVal = a.publisher;
-          bVal = b.publisher;
-          break;
-        case 'language':
-          aVal = a.language;
-          bVal = b.language;
-          break;
-        case 'category':
-          aVal = a.category;
-          bVal = b.category;
-          break;
-        case 'activity_count':
-          aVal = a.activityCount || 0;
-          bVal = b.activityCount || 0;
-          break;
-      }
-
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        const comparison = aVal.localeCompare(bVal, undefined, { sensitivity: 'base' });
-        return sortDirection === 'asc' ? comparison : -comparison;
-      }
-
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
-        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
-      }
-
-      return 0;
-    });
-
-    return result;
-  }, [books, searchQuery, publisherFilter, categoryFilter, sortField, sortDirection]);
-
-  const clearFilters = () => {
-    setSearchQuery('');
-    setPublisherFilter('');
-    setCategoryFilter('');
-  };
-
-  const hasActiveFilters = searchQuery || publisherFilter || categoryFilter;
+  if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin" /></div>
 
   return (
-    <Box component="section" className="page-container">
-      <Box className="page-header">
-        <Box>
-          <Typography variant="h4" component="h1" className="page-title">
-            Books
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Manage your book library with search, filters, and detailed views
-          </Typography>
-        </Box>
-        <Button variant="contained" size="large" onClick={() => setUploadDialogOpen(true)}>
-          Upload Book
-        </Button>
-      </Box>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">All Books</h1>
+        <Button onClick={() => setUploadOpen(true)}><Upload className="h-4 w-4" /> Upload Books</Button>
+      </div>
+      {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
-      {/* Search and Filters */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-            <TextField
-              placeholder="Search by title, name, or publisher..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-                endAdornment: searchQuery && (
-                  <InputAdornment position="end">
-                    <IconButton size="small" onClick={() => setSearchQuery('')}>
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ flexGrow: 1, minWidth: 300 }}
-            />
+      <div className="flex flex-wrap items-center gap-3">
+        <Input placeholder="Search title, name, publisher..." value={search} onChange={e => setSearch(e.target.value)} className="max-w-xs" />
+        <Select value={pubFilter} onValueChange={setPubFilter}>
+          <SelectTrigger className="w-44"><SelectValue placeholder="All Publishers" /></SelectTrigger>
+          <SelectContent><SelectItem value="all">All Publishers</SelectItem>{pubs.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+        </Select>
+        <Select value={catFilter} onValueChange={setCatFilter}>
+          <SelectTrigger className="w-40"><SelectValue placeholder="All Categories" /></SelectTrigger>
+          <SelectContent><SelectItem value="all">All Categories</SelectItem>{cats.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
 
-            <FormControl sx={{ minWidth: 200 }}>
-              <InputLabel>Publisher</InputLabel>
-              <Select
-                value={publisherFilter}
-                label="Publisher"
-                onChange={(e: SelectChangeEvent) => setPublisherFilter(e.target.value)}
-              >
-                <MenuItem value="">All Publishers</MenuItem>
-                {publishers.map((pub) => (
-                  <MenuItem key={pub} value={pub}>
-                    {pub}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <FormControl sx={{ minWidth: 200 }}>
-              <InputLabel>Category</InputLabel>
-              <Select
-                value={categoryFilter}
-                label="Category"
-                onChange={(e: SelectChangeEvent) => setCategoryFilter(e.target.value)}
-              >
-                <MenuItem value="">All Categories</MenuItem>
-                {categories.map((cat) => (
-                  <MenuItem key={cat} value={cat}>
-                    {cat}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            {hasActiveFilters && (
-              <Button startIcon={<ClearIcon />} onClick={clearFilters}>
-                Clear Filters
-              </Button>
-            )}
-          </Stack>
-
-          <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <FilterListIcon fontSize="small" color="action" />
-            <Typography variant="body2" color="text.secondary">
-              Showing {filteredAndSortedBooks.length} of {books.length} books
-            </Typography>
-          </Box>
-        </CardContent>
-      </Card>
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-          {error}
-        </Alert>
-      )}
-
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell width={80}>Cover</TableCell>
-                <TableCell>
-                  <TableSortLabel
-                    active={sortField === 'book_title'}
-                    direction={sortField === 'book_title' ? sortDirection : 'asc'}
-                    onClick={() => handleSort('book_title')}
-                  >
-                    Title
-                  </TableSortLabel>
+      <Card><CardContent className="p-0">
+        <Table>
+          <TableHeader><TableRow>
+            <SortHead field="bookTitle" label="Title" />
+            <SortHead field="publisher" label="Publisher" />
+            <SortHead field="language" label="Lang" />
+            <SortHead field="category" label="Category" />
+            <SortHead field="activityCount" label="Activities" />
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow></TableHeader>
+          <TableBody>
+            {!filtered.length ? (
+              <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No books found</TableCell></TableRow>
+            ) : filtered.map(b => (
+              <TableRow key={b.id}>
+                <TableCell><div><span className="font-medium">{b.bookTitle}</span>{b.bookTitle !== b.bookName && <span className="block text-xs text-muted-foreground">{b.bookName}</span>}</div></TableCell>
+                <TableCell>{b.publisher}</TableCell>
+                <TableCell><Badge variant="outline">{b.language.toUpperCase()}</Badge></TableCell>
+                <TableCell>{b.category || '—'}</TableCell>
+                <TableCell><Badge variant="secondary">{b.activityCount}</Badge></TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setProcessingBook(b)}><Cpu className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteTarget(b)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  </div>
                 </TableCell>
-                <TableCell>
-                  <TableSortLabel
-                    active={sortField === 'publisher'}
-                    direction={sortField === 'publisher' ? sortDirection : 'asc'}
-                    onClick={() => handleSort('publisher')}
-                  >
-                    Publisher
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell>
-                  <TableSortLabel
-                    active={sortField === 'language'}
-                    direction={sortField === 'language' ? sortDirection : 'asc'}
-                    onClick={() => handleSort('language')}
-                  >
-                    Language
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell>
-                  <TableSortLabel
-                    active={sortField === 'category'}
-                    direction={sortField === 'category' ? sortDirection : 'asc'}
-                    onClick={() => handleSort('category')}
-                  >
-                    Category
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell>
-                  <TableSortLabel
-                    active={sortField === 'activity_count'}
-                    direction={sortField === 'activity_count' ? sortDirection : 'asc'}
-                    onClick={() => handleSort('activity_count')}
-                  >
-                    Activities
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell>Size</TableCell>
-                <TableCell align="right">Actions</TableCell>
               </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredAndSortedBooks.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
-                    <MenuBookIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-                    <Typography variant="h6" color="text.secondary">
-                      {hasActiveFilters ? 'No books match your filters' : 'No books found'}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {hasActiveFilters ? 'Try adjusting your search or filters' : 'Upload your first book to get started'}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredAndSortedBooks.map((book) => (
-                  <TableRow key={book.id} hover>
-                    <TableCell>
-                      <AuthenticatedImage
-                        variant="rounded"
-                        src={getBookCoverUrl(book.publisher, book.bookName)}
-                        token={token}
-                        tokenType={tokenType || 'Bearer'}
-                        sx={{ width: 48, height: 48 }}
-                        fallback={<MenuBookIcon />}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body1" fontWeight={500}>
-                        {book.bookTitle}
-                      </Typography>
-                      {book.bookTitle !== book.bookName && (
-                        <Typography variant="caption" color="text.secondary">
-                          {book.bookName}
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Link
-                        to={`/publishers/${book.publisherId}`}
-                        style={{
-                          color: 'inherit',
-                          textDecoration: 'none',
-                          fontWeight: 500,
-                        }}
-                      >
-                        {book.publisher}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Chip label={book.language.toUpperCase()} size="small" />
-                    </TableCell>
-                    <TableCell>{book.category || '—'}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={book.activityCount || 0}
-                        size="small"
-                        color={book.activityCount ? 'primary' : 'default'}
-                        variant="outlined"
-                        onClick={() => handleActivityClick(book)}
-                        sx={{ cursor: book.activityCount ? 'pointer' : 'default' }}
-                      />
-                    </TableCell>
-                    <TableCell>{formatBytes(book.totalSize)}</TableCell>
-                    <TableCell align="right">
-                      <Tooltip title="AI Processing">
-                        <IconButton size="small" color="primary" onClick={() => handleProcessClick(book)}>
-                          <SmartToyIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="View contents">
-                        <IconButton size="small" onClick={() => handleViewContents(book)}>
-                          <VisibilityIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Delete book">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleDeleteClick(book)}
-                        >
-                          <DeleteOutlineIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent></Card>
 
-      {/* Upload Dialog */}
-      <BookUploadDialog
-        open={uploadDialogOpen}
-        onClose={() => setUploadDialogOpen(false)}
-        token={token}
-        tokenType={tokenType}
-        onSuccess={loadBooks}
-      />
-
-      {/* Book Explorer Drawer */}
-      <BookExplorerDrawer
-        open={!!selectedBook}
-        onClose={() => setSelectedBook(null)}
-        book={selectedBook}
-        token={token}
-        tokenType={tokenType || 'Bearer'}
-      />
-
-      {/* Activity Details Dialog */}
-      <ActivityDetailsDialog
-        open={!!activityDialogBook}
-        onClose={() => setActivityDialogBook(null)}
-        bookTitle={activityDialogBook?.bookTitle || ''}
-        activityCount={activityDialogBook?.activityCount}
-        activityDetails={activityDialogBook?.activityDetails}
-      />
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>
-        <DialogTitle>Delete Book?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to delete "{deleteTarget?.bookTitle}"? This will move it to the trash.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)}>Cancel</Button>
-          <Button onClick={handleDeleteConfirm} color="error" variant="contained">
-            Delete
-          </Button>
-        </DialogActions>
+      <BookUploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} token={token} tokenType={tt} onSuccess={load} />
+      {processingBook && <ProcessingDialog open={!!processingBook} onClose={() => setProcessingBook(null)} bookId={processingBook.id} bookTitle={processingBook.bookTitle} token={token} tokenType={tt} />}
+      <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <DialogContent><DialogHeader><DialogTitle>Delete Book?</DialogTitle>
+          <DialogDescription>Soft-delete &quot;{deleteTarget?.bookTitle}&quot;? Files move to trash.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+          <Button variant="destructive" onClick={handleDelete}>Delete</Button>
+        </DialogFooter></DialogContent>
       </Dialog>
+    </div>
+  )
+}
 
-      {/* AI Processing Dialog */}
-      <ProcessingDialog
-        open={!!processingBook}
-        onClose={() => setProcessingBook(null)}
-        bookId={processingBook?.id || 0}
-        bookTitle={processingBook?.bookTitle || ''}
-        token={token}
-        tokenType={tokenType}
-      />
-    </Box>
-  );
-};
-
-export default BooksPage;
+export default BooksPage

@@ -1,406 +1,163 @@
-import { ChangeEvent, useEffect, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react'
+import { Loader2, Upload, Download, Trash2, Monitor, Apple } from 'lucide-react'
+
+import { Card, CardContent } from 'components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from 'components/ui/table'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from 'components/ui/select'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from 'components/ui/dialog'
+import { Button } from 'components/ui/button'
+import { Label } from 'components/ui/label'
+import { Alert, AlertDescription } from 'components/ui/alert'
+import { Progress } from 'components/ui/progress'
+import { useAuthStore } from 'stores/auth'
+import { ApiError } from 'lib/api'
 import {
-  Alert,
-  Box,
-  Button,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  FormControl,
-  IconButton,
-  InputLabel,
-  LinearProgress,
-  MenuItem,
-  Paper,
-  Select,
-  SelectChangeEvent,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Tooltip,
-  Typography,
-} from '@mui/material';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import DownloadIcon from '@mui/icons-material/Download';
-import DesktopWindowsIcon from '@mui/icons-material/DesktopWindows';
-import AppleIcon from '@mui/icons-material/Apple';
-import AppsIcon from '@mui/icons-material/Apps';
+  listTemplates, uploadTemplate, deleteTemplate,
+  STANDALONE_PLATFORMS, PLATFORM_LABELS,
+  type StandalonePlatform, type TemplateInfo,
+} from 'lib/standaloneApps'
 
-import {
-  deleteTemplate,
-  listTemplates,
-  PLATFORM_LABELS,
-  STANDALONE_PLATFORMS,
-  StandalonePlatform,
-  TemplateInfo,
-  uploadTemplate,
-} from '../lib/standaloneApps';
-import { useAuthStore } from '../stores/auth';
-import { ApiError } from '../lib/api';
-
-const formatBytes = (bytes: number): string => {
-  if (bytes === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  const value = bytes / Math.pow(1024, exponent);
-  return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
-};
-
-const formatDate = (dateString: string): string => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
-
-const getPlatformIcon = (platform: string) => {
-  switch (platform) {
-    case 'mac':
-      return <AppleIcon fontSize="small" />;
-    case 'win':
-    case 'win7-8':
-    case 'linux':
-    default:
-      return <DesktopWindowsIcon fontSize="small" />;
-  }
-};
-
-const getPlatformLabel = (platform: string): string => {
-  return PLATFORM_LABELS[platform as StandalonePlatform] || platform;
-};
-
-const deriveErrorMessage = (error: unknown): string => {
-  if (error instanceof ApiError) {
-    const detail = (error.body as { detail?: unknown } | null)?.detail;
-    if (typeof detail === 'string') {
-      return detail;
-    }
-    return `Request failed (${error.status}). Please try again.`;
-  }
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return 'An error occurred. Please try again.';
-};
+const fmtBytes = (b: number) => {
+  if (!b) return '0 B'
+  const u = ['B','KB','MB','GB']
+  const e = Math.min(Math.floor(Math.log(b)/Math.log(1024)), u.length-1)
+  const v = b / Math.pow(1024, e)
+  return `${v.toFixed(v>=10||e===0?0:1)} ${u[e]}`
+}
+const fmtDate = (s: string) => new Date(s).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+const platIcon = (p: string) => p === 'mac' ? <Apple className="h-4 w-4" /> : <Monitor className="h-4 w-4" />
+const platLabel = (p: string) => PLATFORM_LABELS[p as StandalonePlatform] || p
 
 const StandaloneAppsManager = () => {
-  const token = useAuthStore((state) => state.token);
-  const tokenType = useAuthStore((state) => state.tokenType);
+  const { token, tokenType } = useAuthStore()
+  const tt = tokenType ?? 'Bearer'
 
-  const [templates, setTemplates] = useState<TemplateInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<TemplateInfo[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [uploadPlat, setUploadPlat] = useState('')
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadFb, setUploadFb] = useState<{ type: 'success'|'error'; message: string } | null>(null)
+  const [delTarget, setDelTarget] = useState<TemplateInfo | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
-  // Upload dialog state
-  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [uploadPlatform, setUploadPlatform] = useState<string>('');
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadFeedback, setUploadFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-  // Delete dialog state
-  const [deleteTarget, setDeleteTarget] = useState<TemplateInfo | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
-  const loadTemplates = async () => {
-    if (!token) return;
-
-    setLoading(true);
-    setError(null);
-
+  const load = async () => {
+    if (!token) return
+    setLoading(true); setError(null)
     try {
-      const response = await listTemplates(token, tokenType || 'Bearer');
-      setTemplates(response.templates);
-    } catch (err) {
-      console.error('Failed to load templates:', err);
-      setError(deriveErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  };
+      const r = await listTemplates(token, tt)
+      setTemplates(r.templates)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load') }
+    finally { setLoading(false) }
+  }
 
-  useEffect(() => {
-    loadTemplates();
-  }, [token]);
-
-  // Upload handlers
-  const handleOpenUploadDialog = () => {
-    setUploadPlatform('');
-    setUploadFile(null);
-    setUploadFeedback(null);
-    setUploadDialogOpen(true);
-  };
-
-  const handleCloseUploadDialog = () => {
-    if (!uploading) {
-      setUploadDialogOpen(false);
-      setUploadPlatform('');
-      setUploadFile(null);
-      setUploadFeedback(null);
-    }
-  };
-
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0];
-    if (selectedFile) {
-      setUploadFile(selectedFile);
-      setUploadFeedback(null);
-    }
-  };
-
-  const handlePlatformChange = (event: SelectChangeEvent) => {
-    setUploadPlatform(event.target.value);
-    setUploadFeedback(null);
-  };
+  useEffect(() => { load() }, [token])
 
   const handleUpload = async () => {
-    if (!uploadFile || !token || !uploadPlatform) {
-      setUploadFeedback({ type: 'error', message: 'Please select a file and platform' });
-      return;
-    }
-
-    setUploading(true);
-    setUploadFeedback(null);
-
+    if (!uploadFile || !token || !uploadPlat) return
+    setUploading(true); setUploadFb(null)
     try {
-      await uploadTemplate(uploadPlatform, uploadFile, token, tokenType || 'Bearer');
-      setUploadFeedback({ type: 'success', message: 'Template uploaded successfully!' });
-      await loadTemplates();
+      await uploadTemplate(uploadPlat, uploadFile, token, tt)
+      setUploadFb({ type: 'success', message: 'Template uploaded!' })
+      await load()
+      setTimeout(() => { setUploadOpen(false) }, 1500)
+    } catch (e) {
+      setUploadFb({ type: 'error', message: e instanceof ApiError ? (e.body as any)?.detail || 'Upload failed' : (e instanceof Error ? e.message : 'Upload failed') })
+    } finally { setUploading(false) }
+  }
 
-      setTimeout(() => {
-        handleCloseUploadDialog();
-      }, 1500);
-    } catch (err) {
-      setUploadFeedback({ type: 'error', message: deriveErrorMessage(err) });
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  // Delete handlers
-  const handleDeleteClick = (template: TemplateInfo) => {
-    setDeleteTarget(template);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!deleteTarget || !token) return;
-
-    setDeleting(true);
-    try {
-      await deleteTemplate(deleteTarget.platform, token, tokenType || 'Bearer');
-      await loadTemplates();
-      setDeleteTarget(null);
-    } catch (err) {
-      console.error('Failed to delete template:', err);
-      setError(deriveErrorMessage(err));
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const handleDownload = (template: TemplateInfo) => {
-    window.open(template.download_url, '_blank');
-  };
+  const handleDelete = async () => {
+    if (!delTarget || !token) return
+    setDeleting(true)
+    try { await deleteTemplate(delTarget.platform, token, tt); await load(); setDelTarget(null) }
+    catch (e) { setError(e instanceof Error ? e.message : 'Delete failed') }
+    finally { setDeleting(false) }
+  }
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
-        <Button
-          variant="contained"
-          startIcon={<CloudUploadIcon />}
-          onClick={handleOpenUploadDialog}
-        >
-          Upload Template
+    <div>
+      <div className="flex justify-end mb-4">
+        <Button onClick={() => { setUploadPlat(''); setUploadFile(null); setUploadFb(null); setUploadOpen(true) }}>
+          <Upload className="h-4 w-4" /> Upload Template
         </Button>
-      </Box>
+      </div>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+      {error && <Alert variant="destructive" className="mb-4"><AlertDescription>{error}</AlertDescription></Alert>}
 
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-          <CircularProgress />
-        </Box>
-      ) : templates.length === 0 ? (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Platform</TableCell>
-                <TableCell>File Size</TableCell>
-                <TableCell>Uploaded</TableCell>
-                <TableCell align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              <TableRow>
-                <TableCell colSpan={4} align="center" sx={{ py: 8 }}>
-                  <AppsIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-                  <Typography variant="h6" color="text.secondary">
-                    No templates uploaded
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Upload your first app template to get started
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>
       ) : (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Platform</TableCell>
-                <TableCell>File Size</TableCell>
-                <TableCell>Uploaded</TableCell>
-                <TableCell align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {templates.map((template) => (
-                <TableRow key={template.platform} hover>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {getPlatformIcon(template.platform)}
-                      <Typography>{getPlatformLabel(template.platform)}</Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell>{formatBytes(template.file_size)}</TableCell>
-                  <TableCell>{formatDate(template.uploaded_at)}</TableCell>
-                  <TableCell align="right">
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
-                      <Tooltip title="Download template">
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={() => handleDownload(template)}
-                        >
-                          <DownloadIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Delete template">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleDeleteClick(template)}
-                        >
-                          <DeleteOutlineIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead>Platform</TableHead><TableHead>File Size</TableHead><TableHead>Uploaded</TableHead><TableHead className="text-right">Actions</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {!templates.length ? (
+                  <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground">No templates uploaded</TableCell></TableRow>
+                ) : templates.map(t => (
+                  <TableRow key={t.platform}>
+                    <TableCell><div className="flex items-center gap-2">{platIcon(t.platform)} {platLabel(t.platform)}</div></TableCell>
+                    <TableCell>{fmtBytes(t.file_size)}</TableCell>
+                    <TableCell>{fmtDate(t.uploaded_at)}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(t.download_url, '_blank')}><Download className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDelTarget(t)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Upload Dialog */}
-      <Dialog open={uploadDialogOpen} onClose={handleCloseUploadDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>Upload Standalone App Template</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Select a ZIP archive containing the pre-signed standalone app template.
-          </Typography>
-
-          <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel>Platform</InputLabel>
-            <Select
-              value={uploadPlatform}
-              label="Platform"
-              onChange={handlePlatformChange}
-              disabled={uploading}
-            >
-              {STANDALONE_PLATFORMS.map((p) => (
-                <MenuItem key={p} value={p}>
-                  {PLATFORM_LABELS[p]}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <Button
-            component="label"
-            variant="outlined"
-            startIcon={<CloudUploadIcon />}
-            fullWidth
-            disabled={uploading}
-            sx={{ mb: 2 }}
-          >
-            {uploadFile ? uploadFile.name : 'Choose ZIP File'}
-            <input
-              type="file"
-              accept=".zip"
-              hidden
-              onChange={handleFileChange}
-              disabled={uploading}
-            />
-          </Button>
-
-          {uploading && <LinearProgress sx={{ mb: 2 }} />}
-
-          {uploadFeedback && (
-            <Alert severity={uploadFeedback.type} sx={{ mt: 2 }}>
-              {uploadFeedback.message}
-            </Alert>
-          )}
+      <Dialog open={uploadOpen} onOpenChange={o => !uploading && !o && setUploadOpen(false)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Upload App Template</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Platform</Label>
+              <Select value={uploadPlat} onValueChange={setUploadPlat} disabled={uploading}>
+                <SelectTrigger><SelectValue placeholder="Select platform..." /></SelectTrigger>
+                <SelectContent>{STANDALONE_PLATFORMS.map(p => <SelectItem key={p} value={p}>{PLATFORM_LABELS[p]}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>ZIP File</Label>
+              <input type="file" accept=".zip" onChange={(e: ChangeEvent<HTMLInputElement>) => { setUploadFile(e.target.files?.[0] || null); setUploadFb(null) }} disabled={uploading}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium" />
+            </div>
+            {uploading && <Progress value={undefined} className="animate-pulse" />}
+            {uploadFb && <Alert variant={uploadFb.type === 'error' ? 'destructive' : 'default'}><AlertDescription>{uploadFb.message}</AlertDescription></Alert>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUploadOpen(false)} disabled={uploading}>Cancel</Button>
+            <Button onClick={handleUpload} disabled={!uploadFile || !uploadPlat || uploading}>
+              {uploading && <Loader2 className="h-4 w-4 animate-spin" />} Upload
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseUploadDialog} disabled={uploading}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleUpload}
-            variant="contained"
-            disabled={!uploadFile || !uploadPlatform || uploading}
-          >
-            {uploading ? 'Uploading...' : 'Upload'}
-          </Button>
-        </DialogActions>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={!!deleteTarget} onClose={() => !deleting && setDeleteTarget(null)}>
-        <DialogTitle>Delete Template?</DialogTitle>
+      <Dialog open={!!delTarget} onOpenChange={() => !deleting && setDelTarget(null)}>
         <DialogContent>
-          <DialogContentText>
-            Are you sure you want to delete the {deleteTarget ? getPlatformLabel(deleteTarget.platform) : ''} template?
-            This action cannot be undone.
-          </DialogContentText>
+          <DialogHeader><DialogTitle>Delete Template?</DialogTitle>
+            <DialogDescription>Delete the {delTarget ? platLabel(delTarget.platform) : ''} template? This cannot be undone.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDelTarget(null)} disabled={deleting}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>{deleting ? 'Deleting...' : 'Delete'}</Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)} disabled={deleting}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleDeleteConfirm}
-            color="error"
-            variant="contained"
-            disabled={deleting}
-          >
-            {deleting ? 'Deleting...' : 'Delete'}
-          </Button>
-        </DialogActions>
       </Dialog>
-    </Box>
-  );
-};
+    </div>
+  )
+}
 
-export default StandaloneAppsManager;
+export default StandaloneAppsManager

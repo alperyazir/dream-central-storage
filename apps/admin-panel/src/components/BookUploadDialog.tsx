@@ -1,289 +1,190 @@
-import { ChangeEvent, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Button,
-  Checkbox,
-  Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControlLabel,
-  LinearProgress,
-  List,
-  ListItem,
-  ListItemText,
-  Typography
-} from '@mui/material';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ErrorIcon from '@mui/icons-material/Error';
+import { useCallback, useEffect, useState, DragEvent } from 'react'
+import { Loader2, Upload, X, CheckCircle, XCircle } from 'lucide-react'
 
-import { uploadNewBookArchive, uploadBulkBookArchives, BulkUploadResult } from '../lib/uploads';
-import { ApiError } from '../lib/api';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from 'components/ui/dialog'
+import { Button } from 'components/ui/button'
+import { Checkbox } from 'components/ui/checkbox'
+import { Label } from 'components/ui/label'
+import { Alert, AlertDescription } from 'components/ui/alert'
+import { Badge } from 'components/ui/badge'
+import { Progress } from 'components/ui/progress'
+import { uploadNewBookArchive, uploadBulkBookArchives, type BulkUploadResult } from 'lib/uploads'
 
 interface BookUploadDialogProps {
-  open: boolean;
-  onClose: () => void;
-  token: string | null;
-  tokenType: string | null;
-  onSuccess: () => void;
+  open: boolean
+  onClose: () => void
+  token: string | null
+  tokenType: string | null
+  onSuccess: () => void
 }
 
-const deriveErrorMessage = (error: unknown): string => {
-  if (error instanceof ApiError) {
-    const detail = (error.body as { detail?: unknown } | null)?.detail;
-    if (typeof detail === 'string') {
-      return detail;
+export function BookUploadDialog({ open, onClose, token, tokenType, onSuccess }: BookUploadDialogProps) {
+  const [files, setFiles] = useState<File[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [uploadResults, setUploadResults] = useState<BulkUploadResult[]>([])
+  const [overrideExisting, setOverrideExisting] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+
+  useEffect(() => {
+    if (!open) {
+      setFiles([])
+      setUploading(false)
+      setFeedback(null)
+      setUploadResults([])
+      setOverrideExisting(false)
+      setDragOver(false)
     }
-    return `Upload failed (${error.status}). Please try again.`;
+  }, [open])
+
+  const handleDrop = useCallback((e: DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const dropped = Array.from(e.dataTransfer.files).filter((f) => f.name.endsWith('.zip'))
+    if (dropped.length) setFiles((prev) => [...prev, ...dropped].slice(0, 50))
+  }, [])
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(e.target.files || [])
+    setFiles((prev) => [...prev, ...selected].slice(0, 50))
+    e.target.value = ''
   }
 
-  if (error instanceof Error) {
-    return error.message;
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index))
   }
-
-  return 'Upload failed. Please try again.';
-};
-
-const BookUploadDialog = ({ open, onClose, token, tokenType, onSuccess }: BookUploadDialogProps) => {
-  const [files, setFiles] = useState<File[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [uploadResults, setUploadResults] = useState<BulkUploadResult[]>([]);
-  const [overrideExisting, setOverrideExisting] = useState(false);
-
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = event.target.files;
-    if (selectedFiles && selectedFiles.length > 0) {
-      setFiles(Array.from(selectedFiles));
-      setFeedback(null);
-      setUploadResults([]);
-    }
-  };
 
   const handleUpload = async () => {
-    if (files.length === 0 || !token) {
-      setFeedback({ type: 'error', message: 'Please select at least one file to upload' });
-      return;
-    }
-
-    setUploading(true);
-    setFeedback(null);
-    setUploadResults([]);
+    if (!files.length || !token || !tokenType) return
+    setUploading(true)
+    setFeedback(null)
+    setUploadResults([])
 
     try {
       if (files.length === 1) {
-        // Single file upload
-        await uploadNewBookArchive(files[0], token, tokenType || 'Bearer', undefined, { override: overrideExisting });
-        setFeedback({ type: 'success', message: 'Book uploaded successfully!' });
-        setFiles([]);
-        onSuccess();
-
-        setTimeout(() => {
-          onClose();
-          setFeedback(null);
-        }, 1500);
+        await uploadNewBookArchive(files[0], token, tokenType, undefined, { override: overrideExisting })
+        setFeedback({ type: 'success', message: 'Book uploaded successfully!' })
+        onSuccess()
+        setTimeout(onClose, 1500)
       } else {
-        // Bulk upload
-        const response = await uploadBulkBookArchives(files, token, tokenType || 'Bearer', undefined, { override: overrideExisting });
-        setUploadResults(response.results);
-
-        if (response.successful === response.total) {
-          setFeedback({
-            type: 'success',
-            message: `Successfully uploaded ${response.successful} book${response.successful > 1 ? 's' : ''}!`
-          });
-        } else if (response.successful > 0) {
-          setFeedback({
-            type: 'success',
-            message: `Uploaded ${response.successful} of ${response.total} books. ${response.failed} failed.`
-          });
+        const response = await uploadBulkBookArchives(files, token, tokenType, undefined, { override: overrideExisting })
+        setUploadResults(response.results)
+        if (response.failed === 0) {
+          setFeedback({ type: 'success', message: `All ${response.successful} books uploaded successfully!` })
+          onSuccess()
+          setTimeout(onClose, 2000)
         } else {
           setFeedback({
             type: 'error',
-            message: `Failed to upload all ${response.failed} books. See details below.`
-          });
-        }
-
-        onSuccess();
-
-        // Auto-close only if all succeeded
-        if (response.successful === response.total) {
-          setTimeout(() => {
-            onClose();
-            setFeedback(null);
-            setUploadResults([]);
-            setFiles([]);
-          }, 2000);
+            message: `${response.successful} succeeded, ${response.failed} failed out of ${response.total} uploads.`,
+          })
+          onSuccess()
         }
       }
     } catch (error) {
-      setFeedback({ type: 'error', message: deriveErrorMessage(error) });
+      setFeedback({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Upload failed.',
+      })
     } finally {
-      setUploading(false);
+      setUploading(false)
     }
-  };
-
-  const handleClose = () => {
-    if (!uploading) {
-      setFiles([]);
-      setFeedback(null);
-      setUploadResults([]);
-      setOverrideExisting(false);
-      onClose();
-    }
-  };
+  }
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-      <DialogTitle>Upload Book{files.length > 1 ? 's' : ''}</DialogTitle>
-      <DialogContent>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Select one or more ZIP archives containing book content and config.json files. You can upload up to 50 books at once.
-        </Typography>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Upload Books</DialogTitle>
+        </DialogHeader>
 
-        <Box
-          sx={{
-            border: '2px dashed',
-            borderColor: 'divider',
-            borderRadius: 2,
-            p: 4,
-            textAlign: 'center',
-            bgcolor: 'background.default',
-            mb: 2,
-            cursor: uploading ? 'not-allowed' : 'pointer',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: '200px',
-            '&:hover': uploading ? {} : {
-              borderColor: 'primary.main',
-              bgcolor: 'action.hover',
-            },
-          }}
-          component="label"
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+          className={`flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 transition-colors ${
+            dragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+          }`}
+          onClick={() => document.getElementById('book-file-input')?.click()}
         >
-          <CloudUploadIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-          <Typography variant="h6" gutterBottom>
-            {files.length > 0
-              ? `${files.length} file${files.length > 1 ? 's' : ''} selected`
-              : 'Click to select ZIP file(s)'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            or drag and drop here
-          </Typography>
+          <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            Drag & drop .zip files here, or click to browse
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">Up to 50 files</p>
           <input
+            id="book-file-input"
             type="file"
             accept=".zip"
             multiple
-            hidden
-            onChange={handleFileChange}
-            disabled={uploading}
+            onChange={handleFileInput}
+            className="hidden"
           />
-        </Box>
+        </div>
 
-        {files.length > 0 && !uploading && uploadResults.length === 0 && (
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-              Selected files:
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {files.map((file, index) => (
-                <Chip key={index} label={file.name} size="small" />
+        {files.length > 0 && (
+          <div className="space-y-2">
+            <Label>{files.length} file(s) selected</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {files.map((f, i) => (
+                <Badge key={i} variant="secondary" className="gap-1">
+                  {f.name}
+                  <button onClick={() => removeFile(i)} className="ml-1 hover:text-destructive">
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
               ))}
-            </Box>
-          </Box>
+            </div>
+          </div>
         )}
 
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={overrideExisting}
-              onChange={(e) => setOverrideExisting(e.target.checked)}
-              disabled={uploading}
-            />
-          }
-          label={
-            <Box>
-              <Typography variant="body2">
-                Override existing books
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Delete existing books and replace with new uploads
-              </Typography>
-            </Box>
-          }
-          sx={{ mb: 2 }}
-        />
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="override"
+            checked={overrideExisting}
+            onCheckedChange={(c) => setOverrideExisting(c === true)}
+          />
+          <Label htmlFor="override" className="text-sm font-normal">
+            Delete existing books and replace with new uploads
+          </Label>
+        </div>
 
-        {uploading && <LinearProgress sx={{ mb: 2 }} />}
+        {uploading && <Progress value={undefined} className="animate-pulse" />}
 
         {uploadResults.length > 0 && (
-          <Box sx={{ mt: 2, mb: 2 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              Upload Results:
-            </Typography>
-            <List dense>
-              {uploadResults.map((result, index) => (
-                <ListItem
-                  key={index}
-                  sx={{
-                    bgcolor: result.success ? 'success.light' : 'error.light',
-                    mb: 1,
-                    borderRadius: 1,
-                    opacity: 0.9
-                  }}
-                >
-                  {result.success ? (
-                    <CheckCircleIcon color="success" sx={{ mr: 1 }} fontSize="small" />
-                  ) : (
-                    <ErrorIcon color="error" sx={{ mr: 1 }} fontSize="small" />
-                  )}
-                  <ListItemText
-                    primary={result.filename}
-                    secondary={
-                      result.success
-                        ? `${result.publisher} / ${result.book_name}`
-                        : result.error
-                    }
-                    primaryTypographyProps={{
-                      variant: 'body2',
-                      sx: { color: result.success ? 'success.dark' : 'error.dark' }
-                    }}
-                    secondaryTypographyProps={{
-                      variant: 'caption',
-                      sx: { color: result.success ? 'success.dark' : 'error.dark' }
-                    }}
-                  />
-                </ListItem>
-              ))}
-            </List>
-          </Box>
+          <div className="max-h-40 space-y-1 overflow-auto rounded-md border p-2">
+            {uploadResults.map((r, i) => (
+              <div key={i} className="flex items-center gap-2 text-sm">
+                {r.success ? (
+                  <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                ) : (
+                  <XCircle className="h-4 w-4 text-destructive shrink-0" />
+                )}
+                <span className="truncate">
+                  {r.filename}{r.publisher && ` — ${r.publisher}`}{r.book_name && ` / ${r.book_name}`}
+                </span>
+                {r.error && <span className="text-xs text-destructive truncate">{r.error}</span>}
+              </div>
+            ))}
+          </div>
         )}
 
         {feedback && (
-          <Alert severity={feedback.type} sx={{ mt: 2 }}>
-            {feedback.message}
+          <Alert variant={feedback.type === 'error' ? 'destructive' : 'default'}>
+            <AlertDescription>{feedback.message}</AlertDescription>
           </Alert>
         )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={handleClose} disabled={uploading}>
-          {uploadResults.length > 0 ? 'Close' : 'Cancel'}
-        </Button>
-        <Button
-          onClick={handleUpload}
-          variant="contained"
-          disabled={files.length === 0 || uploading}
-        >
-          {uploading ? 'Uploading...' : `Upload ${files.length > 0 ? `(${files.length})` : ''}`}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
 
-export default BookUploadDialog;
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={uploading}>Cancel</Button>
+          <Button onClick={handleUpload} disabled={!files.length || uploading}>
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            Upload {files.length > 1 ? `${files.length} Files` : ''}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export default BookUploadDialog

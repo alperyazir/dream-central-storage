@@ -1,579 +1,128 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  FormControl,
-  IconButton,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  SelectChangeEvent,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TableSortLabel,
-  Tooltip,
-  Typography,
-  Stack
-} from '@mui/material';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
-import AppsIcon from '@mui/icons-material/Apps';
-import FolderIcon from '@mui/icons-material/Folder';
-import StorageIcon from '@mui/icons-material/Storage';
+import { useEffect, useMemo, useState } from 'react'
+import { BookOpen, AppWindow, Building2, HardDrive, Loader2 } from 'lucide-react'
 
-import { fetchBooks, BookRecord, softDeleteBook } from '../lib/books';
-import { SUPPORTED_APP_PLATFORMS, toPlatformSlug } from '../lib/platforms';
-import { listAppContents, StorageNode } from '../lib/storage';
-import { softDeleteAppBuild } from '../lib/apps';
-import { useAuthStore } from '../stores/auth';
-import UploadDialog from '../components/UploadDialog';
-import BookExplorerDrawer from '../features/books/BookExplorerDrawer';
-import type { BookListRow } from '../features/books/types';
+import { Card, CardContent } from 'components/ui/card'
+import { Button } from 'components/ui/button'
+import { Alert, AlertDescription } from 'components/ui/alert'
 
-import '../styles/page.css';
+import { fetchBooks, type BookRecord } from 'lib/books'
+import { SUPPORTED_APP_PLATFORMS, toPlatformSlug } from 'lib/platforms'
+import { listAppContents, type StorageNode } from 'lib/storage'
+import { listTemplates, listBundles, type TemplateInfo, type BundleInfo } from 'lib/standaloneApps'
+import { useAuthStore } from 'stores/auth'
+import UploadDialog from 'components/UploadDialog'
 
-const APP_PLATFORMS = SUPPORTED_APP_PLATFORMS;
-
-type SortDirection = 'asc' | 'desc';
-
-type BookSortField = 'bookName' | 'publisher' | 'language' | 'category';
-
-type AppSortField = 'platform' | 'version' | 'fileName' | 'size';
-
-type DeleteTarget =
-  | { kind: 'book'; record: BookListRow }
-  | { kind: 'app'; record: AppBuildRow };
-
-interface AppBuildRow {
-  platform: string;
-  platformSlug: string;
-  version: string;
-  fileName: string;
-  storagePath: string;
-  size?: number;
+const fmtBytes = (n?: number) => {
+  if (!n) return '0 B'
+  const u = ['B', 'KB', 'MB', 'GB', 'TB']
+  const e = Math.min(Math.floor(Math.log(n) / Math.log(1024)), u.length - 1)
+  const v = n / Math.pow(1024, e)
+  return `${v.toFixed(v >= 10 || e === 0 ? 0 : 1)} ${u[e]}`
 }
 
-const compareStrings = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' });
-
-const formatBytes = (size?: number) => {
-  if (typeof size !== 'number') {
-    return '—';
-  }
-
-  if (size === 0) {
-    return '0 B';
-  }
-
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const exponent = Math.min(Math.floor(Math.log(size) / Math.log(1024)), units.length - 1);
-  const value = size / Math.pow(1024, exponent);
-  return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
-};
-
-const formatBuildLabel = (build: AppBuildRow) => {
-  if (!build) {
-    return '';
-  }
-
-  if (build.version) {
-    return `${build.platform} ${build.version}`;
-  }
-
-  return build.fileName || build.platform;
-};
-
-const mapBookRecords = (records: BookRecord[]): BookListRow[] =>
-  records.map((record) => ({
-    id: record.id,
-    bookName: record.book_name,
-    bookTitle: record.book_title || record.book_name,
-    bookCover: record.book_cover,
-    activityCount: record.activity_count,
-    publisher: record.publisher,
-    language: record.language,
-    category: record.category || '',
-    status: record.status,
-    createdAt: record.created_at,
-    updatedAt: record.updated_at
-  }));
-
-const collectAppBuildRows = (
-  root: StorageNode | undefined,
-  platformLabel: string,
-  platformSlug: string
-): AppBuildRow[] => {
-  if (!root) {
-    return [];
-  }
-
-  const aggregated = new Map<string, { display: string; fileCount: number; totalSize: number }>();
-  const slugPrefix = `${platformSlug}/`;
-
-  const walk = (node: StorageNode) => {
-    if (node.type === 'file') {
-      const normalized = node.path.replace(/\/+$/, '');
-      const lowerCased = normalized.toLowerCase();
-      const relative = lowerCased.startsWith(slugPrefix)
-        ? normalized.slice(slugPrefix.length)
-        : normalized;
-      const segments = relative.split('/').filter(Boolean);
-      const rootSegment = segments[0] ?? normalized;
-      const key = rootSegment.toLowerCase();
-      const entry = aggregated.get(key) ?? {
-        display: rootSegment,
-        fileCount: 0,
-        totalSize: 0
-      };
-
-      entry.fileCount += 1;
-      entry.totalSize += node.size ?? 0;
-      aggregated.set(key, entry);
-    }
-
-    node.children?.forEach((child) => {
-      walk(child);
-    });
-  };
-
-  walk(root);
-
-  return Array.from(aggregated.values()).map((entry) => ({
-    platform: platformLabel,
-    platformSlug,
-    version: entry.display,
-    fileName: `${entry.display}${entry.fileCount > 1 ? ` (${entry.fileCount} files)` : ''}`,
-    storagePath: `${platformSlug}/${entry.display}/`,
-    size: entry.totalSize || undefined
-  }));
-};
+const sumStorageTree = (node: StorageNode | undefined): number => {
+  if (!node) return 0
+  if (node.type === 'file') return node.size ?? 0
+  return (node.children ?? []).reduce((acc, c) => acc + sumStorageTree(c), 0)
+}
 
 const DashboardPage = () => {
-  const token = useAuthStore((state) => state.token);
-  const tokenType = useAuthStore((state) => state.tokenType ?? 'Bearer');
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const { token, tokenType, isAuthenticated } = useAuthStore()
+  const tt = tokenType ?? 'Bearer'
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [books, setBooks] = useState<BookListRow[]>([]);
-  const [appBuilds, setAppBuilds] = useState<AppBuildRow[]>([]);
-  const [publisherFilter, setPublisherFilter] = useState<string>('all');
-  const [bookSort, setBookSort] = useState<{ field: BookSortField; direction: SortDirection }>(
-    { field: 'bookName', direction: 'asc' }
-  );
-  const [appSort, setAppSort] = useState<{ field: AppSortField; direction: SortDirection }>(
-    { field: 'platform', direction: 'asc' }
-  );
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [refreshIndex, setRefreshIndex] = useState(0);
-  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [explorerBook, setExplorerBook] = useState<BookListRow | null>(null);
-  const platformCount = APP_PLATFORMS.length as number;
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [books, setBooks] = useState<BookRecord[]>([])
+  const [templates, setTemplates] = useState<TemplateInfo[]>([])
+  const [bundles, setBundles] = useState<BundleInfo[]>([])
+  const [appStorageSize, setAppStorageSize] = useState(0)
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [refresh, setRefresh] = useState(0)
 
   useEffect(() => {
-    let isSubscribed = true;
-
-    const loadDashboardData = async () => {
-      if (!isAuthenticated || !token) {
-        if (isSubscribed) {
-          setBooks([]);
-          setAppBuilds([]);
-          setLoading(false);
-        }
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-
-      try {
-        const [bookResponse, ...appResponses] = await Promise.all([
-          fetchBooks(token, tokenType),
-          ...APP_PLATFORMS.map((platform) => listAppContents(toPlatformSlug(platform), token, tokenType))
-        ]);
-
-        if (!isSubscribed) {
-          return;
-        }
-
-        const bookRows = mapBookRecords(bookResponse);
-        const appRows = appResponses.flatMap((tree, index) =>
-          collectAppBuildRows(tree, APP_PLATFORMS[index], toPlatformSlug(APP_PLATFORMS[index]))
-        );
-
-        setBooks(bookRows);
-        setAppBuilds(appRows);
-      } catch (requestError) {
-        if (!isSubscribed) {
-          return;
-        }
-
-        const message = requestError instanceof Error ? requestError.message : 'Unable to load dashboard data.';
-        setError(message);
-        setBooks([]);
-        setAppBuilds([]);
-      } finally {
-        if (isSubscribed) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void loadDashboardData();
-
-    return () => {
-      isSubscribed = false;
-    };
-  }, [isAuthenticated, token, tokenType, refreshIndex]);
-
-  const handlePublisherChange = (event: SelectChangeEvent<string>) => {
-    setPublisherFilter(event.target.value);
-  };
-
-  const toggleBookSort = (field: BookSortField) => {
-    setBookSort((current) => ({
-      field,
-      direction: current.field === field && current.direction === 'asc' ? 'desc' : 'asc'
-    }));
-  };
-
-  const toggleAppSort = (field: AppSortField) => {
-    setAppSort((current) => ({
-      field,
-      direction: current.field === field && current.direction === 'asc' ? 'desc' : 'asc'
-    }));
-  };
-
-  const promptBookDelete = (record: BookListRow) => {
-    setActionError(null);
-    setDeleteTarget({ kind: 'book', record });
-  };
-
-  const promptAppDelete = (record: AppBuildRow) => {
-    setActionError(null);
-    setDeleteTarget({ kind: 'app', record });
-  };
-
-  const closeDeleteDialog = () => {
-    if (isDeleting) {
-      return;
+    if (!isAuthenticated || !token) {
+      setBooks([]); setTemplates([]); setBundles([]); setAppStorageSize(0); setLoading(false)
+      return
     }
-    setDeleteTarget(null);
-  };
+    let alive = true
+    setLoading(true); setError(null)
+    Promise.all([
+      fetchBooks(token, tt),
+      listTemplates(token, tt).catch(() => ({ templates: [] as TemplateInfo[] })),
+      listBundles(token, tt).catch(() => ({ bundles: [] as BundleInfo[] })),
+      ...SUPPORTED_APP_PLATFORMS.map(p => listAppContents(toPlatformSlug(p), token, tt).catch(() => undefined))
+    ]).then(([bks, tpls, bnds, ...appTrees]) => {
+      if (!alive) return
+      setBooks(bks as BookRecord[])
+      setTemplates((tpls as { templates: TemplateInfo[] }).templates)
+      setBundles((bnds as { bundles: BundleInfo[] }).bundles)
+      setAppStorageSize((appTrees as (StorageNode | undefined)[]).reduce((acc, t) => acc + sumStorageTree(t), 0))
+    }).catch(e => { if (alive) setError(e instanceof Error ? e.message : 'Failed to load') })
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [isAuthenticated, token, tt, refresh])
 
-  const performDelete = async () => {
-    if (!deleteTarget || !token) {
-      return;
-    }
+  const publishers = useMemo(() => new Set(books.map(b => b.publisher)).size, [books])
+  const appBuildCount = templates.length + bundles.length
 
-    setIsDeleting(true);
-    setActionError(null);
+  const totalBookSize = useMemo(() => books.reduce((a, b) => a + (b.total_size || 0), 0), [books])
+  const totalTemplateSize = useMemo(() => templates.reduce((a, b) => a + b.file_size, 0), [templates])
+  const totalBundleSize = useMemo(() => bundles.reduce((a, b) => a + b.file_size, 0), [bundles])
+  const totalStorage = totalBookSize + totalTemplateSize + totalBundleSize + appStorageSize
 
-    try {
-      if (deleteTarget.kind === 'book') {
-        await softDeleteBook(deleteTarget.record.id, token, tokenType);
-      } else {
-        await softDeleteAppBuild(
-          deleteTarget.record.platformSlug,
-          deleteTarget.record.storagePath,
-          token,
-          tokenType
-        );
-      }
+  const uploadOpts = useMemo(() => books.map(b => ({ id: b.id, title: b.book_name, publisher: b.publisher })), [books])
 
-      setDeleteTarget(null);
-      setRefreshIndex((value) => value + 1);
-    } catch (requestError) {
-      if (requestError instanceof Error) {
-        console.error('Failed to complete delete request', requestError);
-      }
-      setActionError('Unable to complete delete request.');
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const uniquePublishers = useMemo(() => {
-    const values = new Set<string>();
-    books.forEach((book) => {
-      if (book.publisher) {
-        values.add(book.publisher);
-      }
-    });
-    return Array.from(values).sort((a, b) => compareStrings(a, b));
-  }, [books]);
-
-  const filteredBooks = useMemo(() => {
-    const data = publisherFilter === 'all' ? books : books.filter((book) => book.publisher === publisherFilter);
-
-    const sorted = [...data].sort((a, b) => {
-      const direction = bookSort.direction === 'asc' ? 1 : -1;
-      switch (bookSort.field) {
-        case 'bookName':
-          return compareStrings(a.bookName, b.bookName) * direction;
-        case 'publisher':
-          return compareStrings(a.publisher, b.publisher) * direction;
-        case 'language':
-          return compareStrings(a.language, b.language) * direction;
-        case 'category':
-          return compareStrings(a.category, b.category) * direction;
-        default:
-          return 0;
-      }
-    });
-
-    return sorted;
-  }, [books, publisherFilter, bookSort]);
-
-  const sortedAppBuilds = useMemo(() => {
-    const sorted = [...appBuilds].sort((a, b) => {
-      const direction = appSort.direction === 'asc' ? 1 : -1;
-      switch (appSort.field) {
-        case 'platform':
-          return compareStrings(a.platform, b.platform) * direction;
-        case 'version':
-          return compareStrings(a.version, b.version) * direction;
-        case 'fileName':
-          return compareStrings(a.fileName, b.fileName) * direction;
-        case 'size':
-          return ((a.size ?? 0) - (b.size ?? 0)) * direction;
-        default:
-          return 0;
-      }
-    });
-
-    return sorted;
-  }, [appBuilds, appSort]);
-
-  const uploadBookOptions = useMemo(
-    () =>
-      books.map((book) => ({
-        id: book.id,
-        title: book.bookName,
-        publisher: book.publisher
-      })),
-    [books]
-  );
-
-  const totalBookSize = useMemo(() => {
-    // This would need actual size data from books - placeholder for now
-    return 0;
-  }, [books]);
-
-  const totalAppSize = useMemo(() => {
-    return appBuilds.reduce((acc, build) => acc + (build.size || 0), 0);
-  }, [appBuilds]);
-
-  const formatBytes = (bytes: number | undefined) => {
-    if (!bytes || bytes === 0) return '0 B';
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-    const value = bytes / Math.pow(1024, exponent);
-    return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
-  };
-
-  const uploadDialog = (
-    <UploadDialog
-      open={isUploadOpen}
-      onClose={() => setIsUploadOpen(false)}
-      books={uploadBookOptions}
-      platforms={APP_PLATFORMS}
-      token={token}
-      tokenType={tokenType}
-      onSuccess={() => setRefreshIndex((value) => value + 1)}
-    />
-  );
-
-  const deleteDialog = (
-    <Dialog
-      open={Boolean(deleteTarget)}
-      onClose={closeDeleteDialog}
-      aria-labelledby="delete-confirmation-title"
-      aria-describedby="delete-confirmation-description"
-    >
-      <DialogTitle id="delete-confirmation-title">Confirm Soft Delete</DialogTitle>
-      <DialogContent>
-        <DialogContentText id="delete-confirmation-description">
-          {deleteTarget?.kind === 'book'
-            ? `Soft-delete "${deleteTarget.record.bookName}"? Its metadata will be archived and associated files moved to the trash bucket.`
-            : `Soft-delete application build "${deleteTarget ? formatBuildLabel(deleteTarget.record) : ''}"? Assets will be moved to the trash bucket for restoration later.`}
-        </DialogContentText>
-        {actionError ? (
-          <Alert severity="error" sx={{ mt: 2 }}>
-            {actionError}
-          </Alert>
-        ) : null}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={closeDeleteDialog} disabled={isDeleting}>
-          Cancel
-        </Button>
-        <Button onClick={performDelete} color="error" disabled={isDeleting}>
-          {isDeleting ? 'Deleting...' : 'Delete'}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-
-  const isInitialLoad = loading && books.length === 0 && appBuilds.length === 0;
-
-  if (isInitialLoad) {
-    return (
-      <>
-        <section className="page page--centered" aria-busy="true">
-          <CircularProgress aria-label="Loading dashboard data" />
-          <Typography variant="body1">Loading dashboard data…</Typography>
-        </section>
-        {uploadDialog}
-        {deleteDialog}
-      </>
-    );
-  }
+  if (loading && !books.length) return (
+    <div className="flex items-center justify-center py-20 gap-2">
+      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      <span className="text-muted-foreground">Loading dashboard...</span>
+    </div>
+  )
 
   return (
-    <section className="page" aria-live="polite" aria-busy={loading}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Dashboard
-      </Typography>
-      <Typography variant="body1" paragraph>
-        Review stored content at a glance. Use the filters, sorting controls, and upload tools to keep the catalog current.
-      </Typography>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Dashboard</h1>
+          <p className="text-muted-foreground">Review stored content at a glance.</p>
+        </div>
+        <Button onClick={() => setUploadOpen(true)}>Upload</Button>
+      </div>
 
-      {loading ? (
-        <Alert severity="info" sx={{ mb: 3 }} role="status">
-          Refreshing dashboard data…
-        </Alert>
-      ) : null}
+      {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
-      {error ? (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      ) : null}
-
-      {/* Summary Cards */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr' }, gap: 3, mb: 4 }}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Box
-                  sx={{
-                    bgcolor: 'primary.main',
-                    color: 'primary.contrastText',
-                    p: 1.5,
-                    borderRadius: 2,
-                    display: 'flex'
-                  }}
-                >
-                  <MenuBookIcon fontSize="medium" />
-                </Box>
-                <Box sx={{ flexGrow: 1 }}>
-                  <Typography variant="h4" component="div" fontWeight={700}>
-                    {books.length}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Total Books
-                  </Typography>
-                </Box>
-              </Box>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { icon: BookOpen, label: 'Total Books', value: String(books.length), color: 'bg-teal-600' },
+          { icon: AppWindow, label: 'App Builds', value: String(appBuildCount), color: 'bg-blue-600' },
+          { icon: Building2, label: 'Publishers', value: String(publishers), color: 'bg-green-600' },
+          { icon: HardDrive, label: 'Total Storage', value: fmtBytes(totalStorage), color: 'bg-amber-500' },
+        ].map(s => (
+          <Card key={s.label}>
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className={`${s.color} text-white p-2.5 rounded-lg`}>
+                <s.icon className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{s.value}</div>
+                <div className="text-xs text-muted-foreground">{s.label}</div>
+              </div>
             </CardContent>
           </Card>
+        ))}
+      </div>
 
-        <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Box
-                  sx={{
-                    bgcolor: 'secondary.main',
-                    color: 'secondary.contrastText',
-                    p: 1.5,
-                    borderRadius: 2,
-                    display: 'flex'
-                  }}
-                >
-                  <AppsIcon fontSize="medium" />
-                </Box>
-                <Box sx={{ flexGrow: 1 }}>
-                  <Typography variant="h4" component="div" fontWeight={700}>
-                    {appBuilds.length}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    App Builds
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
+      <UploadDialog
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        books={uploadOpts}
+        platforms={SUPPORTED_APP_PLATFORMS}
+        token={token}
+        tokenType={tt}
+        onSuccess={() => setRefresh(v => v + 1)}
+      />
+    </div>
+  )
+}
 
-        <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Box
-                  sx={{
-                    bgcolor: 'success.main',
-                    color: 'white',
-                    p: 1.5,
-                    borderRadius: 2,
-                    display: 'flex'
-                  }}
-                >
-                  <FolderIcon fontSize="medium" />
-                </Box>
-                <Box sx={{ flexGrow: 1 }}>
-                  <Typography variant="h4" component="div" fontWeight={700}>
-                    {uniquePublishers.length}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Publishers
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-
-        <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Box
-                  sx={{
-                    bgcolor: 'warning.main',
-                    color: 'white',
-                    p: 1.5,
-                    borderRadius: 2,
-                    display: 'flex'
-                  }}
-                >
-                  <StorageIcon fontSize="medium" />
-                </Box>
-                <Box sx={{ flexGrow: 1 }}>
-                  <Typography variant="h4" component="div" fontWeight={700}>
-                    {formatBytes(totalAppSize)}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Total Storage
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-      </Box>
-    </section>
-  );
-};
-
-export default DashboardPage;
+export default DashboardPage

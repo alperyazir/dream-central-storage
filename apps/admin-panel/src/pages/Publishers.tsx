@@ -1,624 +1,209 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Loader2, Pencil, Plus, RotateCcw, Trash2, XCircle } from 'lucide-react'
+
+import { Card, CardContent } from 'components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from 'components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from 'components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from 'components/ui/select'
+import { Input } from 'components/ui/input'
+import { Button } from 'components/ui/button'
+import { Badge } from 'components/ui/badge'
+import { Alert, AlertDescription } from 'components/ui/alert'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from 'components/ui/dialog'
+import PublisherFormDialog from 'components/PublisherFormDialog'
+import AuthenticatedImage from 'components/AuthenticatedImage'
+import { useAuthStore } from 'stores/auth'
 import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  FormControl,
-  IconButton,
-  InputAdornment,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  SelectChangeEvent,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TableSortLabel,
-  Tabs,
-  Tab,
-  TextField,
-  Tooltip,
-  Typography,
-} from '@mui/material';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import RestoreIcon from '@mui/icons-material/Restore';
-import EditIcon from '@mui/icons-material/Edit';
-import SearchIcon from '@mui/icons-material/Search';
-import ClearIcon from '@mui/icons-material/Clear';
-import BusinessIcon from '@mui/icons-material/Business';
+  fetchPublishers, fetchTrashedPublishers, deletePublisher,
+  restorePublisher, permanentDeletePublisher, fetchPublisherBooks,
+  fetchPublisherAssetFiles, type Publisher
+} from 'lib/publishers'
 
-import {
-  fetchPublishers,
-  fetchTrashedPublishers,
-  Publisher,
-  deletePublisher,
-  restorePublisher,
-  permanentDeletePublisher,
-  fetchPublisherBooks,
-  fetchPublisherAssetFiles,
-} from '../lib/publishers';
-import { useAuthStore } from '../stores/auth';
-import PublisherFormDialog from '../components/PublisherFormDialog';
-import AuthenticatedImage from '../components/AuthenticatedImage';
+type SortField = 'name' | 'display_name' | 'status' | 'created_at'
+type SortDir = 'asc' | 'desc'
 
-import '../styles/page.css';
-
-type SortDirection = 'asc' | 'desc';
-type SortField = 'name' | 'display_name' | 'status' | 'created_at';
+const statusVariant = (s: string) => {
+  if (s === 'active') return 'success' as const
+  if (s === 'suspended') return 'destructive' as const
+  return 'secondary' as const
+}
 
 const PublishersPage = () => {
-  const navigate = useNavigate();
-  const token = useAuthStore((state) => state.token);
-  const tokenType = useAuthStore((state) => state.tokenType);
-  const [publishers, setPublishers] = useState<Publisher[]>([]);
-  const [trashedPublishers, setTrashedPublishers] = useState<Publisher[]>([]);
-  const [activeTab, setActiveTab] = useState(0); // 0 = active, 1 = trash
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [sortField, setSortField] = useState<SortField>('name');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [deleteTarget, setDeleteTarget] = useState<Publisher | null>(null);
-  const [deleteBookCount, setDeleteBookCount] = useState<number>(0);
-  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<Publisher | null>(null);
-  const [formDialogOpen, setFormDialogOpen] = useState(false);
-  const [editingPublisher, setEditingPublisher] = useState<Publisher | null>(null);
-  const [bookCounts, setBookCounts] = useState<Record<number, number>>({});
-  const [logoFiles, setLogoFiles] = useState<Record<number, string | null>>({});
+  const navigate = useNavigate()
+  const { token, tokenType } = useAuthStore()
+  const tt = tokenType ?? 'Bearer'
 
-  const loadPublishers = async () => {
-    if (!token) return;
-    setLoading(true);
-    setError('');
+  const [publishers, setPublishers] = useState<Publisher[]>([])
+  const [trashed, setTrashed] = useState<Publisher[]>([])
+  const [tab, setTab] = useState('active')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [sort, setSort] = useState<{ f: SortField; d: SortDir }>({ f: 'name', d: 'asc' })
+  const [deleteTarget, setDeleteTarget] = useState<Publisher | null>(null)
+  const [deleteBookCount, setDeleteBookCount] = useState(0)
+  const [permDeleteTarget, setPermDeleteTarget] = useState<Publisher | null>(null)
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState<Publisher | null>(null)
+  const [bookCounts, setBookCounts] = useState<Record<number, number>>({})
+  const [logoFiles, setLogoFiles] = useState<Record<number, string | null>>({})
+
+  const load = async () => {
+    if (!token) return
+    setLoading(true); setError('')
     try {
-      const [activeData, trashedData] = await Promise.all([
-        fetchPublishers(token, tokenType || 'Bearer'),
-        fetchTrashedPublishers(token, tokenType || 'Bearer'),
-      ]);
-      setPublishers(activeData);
-      setTrashedPublishers(trashedData);
-    } catch (err) {
-      console.error('Failed to fetch publishers:', err);
-      setError('Failed to load publishers. Please try again.');
-    } finally {
-      setLoading(false);
+      const [active, trash] = await Promise.all([fetchPublishers(token, tt), fetchTrashedPublishers(token, tt)])
+      setPublishers(active); setTrashed(trash)
+      const counts: Record<number, number> = {}
+      const logos: Record<number, string | null> = {}
+      await Promise.all(active.map(async p => {
+        try { const bks = await fetchPublisherBooks(p.id, token, tt); counts[p.id] = bks.length } catch { counts[p.id] = 0 }
+        try { const files = await fetchPublisherAssetFiles(p.id, 'logos', token, tt); logos[p.id] = files[0]?.name || null } catch { logos[p.id] = null }
+      }))
+      setBookCounts(counts); setLogoFiles(logos)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load') }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { load() }, [token])
+
+  const filtered = useMemo(() => {
+    const list = tab === 'active' ? publishers : trashed
+    let d = list
+    if (search) {
+      const q = search.toLowerCase()
+      d = d.filter(p => p.name.toLowerCase().includes(q) || (p.display_name?.toLowerCase().includes(q)) || (p.description?.toLowerCase().includes(q)))
     }
-  };
+    if (statusFilter !== 'all') d = d.filter(p => p.status === statusFilter)
+    const dir = sort.d === 'asc' ? 1 : -1
+    return [...d].sort((a, b) => {
+      const av = (a as any)[sort.f] ?? ''
+      const bv = (b as any)[sort.f] ?? ''
+      return String(av).localeCompare(String(bv)) * dir
+    })
+  }, [publishers, trashed, tab, search, statusFilter, sort])
 
-  useEffect(() => {
-    loadPublishers();
-  }, [token]);
+  const toggleSort = (f: SortField) => setSort(c => ({ f, d: c.f === f && c.d === 'asc' ? 'desc' : 'asc' }))
 
-  // Load book counts and logos for all publishers
-  useEffect(() => {
-    if (!token || publishers.length === 0) return;
-
-    // Fetch book counts for each publisher
-    const loadBookCounts = async () => {
-      const counts: Record<number, number> = {};
-      await Promise.all(
-        publishers.map(async (pub) => {
-          try {
-            const books = await fetchPublisherBooks(pub.id, token, tokenType || 'Bearer');
-            counts[pub.id] = books.length;
-          } catch {
-            counts[pub.id] = 0;
-          }
-        })
-      );
-      setBookCounts(counts);
-    };
-
-    // Fetch logo files for each publisher
-    const loadLogos = async () => {
-      const logos: Record<number, string | null> = {};
-      await Promise.all(
-        publishers.map(async (pub) => {
-          try {
-            const files = await fetchPublisherAssetFiles(pub.id, 'logos', token, tokenType || 'Bearer');
-            // Get the first logo file if any
-            logos[pub.id] = files.length > 0 ? files[0].name : null;
-          } catch {
-            logos[pub.id] = null;
-          }
-        })
-      );
-      setLogoFiles(logos);
-    };
-
-    loadBookCounts();
-    loadLogos();
-  }, [publishers, token, tokenType]);
-
-  const handleDeleteClick = async (publisher: Publisher) => {
-    setDeleteTarget(publisher);
-    // Fetch book count for this publisher
+  const handleDelete = async () => {
+    if (!deleteTarget || !token) return
+    try { await deletePublisher(deleteTarget.id, token, tt); setDeleteTarget(null); load() } catch {}
+  }
+  const handleRestore = async (p: Publisher) => {
+    if (!token) return
+    try { await restorePublisher(p.id, token, tt); load() } catch {}
+  }
+  const handlePermDelete = async () => {
+    if (!permDeleteTarget || !token) return
+    try { await permanentDeletePublisher(permDeleteTarget.id, token, tt); setPermDeleteTarget(null); load() } catch {}
+  }
+  const promptDelete = async (p: Publisher) => {
     if (token) {
-      try {
-        const books = await fetchPublisherBooks(publisher.id, token, tokenType || 'Bearer');
-        setDeleteBookCount(books.length);
-      } catch (err) {
-        console.error('Failed to fetch publisher books:', err);
-        setDeleteBookCount(0);
-      }
+      try { const bks = await fetchPublisherBooks(p.id, token, tt); setDeleteBookCount(bks.length) } catch { setDeleteBookCount(0) }
     }
-  };
+    setDeleteTarget(p)
+  }
 
-  const handleDeleteConfirm = async () => {
-    if (!deleteTarget || !token) return;
+  const SortHead = ({ field, label }: { field: SortField; label: string }) => (
+    <TableHead className="cursor-pointer select-none" onClick={() => toggleSort(field)}>
+      {label} {sort.f === field && (sort.d === 'asc' ? '↑' : '↓')}
+    </TableHead>
+  )
 
-    try {
-      await deletePublisher(deleteTarget.id, token, tokenType || 'Bearer');
-      await loadPublishers();
-      setDeleteTarget(null);
-      setDeleteBookCount(0);
-    } catch (err) {
-      console.error('Failed to delete publisher:', err);
-      setError('Failed to delete publisher. Please try again.');
-      setDeleteTarget(null);
-      setDeleteBookCount(0);
-    }
-  };
-
-  const handleRestore = async (publisher: Publisher) => {
-    if (!token) return;
-    try {
-      await restorePublisher(publisher.id, token, tokenType || 'Bearer');
-      await loadPublishers();
-    } catch (err) {
-      console.error('Failed to restore publisher:', err);
-      setError('Failed to restore publisher. Please try again.');
-    }
-  };
-
-  const handlePermanentDeleteClick = (publisher: Publisher) => {
-    setPermanentDeleteTarget(publisher);
-  };
-
-  const handlePermanentDeleteConfirm = async () => {
-    if (!permanentDeleteTarget || !token) return;
-
-    try {
-      await permanentDeletePublisher(permanentDeleteTarget.id, token, tokenType || 'Bearer');
-      await loadPublishers();
-      setPermanentDeleteTarget(null);
-    } catch (err) {
-      console.error('Failed to permanently delete publisher:', err);
-      setError('Failed to permanently delete publisher. Please try again.');
-      setPermanentDeleteTarget(null);
-    }
-  };
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-
-  const handleViewPublisher = (publisher: Publisher) => {
-    navigate(`/publishers/${publisher.id}`);
-  };
-
-  const handleEditPublisher = (publisher: Publisher) => {
-    setEditingPublisher(publisher);
-    setFormDialogOpen(true);
-  };
-
-  const handleAddPublisher = () => {
-    setEditingPublisher(null);
-    setFormDialogOpen(true);
-  };
-
-  const handleFormClose = () => {
-    setFormDialogOpen(false);
-    setEditingPublisher(null);
-  };
-
-  const handleFormSuccess = async () => {
-    await loadPublishers();
-    handleFormClose();
-  };
-
-  const statuses = useMemo(() => {
-    const set = new Set(publishers.map((p) => p.status));
-    return Array.from(set).sort();
-  }, [publishers]);
-
-  const currentPublishers = activeTab === 0 ? publishers : trashedPublishers;
-
-  const filteredAndSortedPublishers = useMemo(() => {
-    let result = [...currentPublishers];
-
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (pub) =>
-          pub.name.toLowerCase().includes(query) ||
-          (pub.display_name && pub.display_name.toLowerCase().includes(query)) ||
-          (pub.description && pub.description.toLowerCase().includes(query))
-      );
-    }
-
-    // Apply status filter
-    if (statusFilter) {
-      result = result.filter((pub) => pub.status === statusFilter);
-    }
-
-    // Apply sorting
-    result.sort((a, b) => {
-      let aVal: string | number | null = '';
-      let bVal: string | number | null = '';
-
-      switch (sortField) {
-        case 'name':
-          aVal = a.name;
-          bVal = b.name;
-          break;
-        case 'display_name':
-          aVal = a.display_name || a.name;
-          bVal = b.display_name || b.name;
-          break;
-        case 'status':
-          aVal = a.status;
-          bVal = b.status;
-          break;
-        case 'created_at':
-          aVal = a.created_at;
-          bVal = b.created_at;
-          break;
-      }
-
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        const comparison = aVal.localeCompare(bVal, undefined, { sensitivity: 'base' });
-        return sortDirection === 'asc' ? comparison : -comparison;
-      }
-
-      return 0;
-    });
-
-    return result;
-  }, [currentPublishers, searchQuery, statusFilter, sortField, sortDirection]);
-
-  const clearFilters = () => {
-    setSearchQuery('');
-    setStatusFilter('');
-  };
-
-  const hasActiveFilters = searchQuery || statusFilter;
-
-  const getStatusColor = (
-    status: string
-  ): 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' => {
-    switch (status) {
-      case 'active':
-        return 'success';
-      case 'inactive':
-        return 'default';
-      case 'suspended':
-        return 'error';
-      default:
-        return 'default';
-    }
-  };
-
-  const getLogoUrl = (publisher: Publisher): string | null => {
-    const logoFile = logoFiles[publisher.id];
-    if (!logoFile) return null;
-    return `/api/publishers/${publisher.id}/assets/logos/${encodeURIComponent(logoFile)}`;
-  };
+  if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin" /></div>
 
   return (
-    <Box component="section" className="page-container">
-      <Box className="page-header">
-        <Box>
-          <Typography variant="h4" component="h1" className="page-title">
-            Publishers
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Manage publisher information and view their books
-          </Typography>
-        </Box>
-        {activeTab === 0 && (
-          <Button variant="contained" size="large" onClick={handleAddPublisher}>
-            Add Publisher
-          </Button>
-        )}
-      </Box>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Publishers</h1>
+        <Button onClick={() => { setEditing(null); setFormOpen(true) }}><Plus className="h-4 w-4" /> Add Publisher</Button>
+      </div>
+      {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
-      {/* Tabs for Active/Trash */}
-      <Tabs
-        value={activeTab}
-        onChange={(_, newValue) => setActiveTab(newValue)}
-        sx={{ mb: 3 }}
-      >
-        <Tab label={`Active (${publishers.length})`} />
-        <Tab label={`Trash (${trashedPublishers.length})`} />
-      </Tabs>
+      <div className="flex items-center gap-3">
+        <Input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} className="max-w-xs" />
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-36"><SelectValue placeholder="All Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+            <SelectItem value="suspended">Suspended</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-      {/* Search and Filters */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-            <TextField
-              placeholder="Search by name or description..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-                endAdornment: searchQuery && (
-                  <InputAdornment position="end">
-                    <IconButton size="small" onClick={() => setSearchQuery('')}>
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ flexGrow: 1, minWidth: 300 }}
-            />
-
-            <FormControl sx={{ minWidth: 150 }}>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={statusFilter}
-                label="Status"
-                onChange={(e: SelectChangeEvent) => setStatusFilter(e.target.value)}
-              >
-                <MenuItem value="">All Statuses</MenuItem>
-                {statuses.map((status) => (
-                  <MenuItem key={status} value={status}>
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            {hasActiveFilters && (
-              <Button startIcon={<ClearIcon />} onClick={clearFilters}>
-                Clear Filters
-              </Button>
-            )}
-          </Stack>
-
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="body2" color="text.secondary">
-              Showing {filteredAndSortedPublishers.length} of {currentPublishers.length} publishers
-            </Typography>
-          </Box>
-        </CardContent>
-      </Card>
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-          {error}
-        </Alert>
-      )}
-
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell width={64}>Logo</TableCell>
-                <TableCell>
-                  <TableSortLabel
-                    active={sortField === 'name'}
-                    direction={sortField === 'name' ? sortDirection : 'asc'}
-                    onClick={() => handleSort('name')}
-                  >
-                    Name
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell>
-                  <TableSortLabel
-                    active={sortField === 'display_name'}
-                    direction={sortField === 'display_name' ? sortDirection : 'asc'}
-                    onClick={() => handleSort('display_name')}
-                  >
-                    Display Name
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell align="center">Books</TableCell>
-                <TableCell>
-                  <TableSortLabel
-                    active={sortField === 'status'}
-                    direction={sortField === 'status' ? sortDirection : 'asc'}
-                    onClick={() => handleSort('status')}
-                  >
-                    Status
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredAndSortedPublishers.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
-                    <BusinessIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-                    <Typography variant="h6" color="text.secondary">
-                      {hasActiveFilters ? 'No publishers match your filters' : 'No publishers found'}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {hasActiveFilters
-                        ? 'Try adjusting your search or filters'
-                        : 'Add your first publisher to get started'}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredAndSortedPublishers.map((publisher) => (
-                  <TableRow
-                    key={publisher.id}
-                    hover
-                    onClick={() => handleViewPublisher(publisher)}
-                    sx={{ cursor: 'pointer' }}
-                  >
-                    <TableCell>
-                      <AuthenticatedImage
-                        variant="rounded"
-                        src={getLogoUrl(publisher) || ''}
-                        token={token}
-                        tokenType={tokenType || 'Bearer'}
-                        sx={{ width: 40, height: 40 }}
-                        fallback={<BusinessIcon />}
-                      />
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList><TabsTrigger value="active">Active ({publishers.length})</TabsTrigger><TabsTrigger value="trash">Trash ({trashed.length})</TabsTrigger></TabsList>
+        <TabsContent value={tab}>
+          <Card><CardContent className="p-0">
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead className="w-16">Logo</TableHead>
+                <SortHead field="name" label="Name" />
+                <SortHead field="display_name" label="Display Name" />
+                <TableHead className="text-center">Books</TableHead>
+                <SortHead field="status" label="Status" />
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {!filtered.length ? (
+                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No publishers found</TableCell></TableRow>
+                ) : filtered.map(p => (
+                  <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/publishers/${p.id}`)}>
+                    <TableCell onClick={e => e.stopPropagation()}>
+                      {logoFiles[p.id] ? (
+                        <AuthenticatedImage src={`/publishers/${p.id}/assets/logos/${encodeURIComponent(logoFiles[p.id]!)}`} token={token} tokenType={tt} alt={p.name} className="h-10 w-10 rounded-full" />
+                      ) : <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground text-sm">{p.name[0]?.toUpperCase()}</div>}
                     </TableCell>
-                    <TableCell>
-                      <Typography variant="body1" fontWeight={500}>
-                        {publisher.name}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>{publisher.display_name || '—'}</TableCell>
-                    <TableCell align="center">
-                      <Chip
-                        label={bookCounts[publisher.id] ?? '—'}
-                        size="small"
-                        color={bookCounts[publisher.id] ? 'primary' : 'default'}
-                        variant="outlined"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={publisher.status.toUpperCase()}
-                        size="small"
-                        color={getStatusColor(publisher.status)}
-                      />
-                    </TableCell>
-                    <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                      {activeTab === 0 ? (
-                        <>
-                          <Tooltip title="Edit publisher">
-                            <IconButton size="small" onClick={() => handleEditPublisher(publisher)}>
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Move to trash">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handleDeleteClick(publisher)}
-                            >
-                              <DeleteOutlineIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </>
+                    <TableCell className="font-medium">{p.name}</TableCell>
+                    <TableCell>{p.display_name || '—'}</TableCell>
+                    <TableCell className="text-center"><Badge variant="outline">{bookCounts[p.id] ?? 0}</Badge></TableCell>
+                    <TableCell><Badge variant={statusVariant(p.status)}>{p.status}</Badge></TableCell>
+                    <TableCell className="text-right" onClick={e => e.stopPropagation()}>
+                      {tab === 'active' ? (
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditing(p); setFormOpen(true) }}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => promptDelete(p)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        </div>
                       ) : (
-                        <>
-                          <Tooltip title="Restore publisher">
-                            <IconButton
-                              size="small"
-                              color="success"
-                              onClick={() => handleRestore(publisher)}
-                            >
-                              <RestoreIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Delete permanently">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handlePermanentDeleteClick(publisher)}
-                            >
-                              <DeleteForeverIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </>
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleRestore(p)}><RotateCcw className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPermDeleteTarget(p)}><XCircle className="h-4 w-4 text-destructive" /></Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent></Card>
+        </TabsContent>
+      </Tabs>
 
-      {/* Publisher Form Dialog */}
-      <PublisherFormDialog
-        open={formDialogOpen}
-        onClose={handleFormClose}
-        onSuccess={handleFormSuccess}
-        publisher={editingPublisher}
-        token={token}
-        tokenType={tokenType}
-      />
-
-      {/* Move to Trash Confirmation Dialog */}
-      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>
-        <DialogTitle>Move to Trash?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to move "{deleteTarget?.display_name || deleteTarget?.name}" to trash?
-            {deleteBookCount > 0 && (
-              <>
-                <br />
-                <br />
-                <strong>Warning:</strong> This publisher has {deleteBookCount} book
-                {deleteBookCount !== 1 ? 's' : ''} associated with it.
-              </>
-            )}
-            <br />
-            <br />
-            You can restore it later from the Trash tab.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)}>Cancel</Button>
-          <Button onClick={handleDeleteConfirm} color="error" variant="contained">
-            Move to Trash
-          </Button>
-        </DialogActions>
+      <PublisherFormDialog open={formOpen} onClose={() => setFormOpen(false)} onSuccess={() => { setFormOpen(false); load() }} publisher={editing} token={token} tokenType={tt} />
+      <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <DialogContent><DialogHeader><DialogTitle>Delete Publisher?</DialogTitle>
+          <DialogDescription>Soft-delete &quot;{deleteTarget?.name}&quot;? {deleteBookCount > 0 && `This publisher has ${deleteBookCount} book(s).`} Files move to trash.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+          <Button variant="destructive" onClick={handleDelete}>Delete</Button>
+        </DialogFooter></DialogContent>
       </Dialog>
-
-      {/* Permanent Delete Confirmation Dialog */}
-      <Dialog open={!!permanentDeleteTarget} onClose={() => setPermanentDeleteTarget(null)}>
-        <DialogTitle>Permanently Delete Publisher?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to permanently delete "{permanentDeleteTarget?.display_name || permanentDeleteTarget?.name}"?
-            <br />
-            <br />
-            <strong>Warning:</strong> This action cannot be undone. The publisher will be permanently removed from the database.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPermanentDeleteTarget(null)}>Cancel</Button>
-          <Button onClick={handlePermanentDeleteConfirm} color="error" variant="contained">
-            Delete Permanently
-          </Button>
-        </DialogActions>
+      <Dialog open={!!permDeleteTarget} onOpenChange={() => setPermDeleteTarget(null)}>
+        <DialogContent><DialogHeader><DialogTitle>Permanently Delete?</DialogTitle>
+          <DialogDescription>Permanently delete &quot;{permDeleteTarget?.name}&quot;? This cannot be undone.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setPermDeleteTarget(null)}>Cancel</Button>
+          <Button variant="destructive" onClick={handlePermDelete}>Delete Forever</Button>
+        </DialogFooter></DialogContent>
       </Dialog>
-    </Box>
-  );
-};
+    </div>
+  )
+}
 
-export default PublishersPage;
+export default PublishersPage

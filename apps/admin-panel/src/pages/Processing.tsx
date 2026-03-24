@@ -1,567 +1,199 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Loader2, Play, RefreshCw, Settings, XCircle, Database } from 'lucide-react'
+
+import { Card, CardContent } from 'components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from 'components/ui/table'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from 'components/ui/select'
+import { Checkbox } from 'components/ui/checkbox'
+import { Input } from 'components/ui/input'
+import { Button } from 'components/ui/button'
+import { Badge } from 'components/ui/badge'
+import { Progress } from 'components/ui/progress'
+import { Alert, AlertDescription } from 'components/ui/alert'
+import ProcessingDialog from 'components/ProcessingDialog'
+import ProcessingSettingsDialog from 'components/ProcessingSettingsDialog'
+import AIDataDialog from 'components/AIDataDialog'
+import { useAuthStore } from 'stores/auth'
 import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Checkbox,
-  Chip,
-  CircularProgress,
-  Collapse,
-  FormControl,
-  IconButton,
-  InputAdornment,
-  InputLabel,
-  LinearProgress,
-  MenuItem,
-  Paper,
-  Select,
-  SelectChangeEvent,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-  Tooltip,
-  Typography,
-} from '@mui/material';
-import SearchIcon from '@mui/icons-material/Search';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import ClearIcon from '@mui/icons-material/Clear';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
-import QueueIcon from '@mui/icons-material/Queue';
+  getBooksWithProcessingStatus, getProcessingQueue, bulkReprocess, clearProcessingError,
+  getExtendedStatusLabel, type BookWithProcessingStatus, type ProcessingQueueItem, type ExtendedProcessingStatus
+} from 'lib/processing'
 
-import {
-  BookWithProcessingStatus,
-  BulkReprocessRequest,
-  ExtendedProcessingStatus,
-  ProcessingQueueItem,
-  bulkReprocess,
-  clearProcessingError,
-  getBooksWithProcessingStatus,
-  getExtendedStatusColor,
-  getExtendedStatusLabel,
-  getProcessingQueue,
-} from '../lib/processing';
-import { useAuthStore } from '../stores/auth';
-import ProcessingDialog from '../components/ProcessingDialog';
-import { ApiError } from '../lib/api';
-
-import '../styles/page.css';
-
-const STATUS_OPTIONS: { value: ExtendedProcessingStatus | ''; label: string }[] = [
-  { value: '', label: 'All Statuses' },
-  { value: 'not_started', label: 'Not Started' },
-  { value: 'queued', label: 'Queued' },
-  { value: 'processing', label: 'Processing' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'failed', label: 'Failed' },
-  { value: 'partial', label: 'Partial' },
-];
+const statusVariant = (s: string) => {
+  if (s === 'completed') return 'success' as const
+  if (s === 'processing' || s === 'queued') return 'default' as const
+  if (s === 'failed') return 'destructive' as const
+  if (s === 'partial') return 'warning' as const
+  return 'secondary' as const
+}
 
 const ProcessingPage = () => {
-  const token = useAuthStore((state) => state.token);
-  const tokenType = useAuthStore((state) => state.tokenType);
+  const { token, tokenType } = useAuthStore()
+  const tt = tokenType ?? 'Bearer'
 
-  // Books state
-  const [books, setBooks] = useState<BookWithProcessingStatus[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [books, setBooks] = useState<BookWithProcessingStatus[]>([])
+  const [queue, setQueue] = useState<ProcessingQueueItem[]>([])
+  const [queueStats, setQueueStats] = useState({ queued: 0, processing: 0 })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [processingBook, setProcessingBook] = useState<BookWithProcessingStatus | null>(null)
+  const [bulkProcessing, setBulkProcessing] = useState(false)
+  const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [aiDataBook, setAiDataBook] = useState<BookWithProcessingStatus | null>(null)
 
-  // Queue state
-  const [queue, setQueue] = useState<ProcessingQueueItem[]>([]);
-  const [queueStats, setQueueStats] = useState({ queued: 0, processing: 0 });
-  const [queueExpanded, setQueueExpanded] = useState(true);
-
-  // Filters
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<ExtendedProcessingStatus | ''>('');
-
-  // Selection
-  const [selectedBooks, setSelectedBooks] = useState<Set<number>>(new Set());
-
-  // Processing dialog
-  const [processingDialogOpen, setProcessingDialogOpen] = useState(false);
-  const [selectedBookForProcessing, setSelectedBookForProcessing] = useState<BookWithProcessingStatus | null>(null);
-
-  // Bulk processing
-  const [bulkProcessing, setBulkProcessing] = useState(false);
-  const [bulkResult, setBulkResult] = useState<{ triggered: number; skipped: number; errors: string[] } | null>(null);
-
-  // Success message
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  // Fetch books
-  const fetchBooks = useCallback(async () => {
-    if (!token) return;
-
+  const fetchData = useCallback(async () => {
+    if (!token) return
     try {
-      const response = await getBooksWithProcessingStatus(token, tokenType || 'Bearer', {
-        status: statusFilter || undefined,
-        search: searchQuery || undefined,
-      });
-      setBooks(response.books);
-      setError(null);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(`Failed to fetch books: ${err.status}`);
-      } else {
-        setError('Failed to fetch books');
+      const [bks, q] = await Promise.allSettled([
+        getBooksWithProcessingStatus(token, tt, statusFilter !== 'all' ? { status: statusFilter as ExtendedProcessingStatus } : {}),
+        getProcessingQueue(token, tt)
+      ])
+      if (bks.status === 'fulfilled') {
+        setBooks(bks.value.books ?? [])
       }
-    }
-  }, [token, tokenType, statusFilter, searchQuery]);
+      if (q.status === 'fulfilled') {
+        setQueue((q.value.queue ?? []).slice(0, 5))
+        setQueueStats({ queued: q.value.total_queued ?? 0, processing: q.value.total_processing ?? 0 })
+      }
+      if (bks.status === 'rejected' && q.status === 'rejected') {
+        setError('Failed to load processing data')
+      }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load') }
+  }, [token, tt, statusFilter])
 
-  // Fetch queue
-  const fetchQueue = useCallback(async () => {
-    if (!token) return;
+  useEffect(() => {
+    setLoading(true)
+    fetchData().finally(() => setLoading(false))
+  }, [fetchData])
 
+  useEffect(() => {
+    if (queueStats.queued + queueStats.processing === 0) return
+    const id = setInterval(fetchData, 10000)
+    return () => clearInterval(id)
+  }, [queueStats.queued, queueStats.processing, fetchData])
+
+  const filtered = useMemo(() => {
+    if (!search) return books
+    const q = search.toLowerCase()
+    return books.filter(b => b.book_title.toLowerCase().includes(q) || b.book_name.toLowerCase().includes(q) || b.publisher_name.toLowerCase().includes(q))
+  }, [books, search])
+
+  const toggleSelect = (id: number) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const toggleAll = () => setSelected(p => p.size === filtered.length ? new Set() : new Set(filtered.map(b => b.book_id)))
+
+  const handleBulk = async () => {
+    if (!token || !selected.size) return
+    setBulkProcessing(true); setSuccessMsg(null)
     try {
-      const response = await getProcessingQueue(token, tokenType || 'Bearer');
-      setQueue(response.queue);
-      setQueueStats({
-        queued: response.total_queued,
-        processing: response.total_processing,
-      });
-    } catch (err) {
-      console.error('Failed to fetch queue:', err);
-    }
-  }, [token, tokenType]);
+      const r = await bulkReprocess({ book_ids: [...selected] }, token, tt)
+      setSuccessMsg(`Triggered: ${r.triggered}, Skipped: ${r.skipped}`)
+      setSelected(new Set()); fetchData()
+    } catch {} finally { setBulkProcessing(false) }
+  }
 
-  // Initial load
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      await Promise.all([fetchBooks(), fetchQueue()]);
-      setLoading(false);
-    };
-    loadData();
-  }, [fetchBooks, fetchQueue]);
-
-  // Auto-refresh when jobs are active
-  useEffect(() => {
-    if (queueStats.queued + queueStats.processing === 0) return;
-
-    const interval = setInterval(() => {
-      fetchBooks();
-      fetchQueue();
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [queueStats, fetchBooks, fetchQueue]);
-
-  // Handle refresh
-  const handleRefresh = async () => {
-    setLoading(true);
-    await Promise.all([fetchBooks(), fetchQueue()]);
-    setLoading(false);
-  };
-
-  // Handle select all
-  const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.checked) {
-      setSelectedBooks(new Set(books.map((b) => b.book_id)));
-    } else {
-      setSelectedBooks(new Set());
-    }
-  };
-
-  // Handle select one
-  const handleSelectBook = (bookId: number) => {
-    const newSelected = new Set(selectedBooks);
-    if (newSelected.has(bookId)) {
-      newSelected.delete(bookId);
-    } else {
-      newSelected.add(bookId);
-    }
-    setSelectedBooks(newSelected);
-  };
-
-  // Handle open processing dialog
-  const handleOpenProcessing = (book: BookWithProcessingStatus) => {
-    setSelectedBookForProcessing(book);
-    setProcessingDialogOpen(true);
-  };
-
-  // Handle close processing dialog
-  const handleCloseProcessing = () => {
-    setProcessingDialogOpen(false);
-    setSelectedBookForProcessing(null);
-    // Refresh data after dialog closes
-    handleRefresh();
-  };
-
-  // Handle clear error
   const handleClearError = async (bookId: number) => {
-    if (!token) return;
+    if (!token) return
+    try { await clearProcessingError(bookId, token, tt); fetchData() } catch {}
+  }
 
-    try {
-      await clearProcessingError(bookId, token, tokenType || 'Bearer');
-      setSuccessMessage('Error cleared successfully');
-      fetchBooks();
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(`Failed to clear error: ${err.status}`);
-      } else {
-        setError('Failed to clear error');
-      }
-    }
-  };
-
-  // Handle bulk reprocess
-  const handleBulkReprocess = async () => {
-    if (!token || selectedBooks.size === 0) return;
-
-    setBulkProcessing(true);
-    setBulkResult(null);
-
-    try {
-      const request: BulkReprocessRequest = {
-        book_ids: Array.from(selectedBooks),
-        job_type: 'full',  // Use new chunked approach
-        priority: 'normal',
-      };
-      const response = await bulkReprocess(request, token, tokenType || 'Bearer');
-      setBulkResult({
-        triggered: response.triggered,
-        skipped: response.skipped,
-        errors: response.errors,
-      });
-      setSelectedBooks(new Set());
-      fetchBooks();
-      fetchQueue();
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(`Bulk reprocess failed: ${err.status}`);
-      } else {
-        setError('Bulk reprocess failed');
-      }
-    } finally {
-      setBulkProcessing(false);
-    }
-  };
-
-  // Filtered books (client-side search if API doesn't support it yet)
-  const filteredBooks = useMemo(() => {
-    if (!searchQuery) return books;
-    const query = searchQuery.toLowerCase();
-    return books.filter(
-      (b) =>
-        b.book_title.toLowerCase().includes(query) ||
-        b.book_name.toLowerCase().includes(query) ||
-        b.publisher_name.toLowerCase().includes(query)
-    );
-  }, [books, searchQuery]);
-
-  const isAllSelected = filteredBooks.length > 0 && selectedBooks.size === filteredBooks.length;
-  const hasActiveJobs = queueStats.queued + queueStats.processing > 0;
+  if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin" /></div>
 
   return (
-    <Box className="page-container">
-      <Box className="page-header">
-        <Typography variant="h4" component="h1">
-          AI Processing Dashboard
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleBulkReprocess}
-            disabled={selectedBooks.size === 0 || bulkProcessing}
-            startIcon={bulkProcessing ? <CircularProgress size={20} color="inherit" /> : <PlayArrowIcon />}
-          >
-            Bulk Reprocess ({selectedBooks.size})
-          </Button>
-          <Button
-            variant="outlined"
-            onClick={handleRefresh}
-            disabled={loading}
-            startIcon={loading ? <CircularProgress size={20} /> : <RefreshIcon />}
-          >
-            Refresh
-          </Button>
-        </Box>
-      </Box>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">AI Processing</h1>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setSettingsOpen(true)}><Settings className="h-4 w-4" /> Settings</Button>
+          <Button variant="outline" onClick={() => { setLoading(true); fetchData().finally(() => setLoading(false)) }}><RefreshCw className="h-4 w-4" /> Refresh</Button>
+        </div>
+      </div>
 
-      {/* Queue Panel */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent sx={{ pb: 1 }}>
-          <Box
-            sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
-            onClick={() => setQueueExpanded(!queueExpanded)}
-          >
-            <Stack direction="row" spacing={2} alignItems="center">
-              <QueueIcon color="primary" />
-              <Typography variant="h6">Processing Queue</Typography>
-              <Chip
-                label={`${queueStats.queued} queued`}
-                size="small"
-                color={queueStats.queued > 0 ? 'info' : 'default'}
-              />
-              <Chip
-                label={`${queueStats.processing} processing`}
-                size="small"
-                color={queueStats.processing > 0 ? 'primary' : 'default'}
-              />
-              {hasActiveJobs && (
-                <Typography variant="caption" color="text.secondary">
-                  (Auto-refreshing every 10s)
-                </Typography>
-              )}
-            </Stack>
-            <IconButton size="small">
-              {queueExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-            </IconButton>
-          </Box>
-        </CardContent>
-        <Collapse in={queueExpanded}>
-          <CardContent sx={{ pt: 0 }}>
-            {queue.length === 0 ? (
-              <Typography color="text.secondary">No jobs in queue</Typography>
-            ) : (
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>#</TableCell>
-                      <TableCell>Book</TableCell>
-                      <TableCell>Publisher</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Progress</TableCell>
-                      <TableCell>Step</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {queue.slice(0, 5).map((item) => (
-                      <TableRow key={item.job_id}>
-                        <TableCell>{item.position}</TableCell>
-                        <TableCell>{item.book_title || item.book_name}</TableCell>
-                        <TableCell>{item.publisher_name}</TableCell>
-                        <TableCell>
-                          <Chip
-                            label={item.status === 'queued' ? 'Queued' : 'Processing'}
-                            size="small"
-                            color={item.status === 'queued' ? 'info' : 'primary'}
-                          />
-                        </TableCell>
-                        <TableCell sx={{ width: 120 }}>
-                          <LinearProgress variant="determinate" value={item.progress} sx={{ height: 6, borderRadius: 3 }} />
-                        </TableCell>
-                        <TableCell>{item.current_step || '-'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
+      {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+      {successMsg && <Alert><AlertDescription>{successMsg}</AlertDescription></Alert>}
+
+      {queue.length > 0 && (
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-sm">Queue ({queueStats.queued} queued, {queueStats.processing} processing)</h3>
+            </div>
+            {queue.map(q => (
+              <div key={q.job_id} className="flex items-center gap-3 text-sm">
+                <Badge variant={statusVariant(q.status)} className="w-20 justify-center">{q.status}</Badge>
+                <span className="flex-1 truncate font-medium">{q.book_title}</span>
+                <div className="w-24"><Progress value={q.progress} /></div>
+                <span className="text-xs text-muted-foreground w-24 truncate">{q.current_step}</span>
+              </div>
+            ))}
           </CardContent>
-        </Collapse>
-      </Card>
-
-      {/* Alerts */}
-      {error && (
-        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-      {successMessage && (
-        <Alert severity="success" onClose={() => setSuccessMessage(null)} sx={{ mb: 2 }}>
-          {successMessage}
-        </Alert>
-      )}
-      {bulkResult && (
-        <Alert
-          severity={bulkResult.errors.length > 0 ? 'warning' : 'success'}
-          onClose={() => setBulkResult(null)}
-          sx={{ mb: 2 }}
-        >
-          Bulk reprocess: {bulkResult.triggered} triggered, {bulkResult.skipped} skipped
-          {bulkResult.errors.length > 0 && ` (${bulkResult.errors.length} errors)`}
-        </Alert>
+        </Card>
       )}
 
-      {/* Filters */}
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <Stack direction="row" spacing={2} alignItems="center">
-          <TextField
-            size="small"
-            placeholder="Search by title or publisher..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            sx={{ minWidth: 300 }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-              endAdornment: searchQuery && (
-                <InputAdornment position="end">
-                  <IconButton size="small" onClick={() => setSearchQuery('')}>
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
-          <FormControl size="small" sx={{ minWidth: 180 }}>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={statusFilter}
-              label="Status"
-              onChange={(e: SelectChangeEvent) => setStatusFilter(e.target.value as ExtendedProcessingStatus | '')}
-            >
-              {STATUS_OPTIONS.map((opt) => (
-                <MenuItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <Typography variant="body2" color="text.secondary">
-            {filteredBooks.length} books
-          </Typography>
-        </Stack>
-      </Paper>
+      <div className="flex flex-wrap items-center gap-3">
+        <Input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} className="max-w-xs" />
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-40"><SelectValue placeholder="All Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="not_started">Not Started</SelectItem>
+            <SelectItem value="queued">Queued</SelectItem>
+            <SelectItem value="processing">Processing</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="failed">Failed</SelectItem>
+            <SelectItem value="partial">Partial</SelectItem>
+          </SelectContent>
+        </Select>
+        {selected.size > 0 && (
+          <Button onClick={handleBulk} disabled={bulkProcessing} size="sm">
+            {bulkProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+            Reprocess {selected.size} Selected
+          </Button>
+        )}
+      </div>
 
-      {/* Books Table */}
-      <TableContainer component={Paper}>
+      <Card><CardContent className="p-0">
         <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell padding="checkbox">
-                <Checkbox
-                  checked={isAllSelected}
-                  indeterminate={selectedBooks.size > 0 && !isAllSelected}
-                  onChange={handleSelectAll}
-                />
-              </TableCell>
-              <TableCell>Book</TableCell>
-              <TableCell>Publisher</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Progress</TableCell>
-              <TableCell>Current Step</TableCell>
-              <TableCell>Error</TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
+          <TableHeader><TableRow>
+            <TableHead className="w-10"><Checkbox checked={selected.size === filtered.length && filtered.length > 0} onCheckedChange={toggleAll} /></TableHead>
+            <TableHead>Book</TableHead><TableHead>Publisher</TableHead><TableHead>Status</TableHead><TableHead>Progress</TableHead><TableHead>Step</TableHead><TableHead className="text-right">Actions</TableHead>
+          </TableRow></TableHeader>
           <TableBody>
-            {loading && filteredBooks.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
-                  <CircularProgress />
+            {!filtered.length ? (
+              <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No books found</TableCell></TableRow>
+            ) : filtered.map(b => (
+              <TableRow key={b.book_id}>
+                <TableCell><Checkbox checked={selected.has(b.book_id)} onCheckedChange={() => toggleSelect(b.book_id)} /></TableCell>
+                <TableCell><div><span className="font-medium">{b.book_title}</span><span className="block text-xs text-muted-foreground">{b.book_name}</span></div></TableCell>
+                <TableCell>{b.publisher_name}</TableCell>
+                <TableCell><Badge variant={statusVariant(b.processing_status)}>{getExtendedStatusLabel(b.processing_status)}</Badge></TableCell>
+                <TableCell className="w-24">{b.processing_status === 'processing' ? <Progress value={b.progress} /> : b.processing_status === 'completed' ? '100%' : '—'}</TableCell>
+                <TableCell className="text-xs text-muted-foreground max-w-[120px] truncate">{b.current_step || '—'}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-1">
+                    {(b.processing_status === 'completed' || b.processing_status === 'partial') && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setAiDataBook(b)} title="View AI Data"><Database className="h-4 w-4 text-primary" /></Button>
+                    )}
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setProcessingBook(b)} title="Process"><Play className="h-4 w-4" /></Button>
+                    {b.processing_status === 'failed' && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleClearError(b.book_id)} title="Clear Error"><XCircle className="h-4 w-4 text-destructive" /></Button>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
-            ) : filteredBooks.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
-                  <Typography color="text.secondary">No books found</Typography>
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredBooks.map((book) => (
-                <TableRow key={book.book_id} hover>
-                  <TableCell padding="checkbox">
-                    <Checkbox
-                      checked={selectedBooks.has(book.book_id)}
-                      onChange={() => handleSelectBook(book.book_id)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight="medium">
-                      {book.book_title || book.book_name}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {book.book_name}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>{book.publisher_name}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={getExtendedStatusLabel(book.processing_status)}
-                      size="small"
-                      color={getExtendedStatusColor(book.processing_status)}
-                    />
-                  </TableCell>
-                  <TableCell sx={{ width: 120 }}>
-                    {book.processing_status === 'processing' || book.processing_status === 'queued' ? (
-                      <LinearProgress variant="determinate" value={book.progress} sx={{ height: 6, borderRadius: 3 }} />
-                    ) : book.processing_status === 'completed' ? (
-                      <Typography variant="caption" color="success.main">
-                        100%
-                      </Typography>
-                    ) : (
-                      '-'
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="caption">{book.current_step || '-'}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    {book.error_message ? (
-                      <Tooltip title={book.error_message}>
-                        <Stack direction="row" spacing={0.5} alignItems="center">
-                          <ErrorOutlineIcon color="error" fontSize="small" />
-                          <Typography
-                            variant="caption"
-                            color="error"
-                            sx={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                          >
-                            {book.error_message}
-                          </Typography>
-                        </Stack>
-                      </Tooltip>
-                    ) : (
-                      '-'
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Stack direction="row" spacing={1}>
-                      <Tooltip title="Process">
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={() => handleOpenProcessing(book)}
-                          disabled={book.processing_status === 'processing' || book.processing_status === 'queued'}
-                        >
-                          <PlayArrowIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      {book.processing_status === 'failed' && (
-                        <Tooltip title="Clear Error">
-                          <IconButton size="small" color="warning" onClick={() => handleClearError(book.book_id)}>
-                            <ClearIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                    </Stack>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
+            ))}
           </TableBody>
         </Table>
-      </TableContainer>
+      </CardContent></Card>
 
-      {/* Processing Dialog */}
-      {selectedBookForProcessing && (
-        <ProcessingDialog
-          open={processingDialogOpen}
-          onClose={handleCloseProcessing}
-          bookId={selectedBookForProcessing.book_id}
-          bookTitle={selectedBookForProcessing.book_title || selectedBookForProcessing.book_name}
-          token={token}
-          tokenType={tokenType}
-        />
-      )}
-    </Box>
-  );
-};
+      {processingBook && <ProcessingDialog open={!!processingBook} onClose={() => { setProcessingBook(null); fetchData() }} bookId={processingBook.book_id} bookTitle={processingBook.book_title} token={token} tokenType={tt} />}
+      <ProcessingSettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} token={token} tokenType={tt} />
+      {aiDataBook && <AIDataDialog open={!!aiDataBook} onClose={() => setAiDataBook(null)} bookId={aiDataBook.book_id} bookTitle={aiDataBook.book_title} token={token} tokenType={tt} />}
+    </div>
+  )
+}
 
-export default ProcessingPage;
+export default ProcessingPage

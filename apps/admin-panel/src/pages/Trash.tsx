@@ -1,448 +1,147 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  Paper,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Tooltip,
-  Typography,
-} from '@mui/material';
-import RestoreFromTrashIcon from '@mui/icons-material/RestoreFromTrash';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import { useEffect, useMemo, useState } from 'react'
+import { Loader2, RotateCcw, Trash2 } from 'lucide-react'
 
-import { ApiError } from '../lib/api';
-import { deleteTrashEntry, restoreTrashEntry, listTrashEntries, TrashEntry } from '../lib/storage';
-import { useAuthStore } from '../stores/auth';
+import { Card, CardContent } from 'components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from 'components/ui/table'
+import { Button } from 'components/ui/button'
+import { Badge } from 'components/ui/badge'
+import { Alert, AlertDescription } from 'components/ui/alert'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from 'components/ui/dialog'
+import { useAuthStore } from 'stores/auth'
+import { listTrashEntries, restoreTrashEntry, deleteTrashEntry, type TrashEntry } from 'lib/storage'
 
-import '../styles/page.css';
+const fmtBytes = (n: number) => {
+  if (!n) return '0 B'
+  const u = ['B','KB','MB','GB']
+  const e = Math.min(Math.floor(Math.log(n)/Math.log(1024)), u.length-1)
+  const v = n/Math.pow(1024,e)
+  return `${v.toFixed(v>=10||e===0?0:1)} ${u[e]}`
+}
 
-const formatBytes = (size?: number) => {
-  if (typeof size !== 'number' || Number.isNaN(size)) {
-    return '—';
+const typeLabel = (t: string) => {
+  switch (t) { case 'book': return 'Book'; case 'app': return 'App'; case 'teacher_material': return 'Teacher Material'; default: return t }
+}
+
+const getEntryLabel = (e: TrashEntry) => {
+  const m = e.metadata
+  if (e.item_type === 'book') {
+    const pub = m?.publisher || m?.Publisher || ''
+    const name = m?.book_name || m?.bookName || ''
+    if (pub && name) return `${pub} / ${name}`
   }
-
-  if (size === 0) {
-    return '0 B';
+  if (e.item_type === 'app') {
+    const plat = m?.platform || m?.Platform || ''
+    const ver = m?.version || m?.Version || ''
+    if (plat) return `${plat} ${ver}`.trim()
   }
-
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const exponent = Math.min(Math.floor(Math.log(size) / Math.log(1024)), units.length - 1);
-  const value = size / Math.pow(1024, exponent);
-  const precision = value >= 10 || exponent === 0 ? 0 : 1;
-  return `${value.toFixed(precision)} ${units[exponent]}`;
-};
-
-const getItemTypeLabel = (itemType: string) => {
-  switch (itemType) {
-    case 'book':
-      return 'Book';
-    case 'app':
-      return 'App';
-    case 'teacher_material':
-      return 'Teacher Material';
-    default:
-      return 'Unknown';
+  if (e.item_type === 'teacher_material') {
+    const tid = m?.teacher_id || m?.teacherId || ''
+    if (tid) return `Teacher: ${tid}`
   }
-};
-
-const getEntryLabel = (entry: TrashEntry) => {
-  if (entry.item_type === 'book' && entry.metadata) {
-    const publisher = entry.metadata.publisher ?? entry.metadata.Publisher;
-    const bookName = entry.metadata.book_name ?? entry.metadata.bookName;
-    if (publisher && bookName) {
-      return `${publisher} / ${bookName}`;
-    }
-  }
-
-  if (entry.item_type === 'app' && entry.metadata) {
-    const platform = entry.metadata.platform ?? entry.metadata.Platform;
-    const version = entry.metadata.version ?? entry.metadata.Version;
-    if (platform && version) {
-      return `${platform} ${version}`;
-    }
-  }
-
-  if (entry.item_type === 'teacher_material' && entry.metadata) {
-    const teacherId = entry.metadata.teacher_id ?? entry.metadata.teacherId;
-    if (teacherId) {
-      return `Teacher: ${teacherId}`;
-    }
-  }
-
-  return entry.path || entry.key;
-};
+  return e.path || e.key
+}
 
 const TrashPage = () => {
-  const token = useAuthStore((state) => state.token);
-  const tokenType = useAuthStore((state) => state.tokenType ?? 'Bearer');
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const { token, tokenType } = useAuthStore()
+  const tt = tokenType ?? 'Bearer'
 
-  const [entries, setEntries] = useState<TrashEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [restoreTarget, setRestoreTarget] = useState<TrashEntry | null>(null);
-  const [restoreError, setRestoreError] = useState<string | null>(null);
-  const [isRestoring, setIsRestoring] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<TrashEntry | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [notification, setNotification] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
-  const [refreshIndex, setRefreshIndex] = useState(0);
-  const [typeFilter, setTypeFilter] = useState<string>('');
+  const [entries, setEntries] = useState<TrashEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [typeFilter, setTypeFilter] = useState('')
+  const [restoreTarget, setRestoreTarget] = useState<TrashEntry | null>(null)
+  const [restoring, setRestoring] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<TrashEntry | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [notification, setNotification] = useState<{ message: string; severity: 'success'|'error' } | null>(null)
+  const [refresh, setRefresh] = useState(0)
 
   useEffect(() => {
-    let active = true;
+    if (!token) return
+    setLoading(true); setError(null)
+    listTrashEntries(token, tt).then(setEntries).catch(e => setError(e instanceof Error ? e.message : 'Failed to load')).finally(() => setLoading(false))
+  }, [token, tt, refresh])
 
-    const fetchEntries = async () => {
-      if (!isAuthenticated || !token) {
-        if (active) {
-          setEntries([]);
-          setLoading(false);
-        }
-        return;
-      }
+  const filtered = useMemo(() => {
+    const d = typeFilter ? entries.filter(e => e.item_type === typeFilter) : entries
+    return [...d].sort((a, b) => getEntryLabel(a).localeCompare(getEntryLabel(b)))
+  }, [entries, typeFilter])
 
-      setLoading(true);
-      setError(null);
+  const doRestore = async () => {
+    if (!restoreTarget || !token) return
+    setRestoring(true)
+    try { await restoreTrashEntry(restoreTarget.key, token, tt); setNotification({ message: 'Restored!', severity: 'success' }); setRestoreTarget(null); setRefresh(v => v+1) }
+    catch { setNotification({ message: 'Restore failed', severity: 'error' }) }
+    finally { setRestoring(false) }
+  }
 
-      try {
-        const response = await listTrashEntries(token, tokenType);
-        if (!active) {
-          return;
-        }
-        setEntries(response);
-      } catch (requestError) {
-        if (!active) {
-          return;
-        }
-        const message = requestError instanceof Error ? requestError.message : 'Unable to load trash contents.';
-        setError(message);
-        setEntries([]);
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    };
+  const doDelete = async () => {
+    if (!deleteTarget || !token) return
+    setDeleting(true)
+    try { await deleteTrashEntry(deleteTarget.key, token, tt, undefined, { force: true }); setNotification({ message: 'Permanently deleted', severity: 'success' }); setDeleteTarget(null); setRefresh(v => v+1) }
+    catch { setNotification({ message: 'Delete failed', severity: 'error' }) }
+    finally { setDeleting(false) }
+  }
 
-    void fetchEntries();
+  if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin" /></div>
 
-    return () => {
-      active = false;
-    };
-  }, [isAuthenticated, token, tokenType, refreshIndex]);
-
-  const openRestoreDialog = (entry: TrashEntry) => {
-    setRestoreTarget(entry);
-    setRestoreError(null);
-  };
-
-  const closeRestoreDialog = () => {
-    if (isRestoring) {
-      return;
-    }
-    setRestoreTarget(null);
-  };
-
-  const openDeleteDialog = (entry: TrashEntry) => {
-    setDeleteTarget(entry);
-    setDeleteError(null);
-  };
-
-  const closeDeleteDialog = () => {
-    if (isDeleting) {
-      return;
-    }
-    setDeleteTarget(null);
-    setDeleteError(null);
-  };
-
-
-  const performRestore = async () => {
-    if (!restoreTarget || !token) {
-      return;
-    }
-
-    setIsRestoring(true);
-    setRestoreError(null);
-
-    try {
-      await restoreTrashEntry(restoreTarget.key, token, tokenType);
-      setRestoreTarget(null);
-      setRefreshIndex((value) => value + 1);
-    } catch (requestError) {
-      if (requestError instanceof Error) {
-        console.error('Failed to restore trash entry', requestError);
-      }
-      setRestoreError('Unable to restore the selected item.');
-    } finally {
-      setIsRestoring(false);
-    }
-  };
-
-  const sortedEntries = useMemo(() => {
-    const filtered = typeFilter
-      ? entries.filter((entry) => entry.item_type === typeFilter)
-      : entries;
-    return [...filtered].sort((a, b) => getEntryLabel(a).localeCompare(getEntryLabel(b), undefined, { sensitivity: 'base' }));
-  }, [entries, typeFilter]);
-
-  const performPermanentDelete = async () => {
-    if (!deleteTarget || !token) {
-      return;
-    }
-
-    setDeleteError(null);
-    setIsDeleting(true);
-
-    try {
-      const label = getEntryLabel(deleteTarget);
-      await deleteTrashEntry(deleteTarget.key, token, tokenType, undefined, { force: true });
-      setDeleteTarget(null);
-      setNotification({ severity: 'success', message: `Permanently deleted "${label}".` });
-      setRefreshIndex((value) => value + 1);
-    } catch (requestError) {
-      if (requestError instanceof Error) {
-        console.error('Failed to permanently delete trash entry', requestError);
-      }
-
-      let message = 'Unable to permanently delete the selected item.';
-      if (requestError instanceof ApiError) {
-        const detail = (requestError.body as { detail?: string } | null)?.detail;
-        if (typeof detail === 'string' && detail.trim().length > 0) {
-          message = detail;
-        }
-      } else if (requestError instanceof Error && requestError.message) {
-        message = requestError.message;
-      }
-
-      setDeleteError(message);
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-
-  const restoreDialog = (
-    <Dialog
-      open={Boolean(restoreTarget)}
-      onClose={closeRestoreDialog}
-      aria-labelledby="trash-restore-dialog-title"
-      aria-describedby="trash-restore-dialog-description"
-    >
-      <DialogTitle id="trash-restore-dialog-title">Confirm Restore</DialogTitle>
-      <DialogContent>
-        <DialogContentText id="trash-restore-dialog-description">
-          {restoreTarget
-            ? `Restore "${getEntryLabel(restoreTarget)}" to ${restoreTarget.bucket} / ${restoreTarget.path}?`
-            : ''}
-        </DialogContentText>
-        {restoreError ? (
-          <Alert severity="error" sx={{ mt: 2 }}>
-            {restoreError}
-          </Alert>
-        ) : null}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={closeRestoreDialog} disabled={isRestoring}>
-          Cancel
-        </Button>
-        <Button onClick={performRestore} color="primary" disabled={isRestoring || isDeleting}>
-          {isRestoring ? 'Restoring…' : 'Restore'}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-
-  const deleteDialog = (
-    <Dialog
-      open={Boolean(deleteTarget)}
-      onClose={closeDeleteDialog}
-      aria-labelledby="trash-delete-dialog-title"
-      aria-describedby="trash-delete-dialog-description"
-    >
-      <DialogTitle id="trash-delete-dialog-title">Delete Permanently</DialogTitle>
-      <DialogContent>
-        <DialogContentText id="trash-delete-dialog-description">
-          {deleteTarget
-            ? `Permanently delete "${getEntryLabel(deleteTarget)}"? This action cannot be undone.`
-            : ''}
-        </DialogContentText>
-        {deleteError ? (
-          <Alert severity="error" sx={{ mt: 2 }}>
-            {deleteError}
-          </Alert>
-        ) : null}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={closeDeleteDialog} disabled={isDeleting}>
-          Cancel
-        </Button>
-        <Button onClick={performPermanentDelete} color="error" disabled={isDeleting || isRestoring}>
-          {isDeleting ? 'Deleting…' : 'Delete'}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-
-
-  const hasEntries = sortedEntries.length > 0;
-  const isInitialLoad = loading && !hasEntries && !error;
+  const types = [
+    { value: '', label: 'All' },
+    { value: 'book', label: 'Books' },
+    { value: 'app', label: 'Apps' },
+    { value: 'teacher_material', label: 'Teacher Materials' },
+  ]
 
   return (
-    <section className="page" aria-busy={loading} aria-live="polite">
-      <Typography variant="h4" component="h1" gutterBottom>
-        Trash
-      </Typography>
-      <Typography variant="body1" paragraph>
-        Review items moved to the trash bucket. Restoring an entry will return it to its original location.
-      </Typography>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-semibold">Trash</h1>
+      {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+      {notification && <Alert variant={notification.severity === 'error' ? 'destructive' : 'default'}><AlertDescription>{notification.message}</AlertDescription></Alert>}
 
-      {loading ? (
-        <Alert severity="info" sx={{ mb: 3 }} role="status">
-          Refreshing trash contents…
-        </Alert>
-      ) : null}
+      <div className="flex gap-2">
+        {types.map(t => (
+          <Button key={t.value} variant={typeFilter === t.value ? 'default' : 'outline'} size="sm" onClick={() => setTypeFilter(t.value)}>
+            {t.label}
+          </Button>
+        ))}
+      </div>
 
-      {error ? (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      ) : null}
-
-      {notification ? (
-        <Alert severity={notification.severity} sx={{ mb: 3 }} onClose={() => setNotification(null)}>
-          {notification.message}
-        </Alert>
-      ) : null}
-
-      {entries.length > 0 ? (
-        <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-          <Chip
-            label="All"
-            onClick={() => setTypeFilter('')}
-            variant={typeFilter === '' ? 'filled' : 'outlined'}
-            color={typeFilter === '' ? 'primary' : 'default'}
-          />
-          <Chip
-            label="Books"
-            onClick={() => setTypeFilter('book')}
-            variant={typeFilter === 'book' ? 'filled' : 'outlined'}
-            color={typeFilter === 'book' ? 'primary' : 'default'}
-          />
-          <Chip
-            label="Apps"
-            onClick={() => setTypeFilter('app')}
-            variant={typeFilter === 'app' ? 'filled' : 'outlined'}
-            color={typeFilter === 'app' ? 'primary' : 'default'}
-          />
-          <Chip
-            label="Teacher Materials"
-            onClick={() => setTypeFilter('teacher_material')}
-            variant={typeFilter === 'teacher_material' ? 'filled' : 'outlined'}
-            color={typeFilter === 'teacher_material' ? 'primary' : 'default'}
-          />
-        </Stack>
-      ) : null}
-
-      {typeFilter && sortedEntries.length > 0 ? (
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Showing {sortedEntries.length} {sortedEntries.length === 1 ? 'item' : 'items'}
-        </Typography>
-      ) : null}
-
-      {!loading && !error && !hasEntries ? (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          Trash is currently empty.
-        </Alert>
-      ) : null}
-
-      {isInitialLoad ? (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 4 }}>
-          <CircularProgress aria-label="Loading trash entries" />
-          <Typography variant="body1">Loading trash entries…</Typography>
-        </Box>
-      ) : null}
-
-      {hasEntries ? (
-        <TableContainer component={Paper} sx={{ mt: 3 }}>
-          <Table aria-label="Trash entries table">
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Type</TableCell>
-                <TableCell>Bucket</TableCell>
-                <TableCell>Path</TableCell>
-                <TableCell align="right">Objects</TableCell>
-                <TableCell align="right">Size</TableCell>
-                <TableCell align="right">Actions</TableCell>
+      <Card><CardContent className="p-0">
+        <Table>
+          <TableHeader><TableRow>
+            <TableHead>Name</TableHead><TableHead>Type</TableHead><TableHead className="text-center">Objects</TableHead><TableHead>Size</TableHead><TableHead className="text-right">Actions</TableHead>
+          </TableRow></TableHeader>
+          <TableBody>
+            {!filtered.length ? (
+              <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Trash is empty</TableCell></TableRow>
+            ) : filtered.map(e => (
+              <TableRow key={e.key}>
+                <TableCell className="font-medium">{getEntryLabel(e)}</TableCell>
+                <TableCell><Badge variant="outline">{typeLabel(e.item_type)}</Badge></TableCell>
+                <TableCell className="text-center">{e.object_count}</TableCell>
+                <TableCell>{fmtBytes(e.total_size)}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRestoreTarget(e)}><RotateCcw className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteTarget(e)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  </div>
+                </TableCell>
               </TableRow>
-            </TableHead>
-            <TableBody>
-              {sortedEntries.map((entry) => (
-                <TableRow key={entry.key} hover>
-                  <TableCell>{getEntryLabel(entry)}</TableCell>
-                  <TableCell>{getItemTypeLabel(entry.item_type)}</TableCell>
-                  <TableCell>{entry.bucket}</TableCell>
-                  <TableCell>{entry.path}</TableCell>
-                  <TableCell align="right">{entry.object_count}</TableCell>
-                  <TableCell align="right">{formatBytes(entry.total_size)}</TableCell>
-                  <TableCell align="right">
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
-                      <Tooltip title="Restore item">
-                        <span>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            startIcon={<RestoreFromTrashIcon fontSize="small" />}
-                            onClick={() => openRestoreDialog(entry)}
-                            disabled={isRestoring || isDeleting}
-                          >
-                            Restore
-                          </Button>
-                        </span>
-                      </Tooltip>
-                      <Tooltip title="Delete permanently">
-                        <span>
-                          <Button
-                            variant="contained"
-                            color="error"
-                            size="small"
-                            startIcon={<DeleteForeverIcon fontSize="small" />}
-                            onClick={() => openDeleteDialog(entry)}
-                            disabled={isDeleting || isRestoring}
-                          >
-                            Delete
-                          </Button>
-                        </span>
-                      </Tooltip>
-                    </Box>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      ) : null}
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent></Card>
 
-      {restoreDialog}
-      {deleteDialog}
-    </section>
-  );
-};
+      <Dialog open={!!restoreTarget} onOpenChange={() => !restoring && setRestoreTarget(null)}>
+        <DialogContent><DialogHeader><DialogTitle>Restore Item?</DialogTitle><DialogDescription>Restore &quot;{restoreTarget ? getEntryLabel(restoreTarget) : ''}&quot;?</DialogDescription></DialogHeader>
+        <DialogFooter><Button variant="outline" onClick={() => setRestoreTarget(null)} disabled={restoring}>Cancel</Button><Button onClick={doRestore} disabled={restoring}>{restoring ? 'Restoring...' : 'Restore'}</Button></DialogFooter></DialogContent>
+      </Dialog>
+      <Dialog open={!!deleteTarget} onOpenChange={() => !deleting && setDeleteTarget(null)}>
+        <DialogContent><DialogHeader><DialogTitle>Permanently Delete?</DialogTitle><DialogDescription>Permanently delete &quot;{deleteTarget ? getEntryLabel(deleteTarget) : ''}&quot;? This cannot be undone.</DialogDescription></DialogHeader>
+        <DialogFooter><Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</Button><Button variant="destructive" onClick={doDelete} disabled={deleting}>{deleting ? 'Deleting...' : 'Delete Forever'}</Button></DialogFooter></DialogContent>
+      </Dialog>
+    </div>
+  )
+}
 
-export default TrashPage;
+export default TrashPage
