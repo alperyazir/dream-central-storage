@@ -8,6 +8,7 @@ import re
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -182,6 +183,79 @@ def get_ai_metadata(
     )
 
     response = JSONResponse(content=response_data.model_dump())
+    response.headers["Cache-Control"] = f"public, max-age={CACHE_METADATA}"
+    return response
+
+
+# =============================================================================
+# Bulk AI Summary Endpoint
+# =============================================================================
+
+
+class _BulkAISummaryRequest(BaseModel):
+    """Request body for bulk AI summary retrieval."""
+    book_ids: list[int] = Field(..., max_length=100, description="List of book IDs (max 100)")
+
+
+class _BookAISummary(BaseModel):
+    """Summary of AI processing status for a single book."""
+    book_id: int
+    processing_status: str  # pending, processing, completed, failed, not_found
+    total_modules: int = 0
+    total_vocabulary: int = 0
+    total_audio_files: int = 0
+    primary_language: str | None = None
+
+
+@router.post(
+    "/ai-data/summary",
+    response_model=list[_BookAISummary],
+)
+def get_bulk_ai_summary(
+    payload: _BulkAISummaryRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    """Get AI processing summary for multiple books in a single request.
+
+    Returns processing status and counts for each book.
+    Books without AI data return status 'not_found'.
+    """
+    _require_auth(credentials, db)
+
+    if not payload.book_ids:
+        return JSONResponse(content=[])
+
+    retrieval_service = get_ai_data_retrieval_service()
+    results: list[dict] = []
+
+    for book_id in payload.book_ids:
+        # Look up book info
+        book = _book_repository.get_by_id(db, book_id)
+        if book is None:
+            results.append({"book_id": book_id, "processing_status": "not_found"})
+            continue
+
+        publisher = _publisher_repository.get(db, book.publisher_id)
+        publisher_name = publisher.name if publisher else ""
+
+        metadata = retrieval_service.get_metadata(publisher_name, str(book_id), book.book_name)
+        if metadata is None:
+            results.append({"book_id": book_id, "processing_status": "not_found"})
+            continue
+
+        results.append(
+            _BookAISummary(
+                book_id=book_id,
+                processing_status=metadata.processing_status.value,
+                total_modules=metadata.total_modules,
+                total_vocabulary=metadata.total_vocabulary,
+                total_audio_files=metadata.total_audio_files,
+                primary_language=metadata.primary_language,
+            ).model_dump()
+        )
+
+    response = JSONResponse(content=results)
     response.headers["Cache-Control"] = f"public, max-age={CACHE_METADATA}"
     return response
 

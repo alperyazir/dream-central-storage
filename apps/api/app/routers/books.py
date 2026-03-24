@@ -13,7 +13,7 @@ from collections.abc import Iterable
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from minio.commonconfig import CopySource
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session, object_session
 
 from app.core.config import get_settings
@@ -139,6 +139,35 @@ def list_books(
         books = _book_repository.list_by_publisher_id(db, publisher_id)
     else:
         books = _book_repository.list_all_books(db)
+    return [BookRead.model_validate(book) for book in books]
+
+
+class _BatchBookRequest(BaseModel):
+    """Request body for batch book retrieval."""
+    ids: list[int] = Field(..., max_length=100, description="List of book IDs to retrieve (max 100)")
+
+
+@router.post("/batch", response_model=list[BookRead])
+def get_books_batch(
+    payload: _BatchBookRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    db: Session = Depends(get_db),
+) -> list[BookRead]:
+    """Retrieve multiple books by IDs in a single request.
+
+    Returns books found (silently skips missing/archived IDs).
+    """
+    _require_admin(credentials, db)
+
+    if not payload.ids:
+        return []
+
+    from sqlalchemy import select as sa_select
+    statement = sa_select(Book).where(
+        Book.id.in_(payload.ids),
+        Book.status != BookStatusEnum.ARCHIVED,
+    )
+    books = list(db.scalars(statement).all())
     return [BookRead.model_validate(book) for book in books]
 
 

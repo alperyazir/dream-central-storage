@@ -13,9 +13,9 @@ from typing import Literal
 
 import json
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -42,6 +42,7 @@ from app.services import (
     list_trash_entries,
     restore_prefix_from_trash,
 )
+from app.services.minio import get_minio_client_external
 from minio.error import S3Error
 
 router = APIRouter(prefix="/storage", tags=["Storage"])
@@ -272,6 +273,7 @@ async def get_book_config(
 async def get_book_cover(
     publisher: str,
     book_name: str,
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
 ):
@@ -304,6 +306,17 @@ async def get_book_cover(
     if file_size is None:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to determine file size")
 
+    # ETag support — return 304 if client already has this version
+    etag = stat.etag
+    if etag:
+        if_none_match = request.headers.get("if-none-match")
+        if if_none_match and if_none_match.strip('"') == etag.strip('"'):
+            return JSONResponse(
+                status_code=304,
+                content=None,
+                headers={"ETag": f'"{etag}"', "Cache-Control": "public, max-age=86400, immutable"},
+            )
+
     # Determine MIME type from filename
     media_type = _get_media_type(cover_filename, "image/png")
 
@@ -324,7 +337,10 @@ async def get_book_cover(
     headers = {
         "Content-Length": str(file_size),
         "Content-Disposition": f'inline; filename="{cover_filename}"',
+        "Cache-Control": "public, max-age=86400, immutable",
     }
+    if etag:
+        headers["ETag"] = f'"{etag}"'
 
     return StreamingResponse(
         iterator(),
@@ -338,6 +354,7 @@ async def get_book_cover(
 async def download_book_object(
     publisher: str,
     book_name: str,
+    request: Request,
     path: str = Query(..., description="Relative path to the object within the book"),
     range_header: str | None = Header(None, alias="Range"),
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
@@ -381,6 +398,17 @@ async def download_book_object(
     # Determine MIME type (prefer our mapping over MinIO's detection)
     media_type = _get_media_type(path, getattr(stat, "content_type", None))
 
+    # ETag support — return 304 if client already has this version
+    etag = stat.etag
+    if etag and not range_header:
+        if_none_match = request.headers.get("if-none-match")
+        if if_none_match and if_none_match.strip('"') == etag.strip('"'):
+            return JSONResponse(
+                status_code=304,
+                content=None,
+                headers={"ETag": f'"{etag}"', "Cache-Control": "public, max-age=86400"},
+            )
+
     # Parse Range header if present
     start = 0
     end = file_size - 1
@@ -418,11 +446,23 @@ async def download_book_object(
 
     # Build response headers
     filename = PurePosixPath(object_key).name or "download"
+
+    # Set Cache-Control based on content type (static assets are immutable until re-upload)
+    if media_type.startswith(("image/", "audio/", "video/")):
+        cache_control = "public, max-age=86400, immutable"
+    elif media_type == "application/json":
+        cache_control = "private, max-age=3600"
+    else:
+        cache_control = "public, max-age=3600"
+
     headers = {
         "Accept-Ranges": "bytes",
         "Content-Length": str(content_length),
         "Content-Disposition": f'inline; filename="{filename}"',
+        "Cache-Control": cache_control,
     }
+    if etag:
+        headers["ETag"] = f'"{etag}"'
 
     if is_range_request:
         # 206 Partial Content for range requests
@@ -446,6 +486,45 @@ async def download_book_object(
             media_type=media_type,
             headers=headers,
         )
+
+
+@router.get("/books/{publisher}/{book_name}/presigned")
+async def get_presigned_url(
+    publisher: str,
+    book_name: str,
+    path: str = Query(..., description="Relative path to the object within the book"),
+    expires: int = Query(3600, ge=60, le=86400, description="URL expiry in seconds (default 1h, max 24h)"),
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    db: Session = Depends(get_db),
+):
+    """Generate a presigned URL for direct browser access to a book asset.
+
+    Returns a temporary URL that allows direct download from MinIO
+    without proxying through the API server. Useful for large assets
+    like images, audio, and video files.
+    """
+    _require_admin(credentials, db)
+    settings = get_settings()
+    object_key = _build_book_object_key(publisher, book_name, path)
+
+    # Verify the object exists
+    client = get_minio_client(settings)
+    try:
+        client.stat_object(settings.minio_publishers_bucket, object_key)
+    except S3Error as exc:
+        if exc.code == "NoSuchKey":
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="File not found") from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to verify object") from exc
+
+    # Generate presigned URL using external client (correct host for browser access)
+    external_client = get_minio_client_external(settings)
+    presigned_url = external_client.presigned_get_object(
+        bucket_name=settings.minio_publishers_bucket,
+        object_name=object_key,
+        expires=timedelta(seconds=expires),
+    )
+
+    return {"url": presigned_url, "expires_in": expires}
 
 
 @router.get("/apps/{platform}")

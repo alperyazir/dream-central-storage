@@ -621,6 +621,7 @@ def get_publisher_logo(
             headers={
                 "Content-Disposition": f'inline; filename="{filename}"',
                 "Content-Length": str(stat.size),
+                "Cache-Control": "public, max-age=86400, immutable",
             },
         )
     except Exception as e:
