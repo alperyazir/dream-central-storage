@@ -13,6 +13,7 @@ import TeachersPage from './pages/TeachersManagement';
 import LoginPage from './pages/Login';
 import TrashPage from './pages/Trash';
 import ProcessingPage from './pages/Processing';
+import ApiKeysPage from './pages/ApiKeys';
 import TeacherDetailPage from './pages/TeacherDetail';
 import ProtectedRoute from './routes/ProtectedRoute';
 import { useAuthStore } from './stores/auth';
@@ -58,6 +59,7 @@ const App = () => {
           <Route path="teachers" element={<TeachersPage />} />
           <Route path="teachers/:id" element={<TeacherDetailPage />} />
           <Route path="processing" element={<ProcessingPage />} />
+          <Route path="api-keys" element={<ApiKeysPage />} />
           <Route path="trash" element={<TrashPage />} />
         </Route>
       </Route>

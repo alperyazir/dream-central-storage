@@ -7,6 +7,7 @@ import {
   AppWindow,
   Package,
   GraduationCap,
+  KeyRound,
   Trash2,
   Sun,
   Moon,
@@ -49,6 +50,7 @@ const navItems = [
   { label: "Applications", icon: AppWindow, path: "/apps" },
   { label: "Bundles", icon: Package, path: "/bundles" },
   { label: "Teachers", icon: GraduationCap, path: "/teachers" },
+  { label: "API Keys", icon: KeyRound, path: "/api-keys" },
   { label: "Trash", icon: Trash2, path: "/trash" },
 ]
 
