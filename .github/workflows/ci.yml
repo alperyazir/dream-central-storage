@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-      - run: pip install ruff
+      - run: pip install ruff==0.13.0
       - run: ruff check . --exclude alembic
       - run: ruff format --check . --exclude alembic
 
