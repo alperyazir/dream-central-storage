@@ -27,7 +27,6 @@ from app.services.vocabulary_extraction.prompts import (
 from app.services.vocabulary_extraction.service import VocabularyExtractionService
 from app.services.vocabulary_extraction.storage import VocabularyStorage
 
-
 # =============================================================================
 # Test Data Models
 # =============================================================================
@@ -390,24 +389,26 @@ class TestVocabularyExtractionService:
     @pytest.mark.asyncio
     async def test_extract_module_vocabulary_success(self, service, mock_llm_service):
         """Test successful vocabulary extraction from a module."""
-        llm_response = json.dumps([
-            {
-                "word": "beautiful",
-                "translation": "güzel",
-                "definition": "pleasing to look at",
-                "part_of_speech": "adjective",
-                "level": "A2",
-                "example": "The sunset is beautiful.",
-            },
-            {
-                "word": "learn",
-                "translation": "öğrenmek",
-                "definition": "to gain knowledge",
-                "part_of_speech": "verb",
-                "level": "A1",
-                "example": "I learn English every day.",
-            },
-        ])
+        llm_response = json.dumps(
+            [
+                {
+                    "word": "beautiful",
+                    "translation": "güzel",
+                    "definition": "pleasing to look at",
+                    "part_of_speech": "adjective",
+                    "level": "A2",
+                    "example": "The sunset is beautiful.",
+                },
+                {
+                    "word": "learn",
+                    "translation": "öğrenmek",
+                    "definition": "to gain knowledge",
+                    "part_of_speech": "verb",
+                    "level": "A1",
+                    "example": "I learn English every day.",
+                },
+            ]
+        )
         mock_llm_service.simple_completion.return_value = llm_response
 
         module_text = """
@@ -485,6 +486,7 @@ class TestVocabularyExtractionService:
     async def test_extract_module_vocabulary_llm_error(self, service, mock_llm_service):
         """Test handling of LLM provider error."""
         from app.services.llm import LLMProviderError
+
         mock_llm_service.simple_completion.side_effect = LLMProviderError("API Error", "deepseek")
 
         module_text = """
@@ -505,11 +507,13 @@ class TestVocabularyExtractionService:
     @pytest.mark.asyncio
     async def test_extract_module_vocabulary_filters_short_words(self, service, mock_llm_service):
         """Test that short words are filtered out."""
-        llm_response = json.dumps([
-            {"word": "a", "translation": "bir", "level": "A1", "part_of_speech": "article"},
-            {"word": "is", "translation": "dir", "level": "A1", "part_of_speech": "verb"},
-            {"word": "beautiful", "translation": "güzel", "level": "A2", "part_of_speech": "adjective"},
-        ])
+        llm_response = json.dumps(
+            [
+                {"word": "a", "translation": "bir", "level": "A1", "part_of_speech": "article"},
+                {"word": "is", "translation": "dir", "level": "A1", "part_of_speech": "verb"},
+                {"word": "beautiful", "translation": "güzel", "level": "A2", "part_of_speech": "adjective"},
+            ]
+        )
         mock_llm_service.simple_completion.return_value = llm_response
 
         module_text = """
@@ -532,9 +536,11 @@ class TestVocabularyExtractionService:
     @pytest.mark.asyncio
     async def test_extract_module_vocabulary_validates_level(self, service, mock_llm_service):
         """Test that invalid CEFR levels are cleared."""
-        llm_response = json.dumps([
-            {"word": "test", "translation": "test", "level": "INVALID", "part_of_speech": "noun"},
-        ])
+        llm_response = json.dumps(
+            [
+                {"word": "test", "translation": "test", "level": "INVALID", "part_of_speech": "noun"},
+            ]
+        )
         mock_llm_service.simple_completion.return_value = llm_response
 
         module_text = """
@@ -555,9 +561,11 @@ class TestVocabularyExtractionService:
     @pytest.mark.asyncio
     async def test_extract_book_vocabulary_success(self, service, mock_llm_service):
         """Test successful vocabulary extraction from a book."""
-        llm_response = json.dumps([
-            {"word": "hello", "translation": "merhaba", "level": "A1", "part_of_speech": "interjection"},
-        ])
+        llm_response = json.dumps(
+            [
+                {"word": "hello", "translation": "merhaba", "level": "A1", "part_of_speech": "interjection"},
+            ]
+        )
         mock_llm_service.simple_completion.return_value = llm_response
 
         modules = [
@@ -607,9 +615,11 @@ class TestVocabularyExtractionService:
     @pytest.mark.asyncio
     async def test_extract_book_vocabulary_with_progress(self, service, mock_llm_service):
         """Test vocabulary extraction with progress callback."""
-        llm_response = json.dumps([
-            {"word": "test", "translation": "test", "level": "A1", "part_of_speech": "noun"},
-        ])
+        llm_response = json.dumps(
+            [
+                {"word": "test", "translation": "test", "level": "A1", "part_of_speech": "noun"},
+            ]
+        )
         mock_llm_service.simple_completion.return_value = llm_response
 
         progress_calls = []
@@ -714,9 +724,7 @@ class TestVocabularyStorage:
 
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
-        mock_client.get_object.side_effect = S3Error(
-            "NoSuchKey", "Not found", "", "", "", ""
-        )
+        mock_client.get_object.side_effect = S3Error("NoSuchKey", "Not found", "", "", "", "")
 
         result = storage.load_vocabulary(
             publisher_id="pub-123",
@@ -777,9 +785,7 @@ class TestVocabularyStorage:
 
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
-        mock_client.get_object.side_effect = S3Error(
-            "NoSuchKey", "Not found", "", "", "", ""
-        )
+        mock_client.get_object.side_effect = S3Error("NoSuchKey", "Not found", "", "", "", "")
 
         result = storage.get_module(
             publisher_id="pub-123",

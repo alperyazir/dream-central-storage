@@ -1,7 +1,11 @@
-import { Outlet } from "react-router-dom"
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "components/ui/sidebar"
-import { Separator } from "components/ui/separator"
-import { AppSidebar } from "components/AppSidebar"
+import { Outlet } from 'react-router-dom';
+import {
+  SidebarProvider,
+  SidebarInset,
+  SidebarTrigger,
+} from 'components/ui/sidebar';
+import { Separator } from 'components/ui/separator';
+import { AppSidebar } from 'components/AppSidebar';
 
 const MainLayout = () => {
   return (
@@ -17,7 +21,7 @@ const MainLayout = () => {
         </div>
       </SidebarInset>
     </SidebarProvider>
-  )
-}
+  );
+};
 
-export default MainLayout
+export default MainLayout;

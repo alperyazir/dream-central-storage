@@ -34,13 +34,8 @@ def create_password_hash(password: str) -> str:
         raise ValueError("Password must not be empty")
 
     salt = secrets.token_bytes(16)
-    derived_key = hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt, _PASSWORD_ITERATIONS
-    )
-    return (
-        f"{_PASSWORD_SCHEME}${_PASSWORD_ITERATIONS}$"
-        f"{_b64encode(salt)}${_b64encode(derived_key)}"
-    )
+    derived_key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _PASSWORD_ITERATIONS)
+    return f"{_PASSWORD_SCHEME}${_PASSWORD_ITERATIONS}${_b64encode(salt)}${_b64encode(derived_key)}"
 
 
 def verify_password(password: str, stored_hash: str) -> bool:
@@ -56,9 +51,7 @@ def verify_password(password: str, stored_hash: str) -> bool:
     except (ValueError, TypeError):  # pragma: no cover - defensive
         return False
 
-    derived = hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt, iterations
-    )
+    derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
     return hmac.compare_digest(derived, expected)
 
 
@@ -90,9 +83,7 @@ def create_access_token(
         payload.update(additional_claims)
 
     header_segment = _b64encode(json.dumps(header, separators=(",", ":")).encode("utf-8"))
-    payload_segment = _b64encode(
-        json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    )
+    payload_segment = _b64encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
 
     signing_input = f"{header_segment}.{payload_segment}".encode("ascii")
     signature = hmac.new(
@@ -105,9 +96,7 @@ def create_access_token(
     return f"{header_segment}.{payload_segment}.{signature_segment}"
 
 
-def decode_access_token(
-    token: str, *, settings: Settings | None = None
-) -> dict[str, Any]:
+def decode_access_token(token: str, *, settings: Settings | None = None) -> dict[str, Any]:
     """Decode and validate a JWT created by ``create_access_token``."""
 
     active_settings = settings or get_settings()
@@ -203,6 +192,7 @@ def verify_api_key_from_db(token: str, session) -> dict[str, Any] | None:
     This function is meant to be called from routers that have DB session access.
     """
     from datetime import datetime, timezone
+
     from app.repositories.api_key import ApiKeyRepository
 
     repository = ApiKeyRepository()

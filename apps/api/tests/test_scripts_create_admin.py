@@ -9,7 +9,6 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.security import verify_password
 from app.db.base import Base
-from app.models.user import User
 from app.scripts.create_admin import create_admin_user
 
 

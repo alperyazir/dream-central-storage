@@ -1,13 +1,13 @@
 """Unified AI analysis service for combined module/topic/vocabulary extraction."""
 
+from app.services.unified_analysis.models import (
+    AnalyzedModule,
+    UnifiedAnalysisResult,
+    VocabularyWord,
+)
 from app.services.unified_analysis.service import (
     UnifiedAnalysisService,
     get_unified_analysis_service,
-)
-from app.services.unified_analysis.models import (
-    UnifiedAnalysisResult,
-    AnalyzedModule,
-    VocabularyWord,
 )
 from app.services.unified_analysis.storage import (
     UnifiedAnalysisStorage,

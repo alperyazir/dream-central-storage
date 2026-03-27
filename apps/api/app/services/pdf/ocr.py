@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from app.services.llm import LLMProviderError, get_llm_service
 from app.services.pdf.models import ExtractionMethod, OCRError, PageText

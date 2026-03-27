@@ -1,5 +1,6 @@
 """TTS Provider abstraction layer for audio generation."""
 
+from app.services.tts.azure import AzureTTSProvider
 from app.services.tts.base import (
     ALTERNATIVE_VOICES,
     VOICE_MAPPING,
@@ -17,7 +18,6 @@ from app.services.tts.base import (
     TTSVoiceNotFoundError,
     get_default_voice,
 )
-from app.services.tts.azure import AzureTTSProvider
 from app.services.tts.edge import EdgeTTSProvider
 from app.services.tts.service import TTSService, get_tts_service
 

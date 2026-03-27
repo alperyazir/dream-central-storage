@@ -1,4 +1,8 @@
-import { appConfig, buildApiUrl, ensureLeadingSlash } from '../config/environment';
+import {
+  appConfig,
+  buildApiUrl,
+  ensureLeadingSlash,
+} from '../config/environment';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -9,10 +13,26 @@ interface RequestOptions extends RequestInit {
 export interface ApiClient {
   request: <T = unknown>(path: string, init?: RequestOptions) => Promise<T>;
   get: <T = unknown>(path: string, init?: RequestOptions) => Promise<T>;
-  post: <T = unknown, TBody = unknown>(path: string, body?: TBody, init?: RequestOptions) => Promise<T>;
-  put: <T = unknown, TBody = unknown>(path: string, body?: TBody, init?: RequestOptions) => Promise<T>;
-  postForm: <T = unknown>(path: string, formData: FormData, init?: RequestOptions) => Promise<T>;
-  delete: <T = unknown, TBody = unknown>(path: string, body?: TBody, init?: RequestOptions) => Promise<T>;
+  post: <T = unknown, TBody = unknown>(
+    path: string,
+    body?: TBody,
+    init?: RequestOptions
+  ) => Promise<T>;
+  put: <T = unknown, TBody = unknown>(
+    path: string,
+    body?: TBody,
+    init?: RequestOptions
+  ) => Promise<T>;
+  postForm: <T = unknown>(
+    path: string,
+    formData: FormData,
+    init?: RequestOptions
+  ) => Promise<T>;
+  delete: <T = unknown, TBody = unknown>(
+    path: string,
+    body?: TBody,
+    init?: RequestOptions
+  ) => Promise<T>;
 }
 
 export class ApiError extends Error {
@@ -20,7 +40,11 @@ export class ApiError extends Error {
   body: unknown;
 
   constructor(status: number, body: unknown, message?: string) {
-    super(message ? `Request failed (${status} ${message})` : `Request failed (${status})`);
+    super(
+      message
+        ? `Request failed (${status} ${message})`
+        : `Request failed (${status})`
+    );
     this.status = status;
     this.body = body;
     Object.setPrototypeOf(this, ApiError.prototype);
@@ -46,9 +70,12 @@ const parseResponse = async <T>(response: Response): Promise<T> => {
   return text as unknown as T;
 };
 
-const resolveUrl = (baseUrl: string, path: string) => `${baseUrl}${ensureLeadingSlash(path)}`;
+const resolveUrl = (baseUrl: string, path: string) =>
+  `${baseUrl}${ensureLeadingSlash(path)}`;
 
-export const createApiClient = (baseUrl: string = appConfig.apiBaseUrl): ApiClient => {
+export const createApiClient = (
+  baseUrl: string = appConfig.apiBaseUrl
+): ApiClient => {
   const request = async <T>(path: string, init: RequestOptions = {}) => {
     const response = await fetch(resolveUrl(baseUrl, path), init);
 
@@ -66,15 +93,24 @@ export const createApiClient = (baseUrl: string = appConfig.apiBaseUrl): ApiClie
         body = await response.text();
       }
 
-      throw new ApiError(response.status, body, response.statusText || undefined);
+      throw new ApiError(
+        response.status,
+        body,
+        response.statusText || undefined
+      );
     }
 
     return parseResponse<T>(response);
   };
 
-  const get = <T>(path: string, init?: RequestOptions) => request<T>(path, { ...init, method: 'GET' });
+  const get = <T>(path: string, init?: RequestOptions) =>
+    request<T>(path, { ...init, method: 'GET' });
 
-  const post = <T, TBody = unknown>(path: string, body?: TBody, init?: RequestOptions) => {
+  const post = <T, TBody = unknown>(
+    path: string,
+    body?: TBody,
+    init?: RequestOptions
+  ) => {
     const headers = new Headers(init?.headers ?? {});
 
     if (body !== undefined && !headers.has('Content-Type')) {
@@ -85,11 +121,15 @@ export const createApiClient = (baseUrl: string = appConfig.apiBaseUrl): ApiClie
       ...init,
       method: 'POST',
       headers,
-      body: body !== undefined ? JSON.stringify(body) : init?.body
+      body: body !== undefined ? JSON.stringify(body) : init?.body,
     });
   };
 
-  const put = <T, TBody = unknown>(path: string, body?: TBody, init?: RequestOptions) => {
+  const put = <T, TBody = unknown>(
+    path: string,
+    body?: TBody,
+    init?: RequestOptions
+  ) => {
     const headers = new Headers(init?.headers ?? {});
 
     if (body !== undefined && !headers.has('Content-Type')) {
@@ -100,18 +140,26 @@ export const createApiClient = (baseUrl: string = appConfig.apiBaseUrl): ApiClie
       ...init,
       method: 'PUT',
       headers,
-      body: body !== undefined ? JSON.stringify(body) : init?.body
+      body: body !== undefined ? JSON.stringify(body) : init?.body,
     });
   };
 
-  const postForm = <T>(path: string, formData: FormData, init?: RequestOptions) =>
+  const postForm = <T>(
+    path: string,
+    formData: FormData,
+    init?: RequestOptions
+  ) =>
     request<T>(path, {
       ...init,
       method: 'POST',
-      body: formData
+      body: formData,
     });
 
-  const destroy = <T, TBody = unknown>(path: string, body?: TBody, init?: RequestOptions) => {
+  const destroy = <T, TBody = unknown>(
+    path: string,
+    body?: TBody,
+    init?: RequestOptions
+  ) => {
     const headers = new Headers(init?.headers ?? {});
 
     if (body !== undefined && !headers.has('Content-Type')) {
@@ -122,7 +170,7 @@ export const createApiClient = (baseUrl: string = appConfig.apiBaseUrl): ApiClie
       ...init,
       method: 'DELETE',
       headers,
-      body: body !== undefined ? JSON.stringify(body) : init?.body
+      body: body !== undefined ? JSON.stringify(body) : init?.body,
     });
   };
 
@@ -132,7 +180,7 @@ export const createApiClient = (baseUrl: string = appConfig.apiBaseUrl): ApiClie
     post,
     put,
     postForm,
-    delete: destroy
+    delete: destroy,
   };
 };
 

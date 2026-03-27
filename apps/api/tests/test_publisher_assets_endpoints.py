@@ -365,6 +365,7 @@ def test_delete_asset_file_success(
 
     # Mock the relocation report
     from app.services import RelocationReport
+
     mock_move_to_trash.return_value = RelocationReport(
         source_bucket="publishers",
         destination_bucket="trash",

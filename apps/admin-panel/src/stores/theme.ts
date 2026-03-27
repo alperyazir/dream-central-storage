@@ -15,12 +15,12 @@ export const useThemeStore = create<ThemeState>()(
       mode: 'light',
       toggleMode: () =>
         set((state) => ({
-          mode: state.mode === 'light' ? 'dark' : 'light'
+          mode: state.mode === 'light' ? 'dark' : 'light',
         })),
-      setMode: (mode) => set({ mode })
+      setMode: (mode) => set({ mode }),
     }),
     {
-      name: 'theme-storage'
+      name: 'theme-storage',
     }
   )
 );

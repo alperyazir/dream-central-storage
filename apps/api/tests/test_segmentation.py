@@ -24,7 +24,6 @@ from app.services.segmentation.strategies.header import HeaderBasedStrategy
 from app.services.segmentation.strategies.manual import ManualStrategy
 from app.services.segmentation.strategies.toc import TOCBasedStrategy
 
-
 # =============================================================================
 # Test Data Models
 # =============================================================================
@@ -341,9 +340,7 @@ class TestTOCBasedStrategy:
     def test_can_segment_with_toc(self):
         """Test can_segment with valid TOC."""
         strategy = TOCBasedStrategy()
-        pages = {
-            1: "Table of Contents\nCh 1 ........ 5\nCh 2 ........ 10"
-        }
+        pages = {1: "Table of Contents\nCh 1 ........ 5\nCh 2 ........ 10"}
         assert strategy.can_segment(pages) is True
 
 

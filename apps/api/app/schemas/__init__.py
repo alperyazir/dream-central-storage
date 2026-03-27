@@ -15,14 +15,6 @@ from .api_key import ApiKeyCreate, ApiKeyCreated, ApiKeyListResponse, ApiKeyRead
 from .asset import AssetFileInfo, AssetTypeInfo, PublisherAssetsResponse
 from .auth import LoginRequest, SessionResponse, TokenResponse
 from .book import BookBase, BookCreate, BookRead, BookUpdate
-from .publisher import (
-    PublisherBase,
-    PublisherCreate,
-    PublisherRead,
-    PublisherUpdate,
-    PublisherWithBooks,
-)
-from .storage import RestoreRequest, RestoreResponse, TrashEntryRead
 from .processing import (
     CleanupStatsResponse,
     ProcessingJobResponse,
@@ -30,6 +22,21 @@ from .processing import (
     ProcessingTriggerRequest,
     QueueStatsResponse,
 )
+from .publisher import (
+    PublisherBase,
+    PublisherCreate,
+    PublisherRead,
+    PublisherUpdate,
+    PublisherWithBooks,
+)
+from .standalone_app import (
+    BundleRequest,
+    BundleResponse,
+    TemplateInfo,
+    TemplateListResponse,
+    TemplateUploadResponse,
+)
+from .storage import RestoreRequest, RestoreResponse, TrashEntryRead
 from .teacher import (
     FileTypeStats,
     MaterialCreate,
@@ -52,13 +59,6 @@ from .webhook import (
     WebhookSubscriptionCreate,
     WebhookSubscriptionRead,
     WebhookSubscriptionUpdate,
-)
-from .standalone_app import (
-    BundleRequest,
-    BundleResponse,
-    TemplateInfo,
-    TemplateListResponse,
-    TemplateUploadResponse,
 )
 
 __all__ = [

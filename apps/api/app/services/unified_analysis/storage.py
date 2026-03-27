@@ -26,6 +26,7 @@ class UnifiedAnalysisStorage:
     def _get_minio_client(self):
         """Get MinIO client."""
         from app.services.minio import get_minio_client
+
         return get_minio_client(self.settings)
 
     def save_all(
@@ -83,18 +84,20 @@ class UnifiedAnalysisStorage:
         for module in result.modules:
             for v in module.vocabulary:
                 word_counter += 1
-                vocab_words.append({
-                    "id": f"word_{word_counter}",
-                    "word": v.word,
-                    "definition": v.definition,
-                    "translation": v.translation,
-                    "part_of_speech": v.part_of_speech,
-                    "example": v.example_sentence,
-                    "level": v.difficulty,
-                    "phonetic": v.phonetic,
-                    "module_id": module.module_id,
-                    "module_title": module.title,
-                })
+                vocab_words.append(
+                    {
+                        "id": f"word_{word_counter}",
+                        "word": v.word,
+                        "definition": v.definition,
+                        "translation": v.translation,
+                        "part_of_speech": v.part_of_speech,
+                        "example": v.example_sentence,
+                        "level": v.difficulty,
+                        "phonetic": v.phonetic,
+                        "module_id": module.module_id,
+                        "module_title": module.title,
+                    }
+                )
 
         vocab_data = {
             "book_id": result.book_id,

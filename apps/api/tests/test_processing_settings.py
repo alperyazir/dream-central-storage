@@ -1,7 +1,8 @@
 """Tests for processing settings endpoints."""
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -125,9 +126,7 @@ class TestGlobalProcessingSettings:
 class TestPublisherProcessingSettingsAuth:
     """Tests for publisher settings authentication."""
 
-    def test_update_publisher_settings_requires_user_auth(
-        self, client, mock_auth_api_key
-    ):
+    def test_update_publisher_settings_requires_user_auth(self, client, mock_auth_api_key):
         """Test PUT /processing/publishers/{id}/settings rejects API key authentication."""
         update_data = {
             "ai_auto_process_enabled": True,

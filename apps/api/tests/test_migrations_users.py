@@ -11,12 +11,7 @@ from alembic.operations import Operations
 from alembic.runtime.migration import MigrationContext
 from sqlalchemy import create_engine, inspect, text
 
-MIGRATION_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "alembic"
-    / "versions"
-    / "20250923_01_create_users_table.py"
-)
+MIGRATION_PATH = Path(__file__).resolve().parents[1] / "alembic" / "versions" / "20250923_01_create_users_table.py"
 
 
 def test_users_table_migration_creates_expected_schema() -> None:
@@ -46,27 +41,13 @@ def test_users_table_migration_creates_expected_schema() -> None:
             }.issubset(column_info.keys())
             assert column_info["email"]["nullable"] is False
             unique_constraints = inspector.get_unique_constraints("users")
-            assert any(
-                constraint["column_names"] == ["email"] for constraint in unique_constraints
-            )
+            assert any(constraint["column_names"] == ["email"] for constraint in unique_constraints)
 
-            connection.execute(
-                text(
-                    "INSERT INTO users (email, hashed_password) VALUES "
-                    "('admin@example.com', 'hash')"
-                )
-            )
-            row = connection.execute(
-                text("SELECT updated_at FROM users WHERE email = 'admin@example.com'")
-            ).one()
+            connection.execute(text("INSERT INTO users (email, hashed_password) VALUES ('admin@example.com', 'hash')"))
+            row = connection.execute(text("SELECT updated_at FROM users WHERE email = 'admin@example.com'")).one()
             original_updated_at = row.updated_at
             time.sleep(1)
-            connection.execute(
-                text(
-                    "UPDATE users SET hashed_password = 'new-hash' "
-                    "WHERE email = 'admin@example.com'"
-                )
-            )
+            connection.execute(text("UPDATE users SET hashed_password = 'new-hash' WHERE email = 'admin@example.com'"))
             refreshed_row = connection.execute(
                 text("SELECT updated_at FROM users WHERE email = 'admin@example.com'")
             ).one()

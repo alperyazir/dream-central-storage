@@ -20,7 +20,6 @@ from app.main import app
 from app.models.book import Book, BookStatusEnum
 from app.models.publisher import Publisher
 
-
 # Use in-memory SQLite for tests - mock everything so DB isn't actually used
 TEST_DATABASE_URL = "sqlite+pysqlite:///:memory:"
 engine = create_engine(
@@ -81,7 +80,7 @@ def _create_mock_book(
         category=category,
         status=status,
     )
-    object.__setattr__(book, 'publisher_rel', publisher)
+    object.__setattr__(book, "publisher_rel", publisher)
     return book
 
 
@@ -92,7 +91,7 @@ def setup_repositories(monkeypatch):
     monkeypatch.setattr(books, "_require_admin", lambda credentials, db: 1)
 
     # Create mock publisher
-    mock_publisher = Publisher(id=1, name="Dream", display_name="Dream", status="active")
+    Publisher(id=1, name="Dream", display_name="Dream", status="active")
 
     # Create mock book with proper relationship
     book = _create_mock_book(id=1, publisher_name="Dream", book_name="Sky")
@@ -104,7 +103,7 @@ def setup_repositories(monkeypatch):
     monkeypatch.setattr(
         books._publisher_repository,
         "get_or_create_by_name",
-        lambda db, name: Publisher(id=1, name=name, display_name=name, status="active")
+        lambda db, name: Publisher(id=1, name=name, display_name=name, status="active"),
     )
 
     yield
@@ -348,6 +347,7 @@ def test_upload_new_book_uses_metadata_as_fallback(monkeypatch, caplog):
         "get_by_publisher_id_and_name",
         lambda db, publisher_id, book_name: None,
     )
+
     def fake_create(db, data):
         status_value = data.get("status", BookStatusEnum.DRAFT)
         if isinstance(status_value, str):

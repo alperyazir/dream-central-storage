@@ -6,8 +6,9 @@ import pathlib
 import sys
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
+
+from alembic import context
 
 # Ensure the apps/api directory is on sys.path so "app" imports resolve
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent

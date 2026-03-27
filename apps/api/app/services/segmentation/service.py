@@ -74,6 +74,7 @@ class SegmentationService:
         """Get AI storage service (lazy load)."""
         if self._ai_storage is None:
             from app.services.pdf.storage import get_ai_storage
+
             self._ai_storage = get_ai_storage()
         return self._ai_storage
 
@@ -183,9 +184,7 @@ class SegmentationService:
         pages: dict[int, str] = {}
 
         # Get metadata to know how many pages
-        metadata = self.ai_storage.get_extraction_metadata(
-            publisher_id, book_id, book_name
-        )
+        metadata = self.ai_storage.get_extraction_metadata(publisher_id, book_id, book_name)
 
         if not metadata:
             logger.warning("No extraction metadata found for book %s", book_id)
@@ -195,9 +194,7 @@ class SegmentationService:
 
         # Load each page
         for page_num in range(1, total_pages + 1):
-            text = self._load_page_text(
-                publisher_id, book_id, book_name, page_num
-            )
+            text = self._load_page_text(publisher_id, book_id, book_name, page_num)
             if text:
                 pages[page_num] = text
 
@@ -219,10 +216,7 @@ class SegmentationService:
         bucket = self.settings.minio_publishers_bucket
 
         # Build path (book_id not used in storage path)
-        path = (
-            f"{publisher_id}/books/{book_name}/"
-            f"ai-data/text/page_{page_num:03d}.txt"
-        )
+        path = f"{publisher_id}/books/{book_name}/ai-data/text/page_{page_num:03d}.txt"
 
         try:
             response = client.get_object(bucket, path)
@@ -301,9 +295,7 @@ class SegmentationService:
         if manual_definitions:
             logger.debug("Trying manual segmentation")
             self._manual_strategy.definitions = manual_definitions
-            boundaries = self._manual_strategy.detect_boundaries(
-                pages, book_id=book_id
-            )
+            boundaries = self._manual_strategy.detect_boundaries(pages, book_id=book_id)
             if boundaries:
                 return boundaries, SegmentationMethod.MANUAL
 
@@ -334,8 +326,7 @@ class SegmentationService:
 
         # 4. AI-assisted (if enabled) - try if no good results yet or as fallback
         use_ai = self.settings.segmentation_ai_enabled and (
-            self.settings.segmentation_ai_fallback_on_poor_quality
-            or len(header_boundaries) < 2
+            self.settings.segmentation_ai_fallback_on_poor_quality or len(header_boundaries) < 2
         )
 
         if use_ai:
@@ -349,16 +340,10 @@ class SegmentationService:
 
         # 5. Use best non-AI result if available (even if poor quality)
         if len(header_boundaries) >= 2:
-            logger.warning(
-                "Using header-based segmentation despite poor quality "
-                "(AI unavailable or failed)"
-            )
+            logger.warning("Using header-based segmentation despite poor quality (AI unavailable or failed)")
             return header_boundaries, SegmentationMethod.HEADER_BASED
         if len(toc_boundaries) >= 2:
-            logger.warning(
-                "Using TOC-based segmentation despite poor quality "
-                "(AI unavailable or failed)"
-            )
+            logger.warning("Using TOC-based segmentation despite poor quality (AI unavailable or failed)")
             return toc_boundaries, SegmentationMethod.TOC_BASED
 
         # 6. Fallback - single module or page split

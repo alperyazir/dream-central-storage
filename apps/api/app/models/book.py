@@ -38,15 +38,17 @@ class Book(Base):
     total_size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     language: Mapped[str] = mapped_column(String(64), nullable=False)
     category: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # TODO [PERF-H5]: Add database index on `status` column.
+    #   Requires Alembic migration:
+    #     op.create_index("ix_books_status", "books", ["status"])
+    #   This will speed up the common WHERE status != 'archived' filter.
     status: Mapped[BookStatusEnum] = mapped_column(
         Enum(BookStatusEnum, name="book_status", native_enum=False),
         nullable=False,
         default=BookStatusEnum.DRAFT,
         server_default=BookStatusEnum.DRAFT.value,
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )

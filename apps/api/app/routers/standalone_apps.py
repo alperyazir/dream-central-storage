@@ -19,7 +19,6 @@ from app.schemas.standalone_app import (
     AsyncBundleResponse,
     BundleInfo,
     BundleJobResult,
-    BundleJobStatus,
     BundleListResponse,
     BundleRequest,
     BundleResponse,
@@ -29,6 +28,7 @@ from app.schemas.standalone_app import (
 )
 from app.services import get_minio_client, get_minio_client_external
 from app.services.standalone_apps import (
+    PRESIGNED_URL_EXPIRY_SECONDS,
     BundleCreationError,
     BundleNotFoundError,
     InvalidPlatformError,
@@ -41,9 +41,7 @@ from app.services.standalone_apps import (
     list_templates,
     template_exists,
     upload_template,
-    PRESIGNED_URL_EXPIRY_SECONDS,
 )
-
 
 router = APIRouter(prefix="/standalone-apps", tags=["Standalone Apps"])
 _bearer_scheme = HTTPBearer(auto_error=True)
@@ -66,27 +64,19 @@ def _require_admin(credentials: HTTPAuthorizationCredentials, db: Session) -> in
     try:
         payload = decode_access_token(token, settings=get_settings())
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
 
     subject = payload.get("sub")
     if subject is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
     try:
         return int(subject)
     except (TypeError, ValueError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
 
 
-def _require_api_key_or_admin(
-    credentials: HTTPAuthorizationCredentials, db: Session
-) -> int:
+def _require_api_key_or_admin(credentials: HTTPAuthorizationCredentials, db: Session) -> int:
     """Validate JWT token or API key for access.
 
     Returns:
@@ -111,9 +101,7 @@ def _require_api_key_or_admin(
     if api_key_info is not None:
         return -1
 
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token or API key"
-    )
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token or API key")
 
 
 @router.get("", response_model=TemplateListResponse)
@@ -196,9 +184,7 @@ async def upload_template_endpoint(
             file_name=file.filename,
         )
     except InvalidPlatformError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("Failed to upload template: %s", exc)
         raise HTTPException(
@@ -237,13 +223,9 @@ def delete_template_endpoint(
             platform=platform,
         )
     except InvalidPlatformError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except TemplateNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("Failed to delete template: %s", exc)
         raise HTTPException(
@@ -280,13 +262,9 @@ def download_template(
             platform=platform,
         )
     except InvalidPlatformError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except TemplateNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("Failed to get download URL: %s", exc)
         raise HTTPException(
@@ -357,17 +335,11 @@ def create_bundle_endpoint(
             force=payload.force,
         )
     except InvalidPlatformError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except TemplateNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except BundleCreationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("Unexpected error creating bundle: %s", exc)
         raise HTTPException(
@@ -442,6 +414,7 @@ async def create_bundle_async_endpoint(
     - **force**: If True, recreate bundle even if it already exists
     """
     import uuid
+
     from arq import create_pool
     from arq.connections import RedisSettings
 
@@ -478,9 +451,9 @@ async def create_bundle_async_endpoint(
 
     try:
         # First, create job record in Redis for status tracking
+        from app.services.queue.models import JobPriority, ProcessingJob, ProcessingJobType
         from app.services.queue.redis import get_redis_connection
         from app.services.queue.repository import JobRepository
-        from app.services.queue.models import ProcessingJob, ProcessingJobType, JobPriority
 
         redis_conn = await get_redis_connection(url=settings.redis_url)
         repository = JobRepository(
@@ -564,7 +537,6 @@ async def get_bundle_job_status(
     try:
         from app.services.queue.redis import get_redis_connection
         from app.services.queue.repository import JobRepository
-        from app.services.queue.models import JobNotFoundError
 
         redis_conn = await get_redis_connection(url=settings.redis_url)
         repository = JobRepository(
@@ -643,8 +615,6 @@ def delete_bundle_endpoint(
             object_name=object_name,
         )
     except BundleNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)

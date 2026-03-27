@@ -61,9 +61,7 @@ def get_default_voice(language: str, provider: str) -> str:
 class TTSProviderError(Exception):
     """Base exception for TTS provider errors."""
 
-    def __init__(
-        self, message: str, provider: str, details: dict[str, Any] | None = None
-    ) -> None:
+    def __init__(self, message: str, provider: str, details: dict[str, Any] | None = None) -> None:
         self.message = message
         self.provider = provider
         self.details = details or {}
@@ -81,9 +79,7 @@ class TTSRateLimitError(TTSProviderError):
     ) -> None:
         self.retry_after = retry_after
         super().__init__(
-            f"Rate limit exceeded. Retry after {retry_after}s"
-            if retry_after
-            else "Rate limit exceeded",
+            f"Rate limit exceeded. Retry after {retry_after}s" if retry_after else "Rate limit exceeded",
             provider,
             details,
         )
@@ -106,9 +102,7 @@ class TTSConnectionError(TTSProviderError):
 class TTSVoiceNotFoundError(TTSProviderError):
     """Raised when requested voice is not available."""
 
-    def __init__(
-        self, provider: str, voice: str, details: dict[str, Any] | None = None
-    ) -> None:
+    def __init__(self, provider: str, voice: str, details: dict[str, Any] | None = None) -> None:
         self.voice = voice
         super().__init__(f"Voice '{voice}' not found or not available", provider, details)
 
@@ -209,9 +203,7 @@ class TTSProvider(ABC):
         ...
 
     @abstractmethod
-    async def synthesize_batch(
-        self, items: list[TTSBatchItem], concurrency: int = 5
-    ) -> TTSBatchResult:
+    async def synthesize_batch(self, items: list[TTSBatchItem], concurrency: int = 5) -> TTSBatchResult:
         """
         Synthesize speech for multiple items.
 
@@ -247,9 +239,7 @@ class TTSProvider(ABC):
             True if provider is healthy, False otherwise.
         """
         try:
-            response = await self.synthesize(
-                TTSRequest(text="test", language="en")
-            )
+            response = await self.synthesize(TTSRequest(text="test", language="en"))
             return bool(response.audio_data)
         except Exception:
             return False

@@ -66,6 +66,7 @@ class AIAssistedStrategy(SegmentationStrategy):
         """Get LLM service (lazy load)."""
         if self._llm_service is None:
             from app.services.llm import get_llm_service
+
             self._llm_service = get_llm_service()
         return self._llm_service
 
@@ -103,9 +104,7 @@ class AIAssistedStrategy(SegmentationStrategy):
                     "Use detect_boundaries_async() instead."
                 )
                 return []
-            return loop.run_until_complete(
-                self.detect_boundaries_async(pages, **kwargs)
-            )
+            return loop.run_until_complete(self.detect_boundaries_async(pages, **kwargs))
         except RuntimeError:
             # No event loop
             return asyncio.run(self.detect_boundaries_async(pages, **kwargs))
@@ -138,8 +137,7 @@ class AIAssistedStrategy(SegmentationStrategy):
             response = await self.llm_service.simple_completion(
                 prompt=prompt,
                 system_prompt=(
-                    "You are a document analysis assistant. "
-                    "Return only valid JSON arrays, no markdown or explanations."
+                    "You are a document analysis assistant. Return only valid JSON arrays, no markdown or explanations."
                 ),
                 temperature=0.3,  # Lower temperature for structured output
             )
@@ -210,11 +208,13 @@ class AIAssistedStrategy(SegmentationStrategy):
                 if start_page < 1:
                     continue
 
-                boundaries.append(ModuleBoundary(
-                    title=str(title).strip(),
-                    start_page=start_page,
-                    confidence=0.7,  # AI has moderate confidence
-                ))
+                boundaries.append(
+                    ModuleBoundary(
+                        title=str(title).strip(),
+                        start_page=start_page,
+                        confidence=0.7,  # AI has moderate confidence
+                    )
+                )
 
         except json.JSONDecodeError as e:
             logger.warning(f"Failed to parse LLM response as JSON: {e}")

@@ -5,28 +5,28 @@ using arq with Redis for async, reliable job execution.
 """
 
 from app.services.queue.models import (
+    PROCESSING_STAGES,
+    JobAlreadyExistsError,
+    JobNotFoundError,
     JobPriority,
     ProcessingJob,
     ProcessingJobType,
     ProcessingStatus,
-    QueueStats,
-    PROCESSING_STAGES,
-    JobAlreadyExistsError,
-    JobNotFoundError,
     QueueConnectionError,
     QueueError,
+    QueueStats,
 )
 from app.services.queue.redis import (
     RedisConnection,
-    get_redis_connection,
     close_redis_connection,
+    get_redis_connection,
 )
 from app.services.queue.repository import JobRepository
 from app.services.queue.service import (
-    QueueService,
     ProgressReporter,
-    get_queue_service,
+    QueueService,
     close_queue_service,
+    get_queue_service,
 )
 
 __all__ = [

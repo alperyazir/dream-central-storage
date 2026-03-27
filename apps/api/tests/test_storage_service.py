@@ -9,7 +9,6 @@ from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock
 
 import pytest
-
 from minio.error import S3Error
 
 from app.services.storage import (
@@ -189,9 +188,7 @@ def test_move_prefix_to_trash_allows_empty_prefix() -> None:
 
 def test_move_prefix_to_trash_raises_on_copy_failure() -> None:
     client = MagicMock()
-    client.list_objects.return_value = [
-        SimpleNamespace(object_name="dream/books/sky/file.txt")
-    ]
+    client.list_objects.return_value = [SimpleNamespace(object_name="dream/books/sky/file.txt")]
     client.copy_object.side_effect = S3Error(
         "InternalError",
         "copy failed",

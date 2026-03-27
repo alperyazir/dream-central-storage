@@ -24,9 +24,7 @@ class TeacherRepository(BaseRepository[Teacher]):
         statement = select(Teacher)
         return list(session.scalars(statement).all())
 
-    def list_paginated(
-        self, session: Session, skip: int = 0, limit: int = 100
-    ) -> list[Teacher]:
+    def list_paginated(self, session: Session, skip: int = 0, limit: int = 100) -> list[Teacher]:
         """Return teachers with pagination."""
         statement = select(Teacher).offset(skip).limit(limit)
         return list(session.scalars(statement).all())
@@ -36,44 +34,24 @@ class TeacherRepository(BaseRepository[Teacher]):
         statement = select(func.count()).select_from(Teacher)
         return session.execute(statement).scalar() or 0
 
-    def list_active(
-        self, session: Session, skip: int = 0, limit: int = 100
-    ) -> list[Teacher]:
+    def list_active(self, session: Session, skip: int = 0, limit: int = 100) -> list[Teacher]:
         """Return only active teachers with pagination."""
-        statement = (
-            select(Teacher)
-            .where(Teacher.status == "active")
-            .offset(skip)
-            .limit(limit)
-        )
+        statement = select(Teacher).where(Teacher.status == "active").offset(skip).limit(limit)
         return list(session.scalars(statement).all())
 
     def count_active(self, session: Session) -> int:
         """Return count of active teachers."""
-        statement = (
-            select(func.count()).select_from(Teacher).where(Teacher.status == "active")
-        )
+        statement = select(func.count()).select_from(Teacher).where(Teacher.status == "active")
         return session.execute(statement).scalar() or 0
 
-    def list_archived(
-        self, session: Session, skip: int = 0, limit: int = 100
-    ) -> list[Teacher]:
+    def list_archived(self, session: Session, skip: int = 0, limit: int = 100) -> list[Teacher]:
         """Return archived (inactive) teachers with pagination."""
-        statement = (
-            select(Teacher)
-            .where(Teacher.status == "inactive")
-            .offset(skip)
-            .limit(limit)
-        )
+        statement = select(Teacher).where(Teacher.status == "inactive").offset(skip).limit(limit)
         return list(session.scalars(statement).all())
 
     def count_archived(self, session: Session) -> int:
         """Return count of archived teachers."""
-        statement = (
-            select(func.count())
-            .select_from(Teacher)
-            .where(Teacher.status == "inactive")
-        )
+        statement = select(func.count()).select_from(Teacher).where(Teacher.status == "inactive")
         return session.execute(statement).scalar() or 0
 
     def get_by_teacher_id(self, session: Session, teacher_id: str) -> Teacher | None:
@@ -82,9 +60,7 @@ class TeacherRepository(BaseRepository[Teacher]):
         result = session.execute(statement)
         return result.scalars().first()
 
-    def get_or_create_by_teacher_id(
-        self, session: Session, teacher_id: str
-    ) -> Teacher:
+    def get_or_create_by_teacher_id(self, session: Session, teacher_id: str) -> Teacher:
         """Get existing teacher by teacher_id or create a new one."""
         teacher = self.get_by_teacher_id(session, teacher_id)
         if teacher is not None:
@@ -96,11 +72,7 @@ class TeacherRepository(BaseRepository[Teacher]):
 
     def get_with_materials(self, session: Session, teacher_id: int) -> Teacher | None:
         """Fetch a teacher with materials eager-loaded to avoid N+1 queries."""
-        statement = (
-            select(Teacher)
-            .options(selectinload(Teacher.materials))
-            .where(Teacher.id == teacher_id)
-        )
+        statement = select(Teacher).options(selectinload(Teacher.materials)).where(Teacher.id == teacher_id)
         return session.scalars(statement).first()
 
     def search(
@@ -117,8 +89,7 @@ class TeacherRepository(BaseRepository[Teacher]):
         if query:
             search_pattern = f"%{query}%"
             statement = statement.where(
-                (Teacher.teacher_id.ilike(search_pattern))
-                | (Teacher.display_name.ilike(search_pattern))
+                (Teacher.teacher_id.ilike(search_pattern)) | (Teacher.display_name.ilike(search_pattern))
             )
 
         if status:
@@ -134,9 +105,7 @@ class TeacherRepository(BaseRepository[Teacher]):
         session.commit()
         return created
 
-    def update(
-        self, session: Session, teacher: Teacher, *, data: dict[str, object]
-    ) -> Teacher:
+    def update(self, session: Session, teacher: Teacher, *, data: dict[str, object]) -> Teacher:
         """Update an existing teacher."""
         for field, value in data.items():
             setattr(teacher, field, value)
@@ -156,18 +125,14 @@ class TeacherRepository(BaseRepository[Teacher]):
         material_count = len(teacher.materials)
 
         logger.info(
-            f"Deleting teacher '{teacher.teacher_id}' (ID: {teacher.id}) "
-            f"and {material_count} associated materials"
+            f"Deleting teacher '{teacher.teacher_id}' (ID: {teacher.id}) and {material_count} associated materials"
         )
 
         # Delete teacher (cascade will delete all materials)
         session.delete(teacher)
         session.commit()
 
-        logger.info(
-            f"Successfully deleted teacher '{teacher.teacher_id}' "
-            f"and {material_count} materials"
-        )
+        logger.info(f"Successfully deleted teacher '{teacher.teacher_id}' and {material_count} materials")
 
     def get_ai_settings(self, teacher: Teacher) -> dict[str, object]:
         """Get AI processing settings for a teacher.

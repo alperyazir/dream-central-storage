@@ -3,20 +3,15 @@
 from __future__ import annotations
 
 import importlib.util
+import time
 from pathlib import Path
 from typing import Any
-import time
 
 from alembic.operations import Operations
 from alembic.runtime.migration import MigrationContext
 from sqlalchemy import create_engine, inspect, text
 
-MIGRATION_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "alembic"
-    / "versions"
-    / "20250922_01_create_books_table.py"
-)
+MIGRATION_PATH = Path(__file__).resolve().parents[1] / "alembic" / "versions" / "20250922_01_create_books_table.py"
 
 
 def test_books_table_migration_creates_expected_schema() -> None:
@@ -57,9 +52,7 @@ def test_books_table_migration_creates_expected_schema() -> None:
                     "('Test Publisher', 'Example Book', 'en', 'fiction')"
                 )
             )
-            row = connection.execute(
-                text("SELECT status, version, created_at, updated_at FROM books")
-            ).one()
+            row = connection.execute(text("SELECT status, version, created_at, updated_at FROM books")).one()
             assert row.status == "draft"
             assert row.version is None
             assert row.created_at is not None
@@ -67,11 +60,7 @@ def test_books_table_migration_creates_expected_schema() -> None:
 
             original_updated_at = row.updated_at
             time.sleep(1)
-            connection.execute(
-                text(
-                    "UPDATE books SET category = 'mystery' WHERE publisher = 'Test Publisher'"
-                )
-            )
+            connection.execute(text("UPDATE books SET category = 'mystery' WHERE publisher = 'Test Publisher'"))
             refreshed_row = connection.execute(
                 text("SELECT updated_at FROM books WHERE publisher = 'Test Publisher'")
             ).one()

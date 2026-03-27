@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-
 # =============================================================================
 # Exceptions
 # =============================================================================
@@ -15,9 +14,7 @@ from typing import Any
 class AudioGenerationError(Exception):
     """Base exception for audio generation errors."""
 
-    def __init__(
-        self, message: str, book_id: str, details: dict[str, Any] | None = None
-    ) -> None:
+    def __init__(self, message: str, book_id: str, details: dict[str, Any] | None = None) -> None:
         self.message = message
         self.book_id = book_id
         self.details = details or {}

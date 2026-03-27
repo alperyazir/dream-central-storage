@@ -91,4 +91,6 @@ export const getAIContentAudioUrl = (
   contentId: string,
   filename: string
 ): string =>
-  buildApiUrl(`/books/${bookId}/ai-content/${contentId}/audio/${encodeURIComponent(filename)}`);
+  buildApiUrl(
+    `/books/${bookId}/ai-content/${contentId}/audio/${encodeURIComponent(filename)}`
+  );

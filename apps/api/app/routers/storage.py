@@ -5,17 +5,17 @@ Includes HTTP Range support for efficient audio/video streaming.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from datetime import timedelta
 from pathlib import PurePosixPath
 from typing import Literal
 
-import json
-
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from minio.error import S3Error
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -43,7 +43,6 @@ from app.services import (
     restore_prefix_from_trash,
 )
 from app.services.minio import get_minio_client_external
-from minio.error import S3Error
 
 router = APIRouter(prefix="/storage", tags=["Storage"])
 _bearer_scheme = HTTPBearer(auto_error=True)
@@ -239,7 +238,7 @@ async def get_book_config(
     object_key = _build_book_object_key(publisher, book_name, "config.json")
 
     try:
-        stat = client.stat_object(settings.minio_publishers_bucket, object_key)
+        client.stat_object(settings.minio_publishers_bucket, object_key)
     except S3Error as exc:
         if exc.code == "NoSuchKey":
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="config.json not found") from exc
@@ -417,10 +416,7 @@ async def download_book_object(
     if range_header:
         is_range_request = True
         start, end = _parse_range_header(range_header, file_size)
-        logger.debug(
-            "Range request for '%s': bytes=%d-%d (total=%d)",
-            object_key, start, end, file_size
-        )
+        logger.debug("Range request for '%s': bytes=%d-%d (total=%d)", object_key, start, end, file_size)
 
     content_length = end - start + 1
 
@@ -467,10 +463,7 @@ async def download_book_object(
     if is_range_request:
         # 206 Partial Content for range requests
         headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
-        logger.info(
-            "Streaming range %d-%d/%d for '%s'",
-            start, end, file_size, object_key
-        )
+        logger.info("Streaming range %d-%d/%d for '%s'", start, end, file_size, object_key)
         return StreamingResponse(
             iterator(),
             status_code=status.HTTP_206_PARTIAL_CONTENT,

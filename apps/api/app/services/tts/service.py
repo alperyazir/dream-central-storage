@@ -296,9 +296,7 @@ class TTSService:
         success_count = sum(1 for r in results if r is not None)
         failure_count = len(errors)
 
-        logger.info(
-            f"[TTSService] Batch complete: {success_count} succeeded, {failure_count} failed"
-        )
+        logger.info(f"[TTSService] Batch complete: {success_count} succeeded, {failure_count} failed")
 
         return TTSBatchResult(
             results=results,

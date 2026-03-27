@@ -48,7 +48,9 @@ const flattenTree = (
 
   if (node.children) {
     for (const child of node.children) {
-      materials.push(...flattenTree(child, teacherId, node.is_dir ? currentPath : basePath));
+      materials.push(
+        ...flattenTree(child, teacherId, node.is_dir ? currentPath : basePath)
+      );
     }
   }
 
@@ -118,7 +120,9 @@ export const fetchAllTeacherMaterials = async (
 
   // Fetch all teacher materials in parallel
   const results = await Promise.allSettled(
-    teachers.map((teacherId) => fetchTeacherMaterials(teacherId, token, tokenType, client))
+    teachers.map((teacherId) =>
+      fetchTeacherMaterials(teacherId, token, tokenType, client)
+    )
   );
 
   const allMaterials: TeacherMaterial[] = [];
@@ -126,7 +130,10 @@ export const fetchAllTeacherMaterials = async (
     if (result.status === 'fulfilled') {
       allMaterials.push(...result.value);
     } else {
-      console.error(`Failed to fetch materials for teacher ${teachers[index]}:`, result.reason);
+      console.error(
+        `Failed to fetch materials for teacher ${teachers[index]}:`,
+        result.reason
+      );
     }
   });
 
@@ -153,7 +160,10 @@ export const deleteTeacherMaterial = async (
 /**
  * Get the download URL for a teacher material.
  */
-export const getTeacherMaterialUrl = (teacherId: string, path: string): string => {
+export const getTeacherMaterialUrl = (
+  teacherId: string,
+  path: string
+): string => {
   return `/api/teachers/${encodeURIComponent(teacherId)}/materials/${encodeURIComponent(path)}`;
 };
 
@@ -203,13 +213,16 @@ export const uploadTeacherMaterial = async (
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`/api/teachers/${encodeURIComponent(teacherId)}/upload`, {
-    method: 'POST',
-    headers: {
-      Authorization: `${tokenType} ${token}`,
-    },
-    body: formData,
-  });
+  const response = await fetch(
+    `/api/teachers/${encodeURIComponent(teacherId)}/upload`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `${tokenType} ${token}`,
+      },
+      body: formData,
+    }
+  );
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);

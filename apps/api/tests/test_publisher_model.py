@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-import pytest
-
 from app.models.book import Book, BookStatusEnum
 from app.models.publisher import Publisher, PublisherStatusEnum
 
@@ -77,8 +75,8 @@ def test_publisher_book_relationship_bidirectional() -> None:
     )
 
     # Manually set up bidirectional relationship for unit test
-    object.__setattr__(book, 'publisher_rel', publisher)
-    object.__setattr__(publisher, 'books', [book])
+    object.__setattr__(book, "publisher_rel", publisher)
+    object.__setattr__(publisher, "books", [book])
 
     # Test Publisher -> Books direction
     assert len(publisher.books) == 1

@@ -1,105 +1,129 @@
-import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { useEffect, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from 'components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from 'components/ui/select'
-import { Button } from 'components/ui/button'
-import { Input } from 'components/ui/input'
-import { Label } from 'components/ui/label'
-import { Textarea } from 'components/ui/textarea'
-import { Switch } from 'components/ui/switch'
-import { Separator } from 'components/ui/separator'
-import { Alert, AlertDescription } from 'components/ui/alert'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from 'components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from 'components/ui/select';
+import { Button } from 'components/ui/button';
+import { Input } from 'components/ui/input';
+import { Label } from 'components/ui/label';
+import { Textarea } from 'components/ui/textarea';
+
+import { Separator } from 'components/ui/separator';
+import { Alert, AlertDescription } from 'components/ui/alert';
 import {
   createPublisher,
   updatePublisher,
   type Publisher,
-} from 'lib/publishers'
+} from 'lib/publishers';
 import {
   getPublisherProcessingSettings,
   updatePublisherProcessingSettings,
-} from 'lib/processing'
+} from 'lib/processing';
 
-const AUDIO_LANGUAGES = ['en', 'tr', 'de', 'fr', 'es']
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const AUDIO_LANGUAGES = ['en', 'tr', 'de', 'fr', 'es'];
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface PublisherFormDialogProps {
-  open: boolean
-  onClose: () => void
-  onSuccess: () => void
-  publisher?: Publisher | null
-  token: string | null
-  tokenType: string | null
+  open: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  publisher?: Publisher | null;
+  token: string | null;
+  tokenType: string | null;
 }
 
-export function PublisherFormDialog({ open, onClose, onSuccess, publisher, token, tokenType }: PublisherFormDialogProps) {
-  const isEdit = !!publisher
+export function PublisherFormDialog({
+  open,
+  onClose,
+  onSuccess,
+  publisher,
+  token,
+  tokenType,
+}: PublisherFormDialogProps) {
+  const isEdit = !!publisher;
 
-  const [name, setName] = useState('')
-  const [displayName, setDisplayName] = useState('')
-  const [description, setDescription] = useState('')
-  const [contactEmail, setContactEmail] = useState('')
-  const [status, setStatus] = useState<string>('active')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
-  const [emailError, setEmailError] = useState('')
+  const [name, setName] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [description, setDescription] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [status, setStatus] = useState<string>('active');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [emailError, setEmailError] = useState('');
 
   // AI settings
-  const [aiAutoProcess, setAiAutoProcess] = useState<boolean | null>(null)
-  const [aiPriority, setAiPriority] = useState<string>('')
-  const [aiAudioLanguages, setAiAudioLanguages] = useState<string[]>([])
-  const [aiSettingsLoading, setAiSettingsLoading] = useState(false)
+  const [aiAutoProcess, setAiAutoProcess] = useState<boolean | null>(null);
+  const [aiPriority, setAiPriority] = useState<string>('');
+  const [aiAudioLanguages, setAiAudioLanguages] = useState<string[]>([]);
+  const [aiSettingsLoading, setAiSettingsLoading] = useState(false);
 
   useEffect(() => {
-    if (!open) return
+    if (!open) return;
     if (publisher) {
-      setName(publisher.name)
-      setDisplayName(publisher.display_name || '')
-      setDescription(publisher.description || '')
-      setContactEmail(publisher.contact_email || '')
-      setStatus(publisher.status)
+      setName(publisher.name);
+      setDisplayName(publisher.display_name || '');
+      setDescription(publisher.description || '');
+      setContactEmail(publisher.contact_email || '');
+      setStatus(publisher.status);
       // Load AI settings
       if (token && tokenType) {
-        setAiSettingsLoading(true)
+        setAiSettingsLoading(true);
         getPublisherProcessingSettings(publisher.id, token, tokenType)
           .then((settings) => {
-            setAiAutoProcess(settings.ai_auto_process_enabled)
-            setAiPriority(settings.ai_processing_priority || '')
-            setAiAudioLanguages(settings.ai_audio_languages?.split(',').filter(Boolean) || [])
+            setAiAutoProcess(settings.ai_auto_process_enabled);
+            setAiPriority(settings.ai_processing_priority || '');
+            setAiAudioLanguages(
+              settings.ai_audio_languages?.split(',').filter(Boolean) || []
+            );
           })
           .catch(() => {})
-          .finally(() => setAiSettingsLoading(false))
+          .finally(() => setAiSettingsLoading(false));
       }
     } else {
-      setName('')
-      setDisplayName('')
-      setDescription('')
-      setContactEmail('')
-      setStatus('active')
-      setAiAutoProcess(null)
-      setAiPriority('')
-      setAiAudioLanguages([])
+      setName('');
+      setDisplayName('');
+      setDescription('');
+      setContactEmail('');
+      setStatus('active');
+      setAiAutoProcess(null);
+      setAiPriority('');
+      setAiAudioLanguages([]);
     }
-    setError('')
-    setEmailError('')
-  }, [open, publisher, token, tokenType])
+    setError('');
+    setEmailError('');
+  }, [open, publisher, token, tokenType]);
 
   const validateEmail = (value: string) => {
     if (value && !EMAIL_REGEX.test(value)) {
-      setEmailError('Invalid email address')
-      return false
+      setEmailError('Invalid email address');
+      return false;
     }
-    setEmailError('')
-    return true
-  }
+    setEmailError('');
+    return true;
+  };
 
   const handleSubmit = async () => {
-    if (!name.trim()) { setError('Name is required'); return }
-    if (!validateEmail(contactEmail)) return
-    if (!token || !tokenType) return
+    if (!name.trim()) {
+      setError('Name is required');
+      return;
+    }
+    if (!validateEmail(contactEmail)) return;
+    if (!token || !tokenType) return;
 
-    setSubmitting(true)
-    setError('')
+    setSubmitting(true);
+    setError('');
 
     try {
       const data = {
@@ -108,58 +132,84 @@ export function PublisherFormDialog({ open, onClose, onSuccess, publisher, token
         description: description.trim() || undefined,
         contact_email: contactEmail.trim() || undefined,
         status,
-      }
+      };
 
-      let publisherId: number
+      let publisherId: number;
       if (isEdit && publisher) {
-        await updatePublisher(publisher.id, data, token, tokenType)
-        publisherId = publisher.id
+        await updatePublisher(publisher.id, data, token, tokenType);
+        publisherId = publisher.id;
       } else {
-        const created = await createPublisher(data, token, tokenType)
-        publisherId = created.id
+        const created = await createPublisher(data, token, tokenType);
+        publisherId = created.id;
       }
 
       // Save AI settings
-      await updatePublisherProcessingSettings(publisherId, {
-        ai_auto_process_enabled: aiAutoProcess,
-        ai_processing_priority: aiPriority ? (aiPriority as 'high' | 'normal' | 'low') : null,
-        ai_audio_languages: aiAudioLanguages.length ? aiAudioLanguages.join(',') : null,
-      }, token, tokenType).catch(() => {})
+      await updatePublisherProcessingSettings(
+        publisherId,
+        {
+          ai_auto_process_enabled: aiAutoProcess,
+          ai_processing_priority: aiPriority
+            ? (aiPriority as 'high' | 'normal' | 'low')
+            : null,
+          ai_audio_languages: aiAudioLanguages.length
+            ? aiAudioLanguages.join(',')
+            : null,
+        },
+        token,
+        tokenType
+      ).catch(() => {});
 
-      onSuccess()
-      onClose()
+      onSuccess();
+      onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save publisher')
+      setError(err instanceof Error ? err.message : 'Failed to save publisher');
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   const toggleLanguage = (lang: string) => {
     setAiAudioLanguages((prev) =>
       prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang]
-    )
-  }
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Edit Publisher' : 'New Publisher'}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? 'Edit Publisher' : 'New Publisher'}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="pub-name">Name *</Label>
-            <Input id="pub-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., noor-publishing" />
+            <Input
+              id="pub-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g., noor-publishing"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="pub-display">Display Name</Label>
-            <Input id="pub-display" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="e.g., Noor Publishing" />
+            <Input
+              id="pub-display"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="e.g., Noor Publishing"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="pub-desc">Description</Label>
-            <Textarea id="pub-desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+            <Textarea
+              id="pub-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="pub-email">Contact Email</Label>
@@ -167,14 +217,21 @@ export function PublisherFormDialog({ open, onClose, onSuccess, publisher, token
               id="pub-email"
               type="email"
               value={contactEmail}
-              onChange={(e) => { setContactEmail(e.target.value); validateEmail(e.target.value) }}
+              onChange={(e) => {
+                setContactEmail(e.target.value);
+                validateEmail(e.target.value);
+              }}
             />
-            {emailError && <p className="text-xs text-destructive">{emailError}</p>}
+            {emailError && (
+              <p className="text-xs text-destructive">{emailError}</p>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Status</Label>
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
@@ -196,12 +253,24 @@ export function PublisherFormDialog({ open, onClose, onSuccess, publisher, token
                 <div className="space-y-2">
                   <Label>Auto-Process on Upload</Label>
                   <Select
-                    value={aiAutoProcess === null ? 'default' : aiAutoProcess ? 'enabled' : 'disabled'}
-                    onValueChange={(v) => setAiAutoProcess(v === 'default' ? null : v === 'enabled')}
+                    value={
+                      aiAutoProcess === null
+                        ? 'default'
+                        : aiAutoProcess
+                          ? 'enabled'
+                          : 'disabled'
+                    }
+                    onValueChange={(v) =>
+                      setAiAutoProcess(v === 'default' ? null : v === 'enabled')
+                    }
                   >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="default">Use Global Default</SelectItem>
+                      <SelectItem value="default">
+                        Use Global Default
+                      </SelectItem>
                       <SelectItem value="enabled">Enabled</SelectItem>
                       <SelectItem value="disabled">Disabled</SelectItem>
                     </SelectContent>
@@ -209,10 +278,19 @@ export function PublisherFormDialog({ open, onClose, onSuccess, publisher, token
                 </div>
                 <div className="space-y-2">
                   <Label>Processing Priority</Label>
-                  <Select value={aiPriority || 'default'} onValueChange={(v) => setAiPriority(v === 'default' ? '' : v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select
+                    value={aiPriority || 'default'}
+                    onValueChange={(v) =>
+                      setAiPriority(v === 'default' ? '' : v)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="default">Use Global Default</SelectItem>
+                      <SelectItem value="default">
+                        Use Global Default
+                      </SelectItem>
                       <SelectItem value="high">High</SelectItem>
                       <SelectItem value="normal">Normal</SelectItem>
                       <SelectItem value="low">Low</SelectItem>
@@ -226,7 +304,11 @@ export function PublisherFormDialog({ open, onClose, onSuccess, publisher, token
                       <Button
                         key={lang}
                         type="button"
-                        variant={aiAudioLanguages.includes(lang) ? 'default' : 'outline'}
+                        variant={
+                          aiAudioLanguages.includes(lang)
+                            ? 'default'
+                            : 'outline'
+                        }
                         size="sm"
                         onClick={() => toggleLanguage(lang)}
                       >
@@ -247,7 +329,9 @@ export function PublisherFormDialog({ open, onClose, onSuccess, publisher, token
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
           <Button onClick={handleSubmit} disabled={submitting || !name.trim()}>
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
             {isEdit ? 'Save Changes' : 'Create Publisher'}
@@ -255,7 +339,7 @@ export function PublisherFormDialog({ open, onClose, onSuccess, publisher, token
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
-export default PublisherFormDialog
+export default PublisherFormDialog;

@@ -145,9 +145,12 @@ export const fetchTrashedPublishers = async (
   tokenType: string = 'Bearer',
   client: ApiClient = apiClient
 ): Promise<Publisher[]> => {
-  const response = await client.get<PublisherListResponse>('/publishers/trash', {
-    headers: buildAuthHeaders(token, tokenType),
-  });
+  const response = await client.get<PublisherListResponse>(
+    '/publishers/trash',
+    {
+      headers: buildAuthHeaders(token, tokenType),
+    }
+  );
   return response.items;
 };
 
@@ -233,9 +236,12 @@ export const fetchPublisherAssetFiles = (
   tokenType: string = 'Bearer',
   client: ApiClient = apiClient
 ): Promise<AssetFileInfo[]> =>
-  client.get<AssetFileInfo[]>(`/publishers/${publisherId}/assets/${assetType}`, {
-    headers: buildAuthHeaders(token, tokenType),
-  });
+  client.get<AssetFileInfo[]>(
+    `/publishers/${publisherId}/assets/${assetType}`,
+    {
+      headers: buildAuthHeaders(token, tokenType),
+    }
+  );
 
 /**
  * Upload an asset file to a publisher's asset folder.
@@ -263,7 +269,9 @@ export const uploadPublisherAsset = async (
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
-    throw new Error(errorBody.detail || `Upload failed with status ${response.status}`);
+    throw new Error(
+      errorBody.detail || `Upload failed with status ${response.status}`
+    );
   }
 
   return response.json();

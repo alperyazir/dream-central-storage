@@ -1,11 +1,16 @@
 import { create } from 'zustand';
 
-import { login as requestLogin, LoginPayload, TokenResponse, validateSession } from '../lib/auth';
+import {
+  login as requestLogin,
+  LoginPayload,
+  TokenResponse,
+  validateSession,
+} from '../lib/auth';
 import { ApiError } from '../lib/api';
 import {
   clearPersistedAuth,
   loadPersistedAuth,
-  persistAuthSession
+  persistAuthSession,
 } from '../lib/auth-storage';
 
 const baseAuthState = {
@@ -13,7 +18,7 @@ const baseAuthState = {
   tokenType: null as string | null,
   isAuthenticated: false,
   isAuthenticating: false,
-  error: null as string | null
+  error: null as string | null,
 };
 
 const deriveErrorMessage = (error: unknown) => {
@@ -59,7 +64,7 @@ export interface AuthState {
 const buildPersistedPayload = (response: TokenResponse) => ({
   token: response.access_token,
   tokenType: response.token_type ?? 'bearer',
-  savedAt: new Date().toISOString()
+  savedAt: new Date().toISOString(),
 });
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -72,12 +77,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { access_token, token_type } = await requestLogin({
         email: payload.email.trim().toLowerCase(),
-        password: payload.password
+        password: payload.password,
       });
 
       const response: TokenResponse = {
         access_token,
-        token_type: token_type ?? 'bearer'
+        token_type: token_type ?? 'bearer',
       };
 
       persistAuthSession(buildPersistedPayload(response));
@@ -88,7 +93,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: true,
         isAuthenticating: false,
         isHydrated: true,
-        error: null
+        error: null,
       });
 
       return response;
@@ -97,7 +102,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         ...baseAuthState,
         isHydrating: false,
         isHydrated: true,
-        error: deriveErrorMessage(error)
+        error: deriveErrorMessage(error),
       });
 
       throw error;
@@ -135,17 +140,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticating: false,
         isHydrating: false,
         isHydrated: true,
-        error: null
+        error: null,
       });
     } catch (error) {
       console.warn('Persisted session validation failed', error);
       clearPersistedAuth();
       set({ ...baseAuthState, isHydrating: false, isHydrated: true });
     }
-  }
+  },
 }));
 
 export const resetAuthStore = () => {
   clearPersistedAuth();
-  useAuthStore.setState({ ...baseAuthState, isHydrated: true, isHydrating: false });
+  useAuthStore.setState({
+    ...baseAuthState,
+    isHydrated: true,
+    isHydrating: false,
+  });
 };

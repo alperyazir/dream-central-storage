@@ -251,8 +251,9 @@ def test_download_teacher_material_success(monkeypatch) -> None:
 
 def test_download_teacher_material_not_found(monkeypatch) -> None:
     """Test download returns 404 for missing file."""
-    from app.routers import teachers
     from minio.error import S3Error
+
+    from app.routers import teachers
 
     fake_client = MagicMock()
     error = S3Error(

@@ -56,7 +56,11 @@ const encodePathSegment = (segment: string) => encodeURIComponent(segment);
 const bookStorageBasePath = (publisher: string, bookName: string) =>
   `/storage/books/${encodePathSegment(publisher)}/${encodePathSegment(bookName)}`;
 
-const buildBookObjectUrl = (publisher: string, bookName: string, objectPath: string) =>
+const buildBookObjectUrl = (
+  publisher: string,
+  bookName: string,
+  objectPath: string
+) =>
   `${bookStorageBasePath(publisher, bookName)}/object?path=${encodeURIComponent(objectPath)}`;
 
 export const listAppContents = (
@@ -64,9 +68,10 @@ export const listAppContents = (
   token: string,
   tokenType: string = 'Bearer',
   client: ApiClient = apiClient
-): Promise<StorageNode> => client.get<StorageNode>(`/storage/apps/${platform}`, {
-  headers: buildAuthHeaders(token, tokenType)
-});
+): Promise<StorageNode> =>
+  client.get<StorageNode>(`/storage/apps/${platform}`, {
+    headers: buildAuthHeaders(token, tokenType),
+  });
 
 export const listTrashEntries = (
   token: string,
@@ -74,7 +79,7 @@ export const listTrashEntries = (
   client: ApiClient = apiClient
 ): Promise<TrashEntry[]> =>
   client.get<TrashEntry[]>('/storage/trash', {
-    headers: buildAuthHeaders(token, tokenType)
+    headers: buildAuthHeaders(token, tokenType),
   });
 
 export const restoreTrashEntry = (
@@ -102,7 +107,7 @@ export const deleteTrashEntry = (
     override_reason?: string;
   } = {
     key,
-    force: options.force ?? false
+    force: options.force ?? false,
   };
 
   if (options.overrideReason) {
@@ -124,7 +129,7 @@ export const listBookContents = (
   client: ApiClient = apiClient
 ): Promise<StorageNode> =>
   client.get<StorageNode>(bookStorageBasePath(publisher, bookName), {
-    headers: buildAuthHeaders(token, tokenType)
+    headers: buildAuthHeaders(token, tokenType),
   });
 
 export const fetchBookConfig = (
@@ -134,9 +139,12 @@ export const fetchBookConfig = (
   tokenType: string = 'Bearer',
   client: ApiClient = apiClient
 ): Promise<Record<string, unknown>> =>
-  client.get<Record<string, unknown>>(`${bookStorageBasePath(publisher, bookName)}/config`, {
-    headers: buildAuthHeaders(token, tokenType)
-  });
+  client.get<Record<string, unknown>>(
+    `${bookStorageBasePath(publisher, bookName)}/config`,
+    {
+      headers: buildAuthHeaders(token, tokenType),
+    }
+  );
 
 export interface BookExplorerFetchResult {
   tree: StorageNode | null;
@@ -164,21 +172,27 @@ export const fetchBookExplorerData = async (
 ): Promise<BookExplorerFetchResult> => {
   const [treeResult, configResult] = await Promise.allSettled([
     client.get<StorageNode>(bookStorageBasePath(publisher, bookName), {
-      headers: buildAuthHeaders(token, tokenType)
+      headers: buildAuthHeaders(token, tokenType),
     }),
-    client.get<Record<string, unknown>>(`${bookStorageBasePath(publisher, bookName)}/config`, {
-      headers: buildAuthHeaders(token, tokenType)
-    })
+    client.get<Record<string, unknown>>(
+      `${bookStorageBasePath(publisher, bookName)}/config`,
+      {
+        headers: buildAuthHeaders(token, tokenType),
+      }
+    ),
   ]);
 
   const tree = treeResult.status === 'fulfilled' ? treeResult.value : null;
-  const config = configResult.status === 'fulfilled' ? configResult.value : null;
+  const config =
+    configResult.status === 'fulfilled' ? configResult.value : null;
 
   return {
     tree,
     config,
-    treeError: treeResult.status === 'rejected' ? toError(treeResult.reason) : null,
-    configError: configResult.status === 'rejected' ? toError(configResult.reason) : null
+    treeError:
+      treeResult.status === 'rejected' ? toError(treeResult.reason) : null,
+    configError:
+      configResult.status === 'rejected' ? toError(configResult.reason) : null,
   };
 };
 
@@ -201,7 +215,7 @@ export const downloadBookObject = async (
 
   const response = await fetch(url, {
     ...init,
-    signal: options.signal
+    signal: options.signal,
   });
 
   if (!response.ok) {
@@ -237,7 +251,7 @@ export const createBookObjectRequest = (
   options: BookObjectRequestOptions = {}
 ): BookObjectRequest => {
   const headers: Record<string, string> = {
-    ...buildAuthHeaders(token, tokenType)
+    ...buildAuthHeaders(token, tokenType),
   };
 
   if (options.range) {
@@ -249,7 +263,7 @@ export const createBookObjectRequest = (
     init: {
       method: 'GET',
       headers,
-      cache: options.cache ?? 'no-store'
-    }
+      cache: options.cache ?? 'no-store',
+    },
   };
 };

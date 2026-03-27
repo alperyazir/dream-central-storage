@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-
 # =============================================================================
 # Module Schemas
 # =============================================================================
@@ -24,9 +23,7 @@ class ModuleListResponse(BaseModel):
 
     book_id: str = Field(..., description="Book identifier")
     total_modules: int = Field(..., description="Total number of modules")
-    modules: list[ModuleSummary] = Field(
-        default_factory=list, description="List of module summaries"
-    )
+    modules: list[ModuleSummary] = Field(default_factory=list, description="List of module summaries")
 
 
 class ModuleDetailResponse(BaseModel):
@@ -38,9 +35,7 @@ class ModuleDetailResponse(BaseModel):
     text: str = Field("", description="Full text content of the module")
     topics: list[str] = Field(default_factory=list, description="Topics covered in module")
     grammar_points: list[str] = Field(default_factory=list, description="Grammar points taught in module")
-    vocabulary_ids: list[str] = Field(
-        default_factory=list, description="Vocabulary word IDs in module"
-    )
+    vocabulary_ids: list[str] = Field(default_factory=list, description="Vocabulary word IDs in module")
     language: str = Field("", description="Primary language of module")
     summary: str = Field("", description="2-3 sentence summary of module content and learning objectives")
     difficulty: str = Field("", description="CEFR difficulty level")
@@ -73,12 +68,8 @@ class ModulesMetadataResponse(BaseModel):
     module_count: int = Field(0, description="Total number of modules")
     method: str = Field("", description="Analysis method used")
     primary_language: str = Field("", description="Primary language")
-    difficulty_range: list[str] = Field(
-        default_factory=list, description="CEFR difficulty range"
-    )
-    modules: list[ModuleMetadataSummary] = Field(
-        default_factory=list, description="List of module summaries"
-    )
+    difficulty_range: list[str] = Field(default_factory=list, description="CEFR difficulty range")
+    modules: list[ModuleMetadataSummary] = Field(default_factory=list, description="List of module summaries")
 
 
 # =============================================================================
@@ -116,9 +107,7 @@ class VocabularyResponse(BaseModel):
     language: str = Field("", description="Primary language")
     translation_language: str = Field("", description="Translation language")
     total_words: int = Field(0, description="Total number of vocabulary words")
-    words: list[VocabularyWordResponse] = Field(
-        default_factory=list, description="List of vocabulary words"
-    )
+    words: list[VocabularyWordResponse] = Field(default_factory=list, description="List of vocabulary words")
     extracted_at: str | None = Field(None, description="When vocabulary was extracted")
 
 
@@ -148,12 +137,8 @@ class ProcessingMetadataResponse(BaseModel):
     total_audio_files: int = Field(0, description="Total audio files generated")
     languages: list[str] = Field(default_factory=list, description="Languages in book")
     primary_language: str = Field("", description="Primary language")
-    difficulty_range: list[str] = Field(
-        default_factory=list, description="CEFR difficulty range"
-    )
-    stages: dict[str, StageResultResponse] = Field(
-        default_factory=dict, description="Processing stage results"
-    )
+    difficulty_range: list[str] = Field(default_factory=list, description="CEFR difficulty range")
+    stages: dict[str, StageResultResponse] = Field(default_factory=dict, description="Processing stage results")
     errors: list[dict] = Field(default_factory=list, description="Processing errors")
 
 

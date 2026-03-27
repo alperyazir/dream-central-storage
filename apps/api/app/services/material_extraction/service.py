@@ -9,16 +9,15 @@ from typing import TYPE_CHECKING, Callable
 import fitz  # PyMuPDF for PDF extraction
 
 from app.core.config import get_settings
-from app.services.minio import get_minio_client
 from app.services.material_extraction.models import (
+    ExtractionFailedError,
     ExtractionMethod,
     FileType,
-    MaterialExtractionError,
     MaterialExtractionResult,
     PageText,
     UnsupportedFileTypeError,
-    ExtractionFailedError,
 )
+from app.services.minio import get_minio_client
 
 if TYPE_CHECKING:
     from minio import Minio

@@ -176,9 +176,7 @@ class LLMProvider(ABC):
         ...
 
     @abstractmethod
-    async def complete_with_vision(
-        self, prompt: str, images: list[bytes], **kwargs: Any
-    ) -> LLMResponse:
+    async def complete_with_vision(self, prompt: str, images: list[bytes], **kwargs: Any) -> LLMResponse:
         """
         Generate a completion that includes image analysis.
 
@@ -218,9 +216,7 @@ class LLMProvider(ABC):
         """
         try:
             # Simple test request
-            response = await self.complete(
-                LLMRequest.from_prompt("Say 'ok'", max_tokens=5)
-            )
+            response = await self.complete(LLMRequest.from_prompt("Say 'ok'", max_tokens=5))
             return bool(response.content)
         except Exception:
             return False

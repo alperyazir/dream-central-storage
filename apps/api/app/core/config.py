@@ -10,7 +10,6 @@ except ImportError:  # pragma: no cover - exercised only when dependency missing
 
         model_config = ConfigDict()
 
-
     def SettingsConfigDict(**kwargs: object) -> ConfigDict:
         """Provide a ConfigDict-compatible factory when pydantic-settings is unavailable."""
 
@@ -177,22 +176,14 @@ class Settings(BaseSettings):
     @property
     def teacher_all_allowed_mime_types(self) -> list[str]:
         """Return flat list of all allowed MIME types for teacher uploads."""
-        return [
-            mime
-            for mimes in self.teacher_allowed_mime_types.values()
-            for mime in mimes
-        ]
+        return [mime for mimes in self.teacher_allowed_mime_types.values() for mime in mimes]
 
     @property
     def resolved_cors_allowed_origins(self) -> list[str]:
         """Return the configured CORS origins as a normalized list."""
 
         if isinstance(self.cors_allowed_origins, str):
-            return [
-                origin.strip()
-                for origin in self.cors_allowed_origins.split(",")
-                if origin.strip()
-            ]
+            return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
 
         return list(self.cors_allowed_origins)
 

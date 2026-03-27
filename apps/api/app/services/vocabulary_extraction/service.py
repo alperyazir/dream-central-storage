@@ -64,9 +64,7 @@ class VocabularyExtractionService:
             self._llm_service = get_llm_service()
         return self._llm_service
 
-    def _parse_json_array_response(
-        self, response: str, module_id: int, book_id: str
-    ) -> list[dict[str, Any]]:
+    def _parse_json_array_response(self, response: str, module_id: int, book_id: str) -> list[dict[str, Any]]:
         """
         Parse JSON array from LLM response.
 
@@ -85,8 +83,8 @@ class VocabularyExtractionService:
         cleaned = response.strip()
 
         # Remove markdown code blocks like ```json ... ``` or ``` ... ```
-        cleaned = re.sub(r'^```(?:json)?\s*\n?', '', cleaned)
-        cleaned = re.sub(r'\n?```\s*$', '', cleaned)
+        cleaned = re.sub(r"^```(?:json)?\s*\n?", "", cleaned)
+        cleaned = re.sub(r"\n?```\s*$", "", cleaned)
         cleaned = cleaned.strip()
 
         # Try direct parse first (cleanest case)
@@ -98,10 +96,10 @@ class VocabularyExtractionService:
             pass
 
         # Try to extract JSON array from response
-        json_match = re.search(r'\[[\s\S]*?\](?=\s*$|\s*```)', cleaned)
+        json_match = re.search(r"\[[\s\S]*?\](?=\s*$|\s*```)", cleaned)
         if not json_match:
             # Try more aggressive match
-            json_match = re.search(r'\[[\s\S]*\]', cleaned)
+            json_match = re.search(r"\[[\s\S]*\]", cleaned)
 
         if not json_match:
             raise InvalidLLMResponseError(
@@ -167,8 +165,16 @@ class VocabularyExtractionService:
             # Validate part of speech
             pos = str(item.get("part_of_speech", "")).lower()
             valid_pos = [
-                "noun", "verb", "adjective", "adverb", "pronoun",
-                "preposition", "conjunction", "interjection", "article", "determiner"
+                "noun",
+                "verb",
+                "adjective",
+                "adverb",
+                "pronoun",
+                "preposition",
+                "conjunction",
+                "interjection",
+                "article",
+                "determiner",
             ]
             if pos not in valid_pos:
                 pos = ""
@@ -187,9 +193,7 @@ class VocabularyExtractionService:
 
         return words
 
-    def _deduplicate_vocabulary(
-        self, all_words: list[VocabularyWord]
-    ) -> list[VocabularyWord]:
+    def _deduplicate_vocabulary(self, all_words: list[VocabularyWord]) -> list[VocabularyWord]:
         """
         Deduplicate vocabulary words across modules.
 
@@ -281,16 +285,12 @@ class VocabularyExtractionService:
                 max_tokens=2048,
             )
             provider_name = (
-                self.llm_service.primary_provider.provider_name
-                if self.llm_service.primary_provider
-                else "unknown"
+                self.llm_service.primary_provider.provider_name if self.llm_service.primary_provider else "unknown"
             )
 
             # Parse response
             parsed = self._parse_json_array_response(response, module_id, book_id)
-            words = self._extract_vocabulary_words(
-                parsed, module_id, max_words, min_word_length
-            )
+            words = self._extract_vocabulary_words(parsed, module_id, max_words, min_word_length)
 
             logger.info(
                 "Module %d vocabulary extracted: %d words",
@@ -328,9 +328,7 @@ class VocabularyExtractionService:
                 )
 
                 parsed = self._parse_json_array_response(response, module_id, book_id)
-                words = self._extract_vocabulary_words(
-                    parsed, module_id, max_words, min_word_length
-                )
+                words = self._extract_vocabulary_words(parsed, module_id, max_words, min_word_length)
 
                 return ModuleVocabularyResult(
                     module_id=module_id,

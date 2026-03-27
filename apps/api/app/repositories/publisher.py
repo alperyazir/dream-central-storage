@@ -36,12 +36,7 @@ class PublisherRepository(BaseRepository[Publisher]):
 
     def list_active(self, session: Session, skip: int = 0, limit: int = 100) -> list[Publisher]:
         """Return only active publishers with pagination."""
-        statement = (
-            select(Publisher)
-            .where(Publisher.status == "active")
-            .offset(skip)
-            .limit(limit)
-        )
+        statement = select(Publisher).where(Publisher.status == "active").offset(skip).limit(limit)
         return list(session.scalars(statement).all())
 
     def count_active(self, session: Session) -> int:
@@ -51,12 +46,7 @@ class PublisherRepository(BaseRepository[Publisher]):
 
     def list_archived(self, session: Session, skip: int = 0, limit: int = 100) -> list[Publisher]:
         """Return archived (trashed) publishers with pagination."""
-        statement = (
-            select(Publisher)
-            .where(Publisher.status == "inactive")
-            .offset(skip)
-            .limit(limit)
-        )
+        statement = select(Publisher).where(Publisher.status == "inactive").offset(skip).limit(limit)
         return list(session.scalars(statement).all())
 
     def count_archived(self, session: Session) -> int:
@@ -82,11 +72,7 @@ class PublisherRepository(BaseRepository[Publisher]):
 
     def get_with_books(self, session: Session, publisher_id: int) -> Publisher | None:
         """Fetch a publisher with books eager-loaded to avoid N+1 queries."""
-        statement = (
-            select(Publisher)
-            .options(selectinload(Publisher.books))
-            .where(Publisher.id == publisher_id)
-        )
+        statement = select(Publisher).options(selectinload(Publisher.books)).where(Publisher.id == publisher_id)
         return session.scalars(statement).first()
 
     def create(self, session: Session, *, data: dict[str, object]) -> Publisher:

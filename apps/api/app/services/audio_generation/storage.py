@@ -95,9 +95,7 @@ class AudioStorage:
         book_name: str,
     ) -> str:
         """Build prefix for audio vocabulary directory."""
-        return self._build_ai_data_path(
-            publisher_id, book_id, book_name, "audio", "vocabulary"
-        ) + "/"
+        return self._build_ai_data_path(publisher_id, book_id, book_name, "audio", "vocabulary") + "/"
 
     def load_vocabulary(
         self,
@@ -162,9 +160,7 @@ class AudioStorage:
         client = get_minio_client(self.settings)
         bucket = self.settings.minio_publishers_bucket
 
-        path = self._build_audio_path(
-            publisher_id, book_id, book_name, audio_file.language, audio_file.word_id
-        )
+        path = self._build_audio_path(publisher_id, book_id, book_name, audio_file.language, audio_file.word_id)
 
         data = BytesIO(audio_data)
 
@@ -402,6 +398,7 @@ class AudioStorage:
     def _slugify(self, text: str) -> str:
         """Create a URL-safe slug from text."""
         import re
+
         slug = text.lower()
         slug = re.sub(r"[^a-z0-9]+", "_", slug)
         slug = slug.strip("_")

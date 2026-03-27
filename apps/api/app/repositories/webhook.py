@@ -84,9 +84,7 @@ class WebhookDeliveryLogRepository(BaseRepository[WebhookDeliveryLog]):
         result = session.execute(statement)
         return list(result.scalars())
 
-    def update(
-        self, session: Session, log: WebhookDeliveryLog, *, data: dict[str, object]
-    ) -> WebhookDeliveryLog:
+    def update(self, session: Session, log: WebhookDeliveryLog, *, data: dict[str, object]) -> WebhookDeliveryLog:
         """Update an existing webhook delivery log."""
         for field, value in data.items():
             setattr(log, field, value)

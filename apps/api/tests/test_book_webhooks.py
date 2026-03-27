@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -94,9 +94,7 @@ def test_create_book_triggers_webhook(
 
     assert response.status_code == 201
     # Verify webhook was scheduled (called via background_tasks)
-    mock_trigger_webhook.assert_called_once_with(
-        mock_book.id, WebhookEventType.BOOK_CREATED
-    )
+    mock_trigger_webhook.assert_called_once_with(mock_book.id, WebhookEventType.BOOK_CREATED)
 
 
 @patch("app.routers.books._trigger_webhook")
@@ -147,9 +145,7 @@ def test_update_book_triggers_webhook(
     )
 
     assert response.status_code == 200
-    mock_trigger_webhook.assert_called_once_with(
-        1, WebhookEventType.BOOK_UPDATED
-    )
+    mock_trigger_webhook.assert_called_once_with(1, WebhookEventType.BOOK_UPDATED)
 
 
 @patch("app.routers.books.move_prefix_to_trash")
@@ -207,6 +203,4 @@ def test_delete_book_triggers_webhook(
     response = client.delete("/books/1", headers=auth_headers)
 
     assert response.status_code == 200
-    mock_trigger_webhook.assert_called_once_with(
-        1, WebhookEventType.BOOK_DELETED
-    )
+    mock_trigger_webhook.assert_called_once_with(1, WebhookEventType.BOOK_DELETED)

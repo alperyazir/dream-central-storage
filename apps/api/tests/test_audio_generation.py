@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -19,7 +18,6 @@ from app.services.audio_generation.models import (
 )
 from app.services.audio_generation.service import AudioGenerationService
 from app.services.audio_generation.storage import AudioStorage
-
 
 # =============================================================================
 # Test Data Models
@@ -303,9 +301,7 @@ class TestAudioGenerationService:
         """Test handling of TTS failure for single word."""
         from app.services.tts import TTSProviderError
 
-        mock_tts_service.synthesize_text.side_effect = TTSProviderError(
-            "Provider error", "edge"
-        )
+        mock_tts_service.synthesize_text.side_effect = TTSProviderError("Provider error", "edge")
 
         result = await service.generate_word_audio(
             word="hello",
@@ -367,9 +363,7 @@ class TestAudioGenerationService:
         assert len(audio_data) == 0
 
     @pytest.mark.asyncio
-    async def test_generate_vocabulary_audio_partial_failure(
-        self, service, mock_tts_service
-    ):
+    async def test_generate_vocabulary_audio_partial_failure(self, service, mock_tts_service):
         """Test handling of partial failures in batch."""
         mock_response = MagicMock()
         mock_response.audio_data = b"hello audio"
@@ -396,9 +390,7 @@ class TestAudioGenerationService:
         assert len(audio_data) == 1
 
     @pytest.mark.asyncio
-    async def test_generate_vocabulary_audio_with_progress(
-        self, service, mock_tts_service
-    ):
+    async def test_generate_vocabulary_audio_with_progress(self, service, mock_tts_service):
         """Test audio generation with progress callback."""
         mock_response = MagicMock()
         mock_response.audio_data = b"audio"
@@ -430,9 +422,7 @@ class TestAudioGenerationService:
         assert progress_calls[-1][0] == 2  # Final progress
 
     @pytest.mark.asyncio
-    async def test_generate_vocabulary_audio_without_translation(
-        self, service, mock_tts_service
-    ):
+    async def test_generate_vocabulary_audio_without_translation(self, service, mock_tts_service):
         """Test audio generation for word without translation."""
         mock_response = MagicMock()
         mock_response.audio_data = b"audio"
@@ -497,10 +487,7 @@ class TestAudioStorage:
             language="en",
             word_id="hello",
         )
-        assert (
-            path
-            == "pub-123/books/book-456/Test Book/ai-data/audio/vocabulary/en/hello.mp3"
-        )
+        assert path == "pub-123/books/book-456/Test Book/ai-data/audio/vocabulary/en/hello.mp3"
 
     def test_build_audio_prefix(self, storage):
         """Test building audio directory prefix."""
@@ -509,9 +496,7 @@ class TestAudioStorage:
             book_id="book-456",
             book_name="Test Book",
         )
-        assert (
-            prefix == "pub-123/books/book-456/Test Book/ai-data/audio/vocabulary/"
-        )
+        assert prefix == "pub-123/books/book-456/Test Book/ai-data/audio/vocabulary/"
 
     @patch("app.services.audio_generation.storage.get_minio_client")
     def test_load_vocabulary_not_found(self, mock_get_client, storage):
@@ -520,9 +505,7 @@ class TestAudioStorage:
 
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
-        mock_client.get_object.side_effect = S3Error(
-            "NoSuchKey", "Not found", "", "", "", ""
-        )
+        mock_client.get_object.side_effect = S3Error("NoSuchKey", "Not found", "", "", "", "")
 
         with pytest.raises(NoVocabularyFoundError):
             storage.load_vocabulary(
@@ -588,9 +571,7 @@ class TestAudioStorage:
 
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
-        mock_client.put_object.side_effect = S3Error(
-            "AccessDenied", "Access denied", "", "", "", ""
-        )
+        mock_client.put_object.side_effect = S3Error("AccessDenied", "Access denied", "", "", "", "")
 
         audio_file = AudioFile(
             word_id="hello",

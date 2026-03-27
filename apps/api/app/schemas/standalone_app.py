@@ -36,9 +36,7 @@ class TemplateUploadResponse(BaseModel):
 class BundleRequest(BaseModel):
     """Request payload for creating a book bundle."""
 
-    platform: Literal["mac", "win", "win7-8", "linux"] = Field(
-        ..., description="Target platform for the bundle"
-    )
+    platform: Literal["mac", "win", "win7-8", "linux"] = Field(..., description="Target platform for the bundle")
     book_id: int = Field(..., description="ID of the book to bundle")
     force: bool = Field(
         default=False,
@@ -77,9 +75,7 @@ class BundleListResponse(BaseModel):
 class AsyncBundleRequest(BaseModel):
     """Request payload for creating a bundle asynchronously."""
 
-    platform: Literal["mac", "win", "win7-8", "linux"] = Field(
-        ..., description="Target platform for the bundle"
-    )
+    platform: Literal["mac", "win", "win7-8", "linux"] = Field(..., description="Target platform for the bundle")
     book_id: int = Field(..., description="ID of the book to bundle")
     force: bool = Field(
         default=False,

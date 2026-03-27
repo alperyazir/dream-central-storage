@@ -12,6 +12,10 @@ export const softDeleteAppBuild = (
   tokenType: string = 'Bearer',
   client: ApiClient = apiClient
 ): Promise<void> =>
-  client.delete<void, AppDeleteRequest>(`/apps/${platform}`, { path }, {
-    headers: buildAuthHeaders(token, tokenType)
-  });
+  client.delete<void, AppDeleteRequest>(
+    `/apps/${platform}`,
+    { path },
+    {
+      headers: buildAuthHeaders(token, tokenType),
+    }
+  );

@@ -8,8 +8,8 @@ from typing import Optional
 from redis.asyncio import Redis
 
 from app.services.queue.models import (
-    JobNotFoundError,
     JobAlreadyExistsError,
+    JobNotFoundError,
     JobPriority,
     ProcessingJob,
     ProcessingJobType,
@@ -82,16 +82,8 @@ class JobRepository:
             error_message=data["error_message"] or None,
             retry_count=int(data["retry_count"]),
             created_at=datetime.fromisoformat(data["created_at"]),
-            started_at=(
-                datetime.fromisoformat(data["started_at"])
-                if data["started_at"]
-                else None
-            ),
-            completed_at=(
-                datetime.fromisoformat(data["completed_at"])
-                if data["completed_at"]
-                else None
-            ),
+            started_at=(datetime.fromisoformat(data["started_at"]) if data["started_at"] else None),
+            completed_at=(datetime.fromisoformat(data["completed_at"]) if data["completed_at"] else None),
             metadata=json.loads(data["metadata"]) if data["metadata"] else {},
         )
 

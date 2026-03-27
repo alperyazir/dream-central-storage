@@ -45,9 +45,7 @@ class DetectedLanguage(str, Enum):
 class TopicAnalysisError(Exception):
     """Base exception for topic analysis errors."""
 
-    def __init__(
-        self, message: str, book_id: str, details: dict[str, Any] | None = None
-    ) -> None:
+    def __init__(self, message: str, book_id: str, details: dict[str, Any] | None = None) -> None:
         self.message = message
         self.book_id = book_id
         self.details = details or {}
@@ -228,12 +226,18 @@ class BookAnalysisResult:
         # Determine primary language
         if languages:
             from collections import Counter
+
             lang_counts = Counter(languages)
             self.primary_language = lang_counts.most_common(1)[0][0]
 
         # Determine difficulty range
         if difficulties:
-            unique_difficulties = sorted(set(difficulties), key=lambda x: ["A1", "A2", "B1", "B2", "C1", "C2"].index(x) if x in ["A1", "A2", "B1", "B2", "C1", "C2"] else 99)
+            unique_difficulties = sorted(
+                set(difficulties),
+                key=lambda x: ["A1", "A2", "B1", "B2", "C1", "C2"].index(x)
+                if x in ["A1", "A2", "B1", "B2", "C1", "C2"]
+                else 99,
+            )
             self.difficulty_range = unique_difficulties
 
     def to_dict(self) -> dict[str, Any]:

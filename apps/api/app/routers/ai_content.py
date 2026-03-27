@@ -11,7 +11,6 @@ import json
 import logging
 import re
 import uuid
-from pathlib import PurePosixPath
 
 from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
@@ -154,6 +153,7 @@ def _parse_range_header(range_header: str, file_size: int) -> tuple[int, int]:
 # 1) POST /books/{book_id}/ai-content/ — Create AI content
 # ---------------------------------------------------------------------------
 
+
 @router.post("/", response_model=AIContentCreateResponse, status_code=status.HTTP_201_CREATED)
 def create_ai_content(
     book_id: int,
@@ -202,7 +202,10 @@ def create_ai_content(
 
     logger.info(
         "Created AI content %s for book_id=%s (%s/%s)",
-        content_id, book_id, book.publisher, book.book_name,
+        content_id,
+        book_id,
+        book.publisher,
+        book.book_name,
     )
 
     return AIContentCreateResponse(
@@ -214,6 +217,7 @@ def create_ai_content(
 # ---------------------------------------------------------------------------
 # 2) GET /books/{book_id}/ai-content/ — List all content manifests
 # ---------------------------------------------------------------------------
+
 
 @router.get("/", response_model=list[ManifestRead])
 def list_ai_content(
@@ -234,11 +238,7 @@ def list_ai_content(
     objects = list(client.list_objects(bucket, prefix=base_prefix, recursive=True))
 
     # Collect manifest.json paths
-    manifest_keys = [
-        obj.object_name
-        for obj in objects
-        if obj.object_name.endswith("/manifest.json")
-    ]
+    manifest_keys = [obj.object_name for obj in objects if obj.object_name.endswith("/manifest.json")]
 
     manifests: list[ManifestRead] = []
     for key in manifest_keys:
@@ -262,6 +262,7 @@ def list_ai_content(
 # ---------------------------------------------------------------------------
 # 3) GET /books/{book_id}/ai-content/{content_id} — Get manifest + content
 # ---------------------------------------------------------------------------
+
 
 @router.get("/{content_id}", response_model=AIContentRead)
 def get_ai_content(
@@ -317,6 +318,7 @@ def get_ai_content(
 # 4) DELETE /books/{book_id}/ai-content/{content_id} — Hard delete all
 # ---------------------------------------------------------------------------
 
+
 @router.delete("/{content_id}", status_code=status.HTTP_200_OK)
 def delete_ai_content(
     book_id: int,
@@ -345,7 +347,9 @@ def delete_ai_content(
 
     logger.info(
         "Deleted AI content %s for book_id=%s; removed %d objects",
-        content_id, book_id, removed,
+        content_id,
+        book_id,
+        removed,
     )
 
     return {"content_id": content_id, "objects_removed": removed}
@@ -354,6 +358,7 @@ def delete_ai_content(
 # ---------------------------------------------------------------------------
 # 5) PUT /books/{book_id}/ai-content/{content_id}/audio/{filename} — Upload one audio
 # ---------------------------------------------------------------------------
+
 
 @router.put("/{content_id}/audio/{filename}", response_model=AudioUploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_audio(
@@ -407,6 +412,7 @@ async def upload_audio(
 # 6) POST /books/{book_id}/ai-content/{content_id}/audio/batch — Batch audio upload
 # ---------------------------------------------------------------------------
 
+
 @router.post("/{content_id}/audio/batch", response_model=BatchAudioResponse, status_code=status.HTTP_201_CREATED)
 async def upload_audio_batch(
     book_id: int,
@@ -452,18 +458,23 @@ async def upload_audio_batch(
                 length=len(audio_data),
                 content_type="audio/mpeg",
             )
-            uploaded.append(AudioUploadResponse(
-                filename=fname,
-                storage_path=object_key,
-                size=len(audio_data),
-            ))
+            uploaded.append(
+                AudioUploadResponse(
+                    filename=fname,
+                    storage_path=object_key,
+                    size=len(audio_data),
+                )
+            )
         except Exception as exc:
             logger.error("Failed to upload audio %s for content %s: %s", fname, content_id, exc)
             failed.append(fname)
 
     logger.info(
         "Batch audio upload for content %s (book_id=%s): %d uploaded, %d failed",
-        content_id, book_id, len(uploaded), len(failed),
+        content_id,
+        book_id,
+        len(uploaded),
+        len(failed),
     )
 
     return BatchAudioResponse(uploaded=uploaded, failed=failed)
@@ -472,6 +483,7 @@ async def upload_audio_batch(
 # ---------------------------------------------------------------------------
 # 7) GET /books/{book_id}/ai-content/{content_id}/audio/{filename} — Stream audio
 # ---------------------------------------------------------------------------
+
 
 @router.get("/{content_id}/audio/{filename}")
 async def stream_audio(

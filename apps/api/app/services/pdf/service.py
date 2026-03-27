@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from io import BytesIO
 from typing import TYPE_CHECKING
 
 from minio.error import S3Error
@@ -172,10 +171,7 @@ class PDFExtractionService:
             final_pages: list[PageText] = list(native_pages)
             ocr_performed = False
 
-            if (
-                analysis.scanned_pages > 0
-                and self.settings.pdf_ocr_enabled
-            ):
+            if analysis.scanned_pages > 0 and self.settings.pdf_ocr_enabled:
                 logger.info(
                     "OCR enabled, processing %d scanned pages",
                     analysis.scanned_pages,

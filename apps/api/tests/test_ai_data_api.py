@@ -537,9 +537,7 @@ class TestGetAudioUrl:
 
         client = TestClient(app)
         headers = {"Authorization": "Bearer test-token"}
-        response = client.get(
-            "/books/1/ai-data/audio/vocabulary/en/hello.mp3", headers=headers
-        )
+        response = client.get("/books/1/ai-data/audio/vocabulary/en/hello.mp3", headers=headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -568,9 +566,7 @@ class TestGetAudioUrl:
 
         client = TestClient(app)
         headers = {"Authorization": "Bearer test-token"}
-        response = client.get(
-            "/books/1/ai-data/audio/vocabulary/en/nonexistent.mp3", headers=headers
-        )
+        response = client.get("/books/1/ai-data/audio/vocabulary/en/nonexistent.mp3", headers=headers)
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -588,9 +584,7 @@ class TestGetAudioUrl:
 
         client = TestClient(app)
         headers = {"Authorization": "Bearer test-token"}
-        response = client.get(
-            "/books/1/ai-data/audio/vocabulary/invalid/hello.mp3", headers=headers
-        )
+        response = client.get("/books/1/ai-data/audio/vocabulary/invalid/hello.mp3", headers=headers)
 
         assert response.status_code == 400
         assert "unsupported language" in response.json()["detail"].lower()

@@ -114,9 +114,12 @@ export const fetchTrashedTeachers = async (
   tokenType: string = 'Bearer',
   client: ApiClient = apiClient
 ): Promise<TeacherListItem[]> => {
-  const response = await client.get<TeacherListResponse>('/teachers-manage/trash', {
-    headers: buildAuthHeaders(token, tokenType),
-  });
+  const response = await client.get<TeacherListResponse>(
+    '/teachers-manage/trash',
+    {
+      headers: buildAuthHeaders(token, tokenType),
+    }
+  );
   return response.items;
 };
 
@@ -142,9 +145,12 @@ export const fetchTeacherByExternalId = (
   tokenType: string = 'Bearer',
   client: ApiClient = apiClient
 ): Promise<Teacher> =>
-  client.get<Teacher>(`/teachers-manage/by-teacher-id/${encodeURIComponent(teacherId)}`, {
-    headers: buildAuthHeaders(token, tokenType),
-  });
+  client.get<Teacher>(
+    `/teachers-manage/by-teacher-id/${encodeURIComponent(teacherId)}`,
+    {
+      headers: buildAuthHeaders(token, tokenType),
+    }
+  );
 
 /**
  * Create a new teacher.
@@ -208,9 +214,13 @@ export const permanentDeleteTeacher = async (
   tokenType: string = 'Bearer',
   client: ApiClient = apiClient
 ): Promise<void> => {
-  await client.delete<void, never>(`/teachers-manage/${id}/permanent`, undefined, {
-    headers: buildAuthHeaders(token, tokenType),
-  });
+  await client.delete<void, never>(
+    `/teachers-manage/${id}/permanent`,
+    undefined,
+    {
+      headers: buildAuthHeaders(token, tokenType),
+    }
+  );
 };
 
 // =============================================================================
@@ -265,9 +275,12 @@ export const fetchMaterial = (
   tokenType: string = 'Bearer',
   client: ApiClient = apiClient
 ): Promise<Material> =>
-  client.get<Material>(`/teachers-manage/${teacherId}/materials/${materialId}`, {
-    headers: buildAuthHeaders(token, tokenType),
-  });
+  client.get<Material>(
+    `/teachers-manage/${teacherId}/materials/${materialId}`,
+    {
+      headers: buildAuthHeaders(token, tokenType),
+    }
+  );
 
 // =============================================================================
 // Helper Functions
@@ -288,7 +301,16 @@ export const formatBytes = (bytes: number, decimals = 2): string => {
 /**
  * Get color for AI processing status.
  */
-export const getAIStatusColor = (status: string): 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' => {
+export const getAIStatusColor = (
+  status: string
+):
+  | 'default'
+  | 'primary'
+  | 'secondary'
+  | 'error'
+  | 'info'
+  | 'success'
+  | 'warning' => {
   switch (status) {
     case 'completed':
       return 'success';

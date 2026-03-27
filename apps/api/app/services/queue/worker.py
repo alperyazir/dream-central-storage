@@ -11,11 +11,11 @@ from arq.worker import Worker
 
 from app.core.config import get_settings
 from app.services.queue.tasks import (
+    create_bundle_task,
+    on_job_end,
+    on_job_start,
     process_book_task,
     process_material_task,
-    create_bundle_task,
-    on_job_start,
-    on_job_end,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ def _get_retry_delay(attempt: int) -> float:
     settings = get_settings()
     base_delay = settings.queue_retry_delay_seconds
     # Exponential backoff: base * 2^attempt, capped at 1 hour
-    return min(base_delay * (2 ** attempt), 3600)
+    return min(base_delay * (2**attempt), 3600)
 
 
 class WorkerSettings:

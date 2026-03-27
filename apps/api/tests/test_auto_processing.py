@@ -13,7 +13,6 @@ from app.services.ai_processing.auto_trigger import (
 )
 from app.services.queue.models import ProcessingJob, ProcessingJobType
 
-
 # =============================================================================
 # AutoProcessingService Unit Tests
 # =============================================================================
@@ -322,6 +321,7 @@ class TestGetAutoProcessingService:
         """Test singleton returns same instance."""
         # Reset singleton
         import app.services.ai_processing.auto_trigger as module
+
         module._auto_processing_service = None
 
         with patch("app.services.ai_processing.auto_trigger.get_settings") as mock_settings:

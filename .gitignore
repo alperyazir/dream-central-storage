@@ -19,6 +19,7 @@ node_modules/
 htmlcov/
 .coverage*
 .pytest_cache/
+.ruff_cache/
 build/
 dist/
 *.egg-info/

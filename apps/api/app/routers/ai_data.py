@@ -18,12 +18,11 @@ from app.repositories.book import BookRepository
 from app.repositories.publisher import PublisherRepository
 from app.repositories.user import UserRepository
 from app.schemas.ai_data import (
-    AudioUrlResponse,
     ModuleDetailResponse,
     ModuleListResponse,
     ModuleMetadataSummary,
-    ModuleSummary,
     ModulesMetadataResponse,
+    ModuleSummary,
     ProcessingMetadataResponse,
     StageResultResponse,
     VocabularyResponse,
@@ -148,12 +147,8 @@ def get_ai_metadata(
     # Legacy stages replaced by chunked_analysis/unified_analysis
     legacy_stages = {"segmentation", "topic_analysis", "vocabulary"}
     uses_unified_analysis = (
-        "chunked_analysis" in metadata.stages
-        and metadata.stages["chunked_analysis"].status.value == "completed"
-    ) or (
-        "unified_analysis" in metadata.stages
-        and metadata.stages["unified_analysis"].status.value == "completed"
-    )
+        "chunked_analysis" in metadata.stages and metadata.stages["chunked_analysis"].status.value == "completed"
+    ) or ("unified_analysis" in metadata.stages and metadata.stages["unified_analysis"].status.value == "completed")
 
     stages_response = {}
     for stage_name, stage_result in metadata.stages.items():
@@ -170,7 +165,9 @@ def get_ai_metadata(
         book_id=metadata.book_id,
         processing_status=metadata.processing_status.value,
         processing_started_at=metadata.processing_started_at.isoformat() if metadata.processing_started_at else None,
-        processing_completed_at=metadata.processing_completed_at.isoformat() if metadata.processing_completed_at else None,
+        processing_completed_at=metadata.processing_completed_at.isoformat()
+        if metadata.processing_completed_at
+        else None,
         total_pages=metadata.total_pages,
         total_modules=metadata.total_modules,
         total_vocabulary=metadata.total_vocabulary,
@@ -194,11 +191,13 @@ def get_ai_metadata(
 
 class _BulkAISummaryRequest(BaseModel):
     """Request body for bulk AI summary retrieval."""
+
     book_ids: list[int] = Field(..., max_length=100, description="List of book IDs (max 100)")
 
 
 class _BookAISummary(BaseModel):
     """Summary of AI processing status for a single book."""
+
     book_id: int
     processing_status: str  # pending, processing, completed, failed, not_found
     total_modules: int = 0
@@ -433,7 +432,9 @@ def get_ai_module(
     # Storage uses: difficulty_level, vocabulary (inline array)
     # API expects: difficulty, vocabulary_ids
     vocabulary_data = module.get("vocabulary", [])
-    vocabulary_ids = [v.get("word", "") for v in vocabulary_data] if vocabulary_data else module.get("vocabulary_ids", [])
+    vocabulary_ids = (
+        [v.get("word", "") for v in vocabulary_data] if vocabulary_data else module.get("vocabulary_ids", [])
+    )
 
     response_data = ModuleDetailResponse(
         module_id=module.get("module_id", 0),
@@ -490,9 +491,7 @@ def get_ai_vocabulary(
     publisher, book_name = _get_book_info(db, book_id)
 
     retrieval_service = get_ai_data_retrieval_service()
-    vocabulary = retrieval_service.get_vocabulary(
-        publisher, str(book_id), book_name, module_id=module
-    )
+    vocabulary = retrieval_service.get_vocabulary(publisher, str(book_id), book_name, module_id=module)
 
     if vocabulary is None:
         raise HTTPException(
@@ -576,6 +575,7 @@ def stream_vocabulary_audio(
         404: Book not found or audio file not found
     """
     from minio.error import S3Error
+
     from app.services.minio import get_minio_client
 
     _require_auth(credentials, db)

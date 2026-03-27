@@ -1,9 +1,7 @@
 """Tests for update_book_metadata.py script."""
 
 import json
-from unittest.mock import MagicMock, patch, PropertyMock
-
-import pytest
+from unittest.mock import MagicMock, PropertyMock, patch
 
 from app.models.book import BookStatusEnum
 
@@ -81,9 +79,7 @@ def test_calculate_book_metadata_success():
     mock_client.get_object.return_value = mock_response
 
     # Calculate metadata
-    total_size, activity_details = calculate_book_metadata(
-        mock_client, "publishers", "test-publisher/books/test-book/"
-    )
+    total_size, activity_details = calculate_book_metadata(mock_client, "publishers", "test-publisher/books/test-book/")
 
     assert total_size == 1536  # 1024 + 512
     assert activity_details == {"reading": 1}
@@ -104,9 +100,7 @@ def test_calculate_book_metadata_no_config():
 
     mock_client.list_objects.return_value = [mock_obj]
 
-    total_size, activity_details = calculate_book_metadata(
-        mock_client, "publishers", "test-publisher/books/test-book/"
-    )
+    total_size, activity_details = calculate_book_metadata(mock_client, "publishers", "test-publisher/books/test-book/")
 
     assert total_size == 2048
     assert activity_details == {}
@@ -133,9 +127,7 @@ def test_calculate_book_metadata_invalid_config():
     mock_response.read.return_value = b"invalid json"
     mock_client.get_object.return_value = mock_response
 
-    total_size, activity_details = calculate_book_metadata(
-        mock_client, "publishers", "test-publisher/books/test-book/"
-    )
+    total_size, activity_details = calculate_book_metadata(mock_client, "publishers", "test-publisher/books/test-book/")
 
     # Should still calculate size, but no activity details
     assert total_size == 1280

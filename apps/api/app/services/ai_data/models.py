@@ -7,7 +7,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-
 # =============================================================================
 # Enums
 # =============================================================================
@@ -41,9 +40,7 @@ class StageStatus(str, Enum):
 class AIDataStorageError(Exception):
     """Base exception for AI data storage errors."""
 
-    def __init__(
-        self, message: str, book_id: str, details: dict[str, Any] | None = None
-    ) -> None:
+    def __init__(self, message: str, book_id: str, details: dict[str, Any] | None = None) -> None:
         self.message = message
         self.book_id = book_id
         self.details = details or {}
@@ -224,10 +221,7 @@ class ProcessingMetadata:
 
         # Parse stages
         stages_data = data.get("stages", {})
-        stages = {
-            name: StageResult.from_dict(stage_data)
-            for name, stage_data in stages_data.items()
-        }
+        stages = {name: StageResult.from_dict(stage_data) for name, stage_data in stages_data.items()}
 
         return cls(
             book_id=data.get("book_id", ""),
@@ -263,9 +257,7 @@ class AIDataStructure:
     metadata_path: str
 
     @classmethod
-    def from_book_info(
-        cls, publisher_id: str, book_id: str, book_name: str
-    ) -> AIDataStructure:
+    def from_book_info(cls, publisher_id: str, book_id: str, book_name: str) -> AIDataStructure:
         """Create AIDataStructure from book information."""
         # Path: {publisher_name}/books/{book_name}/ai-data (book_id not in path)
         base = f"{publisher_id}/books/{book_name}/ai-data"

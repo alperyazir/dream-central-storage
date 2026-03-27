@@ -76,9 +76,7 @@ class TopicStorage:
         book_name: str,
     ) -> str:
         """Build path for topic analysis metadata file."""
-        return self._build_modules_path(
-            publisher_id, book_id, book_name, "topic_analysis_metadata.json"
-        )
+        return self._build_modules_path(publisher_id, book_id, book_name, "topic_analysis_metadata.json")
 
     def get_module(
         self,
@@ -185,14 +183,10 @@ class TopicStorage:
         client = get_minio_client(self.settings)
         bucket = self.settings.minio_publishers_bucket
 
-        path = self._build_module_path(
-            publisher_id, book_id, book_name, module_result.module_id
-        )
+        path = self._build_module_path(publisher_id, book_id, book_name, module_result.module_id)
 
         # Load existing module
-        existing = self.get_module(
-            publisher_id, book_id, book_name, module_result.module_id
-        )
+        existing = self.get_module(publisher_id, book_id, book_name, module_result.module_id)
         if existing is None:
             logger.warning(
                 "Module %d not found for update: %s",

@@ -107,9 +107,7 @@ class AIDataStorage:
         Returns:
             MinIO object path for the metadata file.
         """
-        return self._build_ai_data_path(
-            publisher_id, book_id, book_name, "text", "extraction_metadata.json"
-        )
+        return self._build_ai_data_path(publisher_id, book_id, book_name, "text", "extraction_metadata.json")
 
     def save_extracted_text(self, result: PDFExtractionResult) -> list[str]:
         """
@@ -236,9 +234,9 @@ class AIDataStorage:
         # Combine all pages with page markers
         parts = []
         for page in result.pages:
-            parts.append(f"\n{'='*60}")
+            parts.append(f"\n{'=' * 60}")
             parts.append(f"PAGE {page.page_number}")
-            parts.append(f"{'='*60}\n")
+            parts.append(f"{'=' * 60}\n")
             parts.append(page.text)
             parts.append("\n")
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import httpx
 import pytest
 
 from app.services.llm.base import (
@@ -20,7 +19,6 @@ from app.services.llm.base import (
 from app.services.llm.deepseek import DeepSeekProvider
 from app.services.llm.gemini import GeminiProvider
 from app.services.llm.service import LLMService
-
 
 # =============================================================================
 # Fixtures
@@ -176,9 +174,7 @@ class TestDeepSeekProvider:
     @pytest.mark.asyncio
     async def test_complete_success(self, deepseek_provider, mock_deepseek_response):
         """Test successful completion."""
-        with patch.object(
-            deepseek_provider, "_make_request", new_callable=AsyncMock
-        ) as mock_request:
+        with patch.object(deepseek_provider, "_make_request", new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_deepseek_response
 
             request = LLMRequest.from_prompt("Hello")
@@ -192,9 +188,7 @@ class TestDeepSeekProvider:
     @pytest.mark.asyncio
     async def test_chat_convenience_method(self, deepseek_provider, mock_deepseek_response):
         """Test chat convenience method."""
-        with patch.object(
-            deepseek_provider, "_make_request", new_callable=AsyncMock
-        ) as mock_request:
+        with patch.object(deepseek_provider, "_make_request", new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_deepseek_response
 
             messages = [LLMMessage(role="user", content="Hi")]
@@ -255,9 +249,7 @@ class TestGeminiProvider:
     @pytest.mark.asyncio
     async def test_complete_success(self, gemini_provider, mock_gemini_response):
         """Test successful completion."""
-        with patch.object(
-            gemini_provider, "_make_request", new_callable=AsyncMock
-        ) as mock_request:
+        with patch.object(gemini_provider, "_make_request", new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_gemini_response
 
             request = LLMRequest.from_prompt("Hello")
@@ -271,17 +263,13 @@ class TestGeminiProvider:
     @pytest.mark.asyncio
     async def test_vision_support(self, gemini_provider, mock_gemini_response):
         """Test vision completion."""
-        with patch.object(
-            gemini_provider, "_make_request", new_callable=AsyncMock
-        ) as mock_request:
+        with patch.object(gemini_provider, "_make_request", new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_gemini_response
 
             # PNG magic bytes
             fake_image = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
 
-            response = await gemini_provider.complete_with_vision(
-                "Describe this image", [fake_image]
-            )
+            response = await gemini_provider.complete_with_vision("Describe this image", [fake_image])
 
             assert response.content == "Hello! I'm Gemini."
             # Verify the request was made with the vision model
@@ -344,9 +332,7 @@ class TestLLMService:
         """Test fallback when primary provider fails."""
         mock_primary = AsyncMock(spec=DeepSeekProvider)
         mock_primary.provider_name = "deepseek"
-        mock_primary.complete.side_effect = LLMProviderError(
-            "API Error", provider="deepseek"
-        )
+        mock_primary.complete.side_effect = LLMProviderError("API Error", provider="deepseek")
 
         mock_fallback = AsyncMock(spec=GeminiProvider)
         mock_fallback.provider_name = "gemini"
@@ -372,15 +358,11 @@ class TestLLMService:
         """Test error when both providers fail."""
         mock_primary = AsyncMock(spec=DeepSeekProvider)
         mock_primary.provider_name = "deepseek"
-        mock_primary.complete.side_effect = LLMProviderError(
-            "Primary failed", provider="deepseek"
-        )
+        mock_primary.complete.side_effect = LLMProviderError("Primary failed", provider="deepseek")
 
         mock_fallback = AsyncMock(spec=GeminiProvider)
         mock_fallback.provider_name = "gemini"
-        mock_fallback.complete.side_effect = LLMProviderError(
-            "Fallback failed", provider="gemini"
-        )
+        mock_fallback.complete.side_effect = LLMProviderError("Fallback failed", provider="gemini")
 
         service = LLMService(
             settings=mock_settings,
@@ -396,9 +378,7 @@ class TestLLMService:
         """Test disabling fallback."""
         mock_primary = AsyncMock(spec=DeepSeekProvider)
         mock_primary.provider_name = "deepseek"
-        mock_primary.complete.side_effect = LLMProviderError(
-            "Primary failed", provider="deepseek"
-        )
+        mock_primary.complete.side_effect = LLMProviderError("Primary failed", provider="deepseek")
 
         service = LLMService(
             settings=mock_settings,
@@ -423,9 +403,7 @@ class TestLLMService:
             mock_get.return_value = mock_provider
 
             service = LLMService(settings=mock_settings)
-            response = await service.complete(
-                LLMRequest.from_prompt("test"), force_provider="gemini"
-            )
+            response = await service.complete(LLMRequest.from_prompt("test"), force_provider="gemini")
 
             assert response.provider == "gemini"
 

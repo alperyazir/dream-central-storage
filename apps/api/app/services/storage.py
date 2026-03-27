@@ -120,12 +120,17 @@ def _detect_root_folder(archive: zipfile.ZipFile) -> str | None:
     return root_folders.pop() if len(root_folders) == 1 else None
 
 
+_ZIP_MAX_ENTRY_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB per file
+_ZIP_MAX_TOTAL_SIZE = 20 * 1024 * 1024 * 1024  # 20 GB total extracted
+
+
 def iter_zip_entries(archive: zipfile.ZipFile, strip_root: str | None = None) -> Iterable[tuple[zipfile.ZipInfo, str]]:
     """Yield file entries from archive with optionally stripped paths.
 
     Returns tuples of (entry, final_path) where final_path has the root folder stripped if specified.
     """
 
+    total_size = 0
     for entry in archive.infolist():
         if entry.is_dir():
             continue
@@ -147,14 +152,27 @@ def iter_zip_entries(archive: zipfile.ZipFile, strip_root: str | None = None) ->
 
         # Skip backup and temporary files
         basename_lower = os.path.basename(normalized_path).lower()
-        if basename_lower.endswith(('.fbinf', '.bak', '.tmp')):
+        if basename_lower.endswith((".fbinf", ".bak", ".tmp")):
             logger.debug("Skipping backup/temp file: %s", entry.filename)
             continue
+
+        # SEC-C2: Reject oversized entries to mitigate zip-bomb attacks
+        if entry.file_size > _ZIP_MAX_ENTRY_SIZE:
+            raise UploadError(
+                f"Entry '{entry.filename}' exceeds the 2 GB per-file limit "
+                f"(declared size: {entry.file_size} bytes)"
+            )
+        total_size += entry.file_size
+        if total_size > _ZIP_MAX_TOTAL_SIZE:
+            raise UploadError(
+                f"Total extracted size exceeds the 20 GB limit "
+                f"(accumulated: {total_size} bytes)"
+            )
 
         # Strip root folder if specified
         final_path = normalized_path
         if strip_root and normalized_path.startswith(f"{strip_root}/"):
-            final_path = normalized_path[len(strip_root) + 1:]
+            final_path = normalized_path[len(strip_root) + 1 :]
 
         yield entry, final_path
 
@@ -231,7 +249,7 @@ def extract_manifest_version(archive_bytes: bytes) -> str:
     try:
         with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
             version_path = _locate_version_entry(archive)
-            print("version_path:", version_path)
+            logger.debug("version_path: %s", version_path)
             if version_path is None:
                 raise UploadError("Archive is missing required data/version file")
 
@@ -344,7 +362,7 @@ def _locate_version_entry(archive: zipfile.ZipFile) -> str | None:
 
     candidates.sort(key=key_fn)
     chosen = candidates[0]
-    print("Matched version entry:", chosen)
+    logger.debug("Matched version entry: %s", chosen)
     return chosen
 
 
@@ -590,9 +608,7 @@ def restore_prefix_from_trash(
         destination_prefix = f"{destination_prefix}/"
 
     try:
-        objects = list(
-            client.list_objects(trash_bucket, prefix=normalized_key, recursive=True)
-        )
+        objects = list(client.list_objects(trash_bucket, prefix=normalized_key, recursive=True))
     except S3Error as exc:  # pragma: no cover - depends on MinIO responses
         logger.error("Failed listing trash objects for '%s': %s", normalized_key, exc)
         raise RestorationError(f"Unable to list trash entry '{normalized_key}'") from exc
@@ -686,9 +702,7 @@ def delete_prefix_from_trash(
                 now - youngest,
                 retention,
             )
-            raise TrashRetentionError(
-                "Trash entry is still within the mandatory retention window"
-            )
+            raise TrashRetentionError("Trash entry is still within the mandatory retention window")
 
     removed = 0
     for obj in objects:

@@ -6,7 +6,6 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 
-
 client = TestClient(app)
 
 
@@ -26,4 +25,4 @@ def test_metrics_counts_increment_on_request() -> None:
     client.get("/health")
     content = client.get("/metrics").text
 
-    assert "method=\"GET\",path=\"/health\"" in content
+    assert 'method="GET",path="/health"' in content

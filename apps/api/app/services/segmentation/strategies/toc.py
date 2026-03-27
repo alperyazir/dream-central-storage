@@ -22,30 +22,21 @@ class TOCBasedStrategy(SegmentationStrategy):
 
     # Patterns to detect TOC page header
     TOC_HEADER_PATTERNS = [
-        re.compile(r'table\s+of\s+contents', re.IGNORECASE),
-        re.compile(r'^contents$', re.IGNORECASE | re.MULTILINE),
-        re.compile(r'^index$', re.IGNORECASE | re.MULTILINE),
-        re.compile(r'icerik\s*tablosu', re.IGNORECASE),  # Turkish
-        re.compile(r'^icerik$', re.IGNORECASE | re.MULTILINE),  # Turkish
+        re.compile(r"table\s+of\s+contents", re.IGNORECASE),
+        re.compile(r"^contents$", re.IGNORECASE | re.MULTILINE),
+        re.compile(r"^index$", re.IGNORECASE | re.MULTILINE),
+        re.compile(r"icerik\s*tablosu", re.IGNORECASE),  # Turkish
+        re.compile(r"^icerik$", re.IGNORECASE | re.MULTILINE),  # Turkish
     ]
 
     # Pattern to match TOC entries with page numbers
     TOC_ENTRY_PATTERNS: list[Pattern] = [
         # "Chapter 1: Title ........ 15"
-        re.compile(
-            r'^(.+?)\s*[\.\-_·•]{3,}\s*(\d+)\s*$',
-            re.MULTILINE
-        ),
+        re.compile(r"^(.+?)\s*[\.\-_·•]{3,}\s*(\d+)\s*$", re.MULTILINE),
         # "Chapter 1: Title          15" (spaces only)
-        re.compile(
-            r'^(.{10,60}?)\s{5,}(\d+)\s*$',
-            re.MULTILINE
-        ),
+        re.compile(r"^(.{10,60}?)\s{5,}(\d+)\s*$", re.MULTILINE),
         # "15    Chapter 1: Title" (page number first)
-        re.compile(
-            r'^\s*(\d+)\s{3,}(.{10,60})$',
-            re.MULTILINE
-        ),
+        re.compile(r"^\s*(\d+)\s{3,}(.{10,60})$", re.MULTILINE),
     ]
 
     def __init__(
@@ -96,11 +87,13 @@ class TOCBasedStrategy(SegmentationStrategy):
             # Clean up the title
             clean_title = self._clean_title(title)
             if clean_title and len(clean_title) >= 3:
-                boundaries.append(ModuleBoundary(
-                    title=clean_title,
-                    start_page=page_num,
-                    confidence=0.9,  # High confidence for TOC entries
-                ))
+                boundaries.append(
+                    ModuleBoundary(
+                        title=clean_title,
+                        start_page=page_num,
+                        confidence=0.9,  # High confidence for TOC entries
+                    )
+                )
 
         # Sort by page number and deduplicate
         boundaries.sort(key=lambda b: b.start_page)
@@ -111,7 +104,7 @@ class TOCBasedStrategy(SegmentationStrategy):
         toc_pages: list[str] = []
         found_toc = False
 
-        for page_num in sorted(pages.keys())[:self.max_toc_pages]:
+        for page_num in sorted(pages.keys())[: self.max_toc_pages]:
             text = pages.get(page_num, "")
             if not text:
                 continue
@@ -178,11 +171,11 @@ class TOCBasedStrategy(SegmentationStrategy):
     def _clean_title(self, title: str) -> str:
         """Clean up TOC entry title."""
         # Remove leading/trailing dots, dashes, spaces
-        title = re.sub(r'^[\.\-_·•\s]+', '', title)
-        title = re.sub(r'[\.\-_·•\s]+$', '', title)
+        title = re.sub(r"^[\.\-_·•\s]+", "", title)
+        title = re.sub(r"[\.\-_·•\s]+$", "", title)
 
         # Remove excessive whitespace
-        title = re.sub(r'\s+', ' ', title)
+        title = re.sub(r"\s+", " ", title)
 
         return title.strip()
 

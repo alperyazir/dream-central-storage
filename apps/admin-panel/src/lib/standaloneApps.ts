@@ -89,7 +89,7 @@ export const listTemplates = (
   client: ApiClient = apiClient
 ): Promise<TemplateListResponse> =>
   client.get<TemplateListResponse>('/standalone-apps', {
-    headers: buildAuthHeaders(token, tokenType)
+    headers: buildAuthHeaders(token, tokenType),
   });
 
 /**
@@ -122,7 +122,7 @@ export const deleteTemplate = (
   client: ApiClient = apiClient
 ): Promise<void> =>
   client.delete<void>(`/standalone-apps/${platform}`, undefined, {
-    headers: buildAuthHeaders(token, tokenType)
+    headers: buildAuthHeaders(token, tokenType),
   });
 
 /**
@@ -134,9 +134,12 @@ export const getTemplateDownloadUrl = (
   tokenType: string = 'Bearer',
   client: ApiClient = apiClient
 ): Promise<TemplateDownloadResponse> =>
-  client.get<TemplateDownloadResponse>(`/standalone-apps/${platform}/download`, {
-    headers: buildAuthHeaders(token, tokenType)
-  });
+  client.get<TemplateDownloadResponse>(
+    `/standalone-apps/${platform}/download`,
+    {
+      headers: buildAuthHeaders(token, tokenType),
+    }
+  );
 
 /**
  * Create a bundled standalone app with book assets
@@ -147,9 +150,13 @@ export const createBundle = (
   tokenType: string = 'Bearer',
   client: ApiClient = apiClient
 ): Promise<BundleResponse> =>
-  client.post<BundleResponse, BundleRequest>('/standalone-apps/bundle', request, {
-    headers: buildAuthHeaders(token, tokenType)
-  });
+  client.post<BundleResponse, BundleRequest>(
+    '/standalone-apps/bundle',
+    request,
+    {
+      headers: buildAuthHeaders(token, tokenType),
+    }
+  );
 
 /**
  * List all created bundles
@@ -160,7 +167,7 @@ export const listBundles = (
   client: ApiClient = apiClient
 ): Promise<BundleListResponse> =>
   client.get<BundleListResponse>('/standalone-apps/bundles', {
-    headers: buildAuthHeaders(token, tokenType)
+    headers: buildAuthHeaders(token, tokenType),
   });
 
 /**
@@ -173,7 +180,7 @@ export const deleteBundle = (
   client: ApiClient = apiClient
 ): Promise<void> =>
   client.delete<void>(`/standalone-apps/bundles/${objectName}`, undefined, {
-    headers: buildAuthHeaders(token, tokenType)
+    headers: buildAuthHeaders(token, tokenType),
   });
 
 /**
@@ -185,9 +192,13 @@ export const createBundleAsync = (
   tokenType: string = 'Bearer',
   client: ApiClient = apiClient
 ): Promise<AsyncBundleResponse> =>
-  client.post<AsyncBundleResponse, AsyncBundleRequest>('/standalone-apps/bundle/async', request, {
-    headers: buildAuthHeaders(token, tokenType)
-  });
+  client.post<AsyncBundleResponse, AsyncBundleRequest>(
+    '/standalone-apps/bundle/async',
+    request,
+    {
+      headers: buildAuthHeaders(token, tokenType),
+    }
+  );
 
 /**
  * Get the status/result of an async bundle creation job
@@ -199,14 +210,14 @@ export const getBundleJobStatus = (
   client: ApiClient = apiClient
 ): Promise<BundleJobResult> =>
   client.get<BundleJobResult>(`/standalone-apps/bundle/jobs/${jobId}`, {
-    headers: buildAuthHeaders(token, tokenType)
+    headers: buildAuthHeaders(token, tokenType),
   });
 
 /**
  * Supported platforms for standalone apps
  */
 export const STANDALONE_PLATFORMS = ['mac', 'win', 'win7-8', 'linux'] as const;
-export type StandalonePlatform = typeof STANDALONE_PLATFORMS[number];
+export type StandalonePlatform = (typeof STANDALONE_PLATFORMS)[number];
 
 /**
  * Human-readable platform labels
@@ -215,5 +226,5 @@ export const PLATFORM_LABELS: Record<StandalonePlatform, string> = {
   mac: 'macOS',
   win: 'Windows',
   'win7-8': 'Windows 7/8',
-  linux: 'Linux'
+  linux: 'Linux',
 };

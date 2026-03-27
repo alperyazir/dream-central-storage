@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision = "20251214_01"
 down_revision = "20251116_04"
@@ -94,8 +94,7 @@ def upgrade() -> None:
 
     for pub_name in publishers:
         connection.execute(
-            sa.text("INSERT INTO publishers (name, display_name) VALUES (:name, :name)"),
-            {"name": pub_name}
+            sa.text("INSERT INTO publishers (name, display_name) VALUES (:name, :name)"), {"name": pub_name}
         )
 
     # Step 5: Add publisher_id column to books table
@@ -113,11 +112,7 @@ def upgrade() -> None:
     )
 
     # Step 7: Create foreign key constraint
-    op.create_foreign_key(
-        "fk_books_publisher_id",
-        "books", "publishers",
-        ["publisher_id"], ["id"]
-    )
+    op.create_foreign_key("fk_books_publisher_id", "books", "publishers", ["publisher_id"], ["id"])
 
     # Step 8: Create index on books.publisher_id for query performance
     op.create_index("ix_books_publisher_id", "books", ["publisher_id"])

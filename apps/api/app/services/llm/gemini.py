@@ -69,9 +69,7 @@ class GeminiProvider(LLMProvider):
         self.timeout = timeout
         self.max_retries = max_retries
 
-    def _convert_messages_to_contents(
-        self, messages: list[LLMMessage]
-    ) -> tuple[list[dict[str, Any]], str | None]:
+    def _convert_messages_to_contents(self, messages: list[LLMMessage]) -> tuple[list[dict[str, Any]], str | None]:
         """
         Convert LLMMessage objects to Gemini contents format.
 
@@ -94,12 +92,14 @@ class GeminiProvider(LLMProvider):
                     for image_bytes in msg.images:
                         # Detect image type from magic bytes
                         mime_type = self._detect_image_type(image_bytes)
-                        parts.append({
-                            "inline_data": {
-                                "mime_type": mime_type,
-                                "data": base64.standard_b64encode(image_bytes).decode("utf-8"),
+                        parts.append(
+                            {
+                                "inline_data": {
+                                    "mime_type": mime_type,
+                                    "data": base64.standard_b64encode(image_bytes).decode("utf-8"),
+                                }
                             }
-                        })
+                        )
 
                 contents.append({"role": role, "parts": parts})
 
@@ -248,8 +248,7 @@ class GeminiProvider(LLMProvider):
         usage.estimated_cost_usd = self.estimate_cost(usage, model)
 
         logger.info(
-            f"[Gemini] Completed request: {usage.total_tokens} tokens, "
-            f"${usage.estimated_cost_usd:.6f} estimated cost"
+            f"[Gemini] Completed request: {usage.total_tokens} tokens, ${usage.estimated_cost_usd:.6f} estimated cost"
         )
 
         return LLMResponse(
@@ -282,9 +281,7 @@ class GeminiProvider(LLMProvider):
         )
         return await self.complete(request)
 
-    async def complete_with_vision(
-        self, prompt: str, images: list[bytes], **kwargs: Any
-    ) -> LLMResponse:
+    async def complete_with_vision(self, prompt: str, images: list[bytes], **kwargs: Any) -> LLMResponse:
         """
         Generate a completion that includes image analysis.
 

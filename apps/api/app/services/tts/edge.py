@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
-from typing import Any
 
 from app.services.tts.base import (
     TTSBatchItem,
@@ -84,9 +83,7 @@ class EdgeTTSProvider(TTSProvider):
         voice = self.get_voice(request.language, request.voice)
         rate = self._get_rate_string(request.speed)
 
-        logger.debug(
-            f"[EdgeTTS] Synthesizing {len(request.text)} chars with voice {voice}, rate {rate}"
-        )
+        logger.debug(f"[EdgeTTS] Synthesizing {len(request.text)} chars with voice {voice}, rate {rate}")
 
         try:
             # Create communicate instance
@@ -110,10 +107,7 @@ class EdgeTTSProvider(TTSProvider):
                     provider=self.provider_name,
                 )
 
-            logger.info(
-                f"[EdgeTTS] Synthesized {len(request.text)} chars, "
-                f"audio size: {len(audio_data)} bytes"
-            )
+            logger.info(f"[EdgeTTS] Synthesized {len(request.text)} chars, audio size: {len(audio_data)} bytes")
 
             return TTSResponse(
                 audio_data=audio_data,
@@ -145,9 +139,7 @@ class EdgeTTSProvider(TTSProvider):
                 details={"error": str(e)},
             ) from e
 
-    async def synthesize_batch(
-        self, items: list[TTSBatchItem], concurrency: int = 5
-    ) -> TTSBatchResult:
+    async def synthesize_batch(self, items: list[TTSBatchItem], concurrency: int = 5) -> TTSBatchResult:
         """
         Synthesize speech for multiple items concurrently.
 
@@ -183,9 +175,7 @@ class EdgeTTSProvider(TTSProvider):
         success_count = sum(1 for r in results if r is not None)
         failure_count = len(errors)
 
-        logger.info(
-            f"[EdgeTTS] Batch complete: {success_count} succeeded, {failure_count} failed"
-        )
+        logger.info(f"[EdgeTTS] Batch complete: {success_count} succeeded, {failure_count} failed")
 
         return TTSBatchResult(
             results=results,

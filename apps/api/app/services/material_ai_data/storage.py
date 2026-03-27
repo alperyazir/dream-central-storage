@@ -20,11 +20,11 @@ from __future__ import annotations
 import json
 import logging
 from io import BytesIO
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.core.config import get_settings
-from app.services.minio import get_minio_client
 from app.services.material_extraction.models import MaterialExtractionResult
+from app.services.minio import get_minio_client
 
 if TYPE_CHECKING:
     from minio import Minio
@@ -220,7 +220,8 @@ class MaterialAIDataStorage:
                     text = self._load_text(page_path)
                     if text.strip():
                         pages[page_num] = text
-                except Exception:
+                except Exception as e:
+                    logger.warning("Failed to read extracted page: %s", e)
                     continue
 
         except Exception as e:

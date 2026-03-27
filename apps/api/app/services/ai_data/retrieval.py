@@ -131,19 +131,13 @@ class AIDataRetrievalService:
         Returns:
             Vocabulary dictionary or None if not found.
         """
-        vocabulary = self._vocabulary_storage.load_vocabulary(
-            publisher, book_id, book_name
-        )
+        vocabulary = self._vocabulary_storage.load_vocabulary(publisher, book_id, book_name)
         if vocabulary is None:
             return None
 
         # Filter by module if specified
         if module_id is not None and "words" in vocabulary:
-            vocabulary["words"] = [
-                word
-                for word in vocabulary["words"]
-                if word.get("module_id") == module_id
-            ]
+            vocabulary["words"] = [word for word in vocabulary["words"] if word.get("module_id") == module_id]
             vocabulary["total_words"] = len(vocabulary["words"])
 
         return vocabulary
@@ -176,9 +170,7 @@ class AIDataRetrievalService:
 
         # Build audio file path
         # Path: {publisher}/books/{book_name}/ai-data/audio/vocabulary/{lang}/{word}.mp3
-        audio_path = (
-            f"{publisher}/books/{book_name}/ai-data/audio/vocabulary/{language}/{word}.mp3"
-        )
+        audio_path = f"{publisher}/books/{book_name}/ai-data/audio/vocabulary/{language}/{word}.mp3"
 
         # Check if file exists
         try:
@@ -227,9 +219,7 @@ class AIDataRetrievalService:
         client = get_minio_client(self.settings)
         bucket = self.settings.minio_publishers_bucket
 
-        audio_path = (
-            f"{publisher}/books/{book_name}/ai-data/audio/vocabulary/{language}/{word}.mp3"
-        )
+        audio_path = f"{publisher}/books/{book_name}/ai-data/audio/vocabulary/{language}/{word}.mp3"
 
         try:
             client.stat_object(bucket, audio_path)

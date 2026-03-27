@@ -5,10 +5,8 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
-import json
 import logging
 from datetime import datetime, timezone
-from typing import Any
 
 import httpx
 from sqlalchemy.orm import Session
@@ -40,14 +38,10 @@ class WebhookService:
         Returns:
             Signature in format "sha256=<hex_digest>"
         """
-        signature = hmac.new(
-            secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256
-        ).hexdigest()
+        signature = hmac.new(secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
         return f"sha256={signature}"
 
-    async def send_webhook(
-        self, url: str, payload: str, signature: str, timeout: int = 30
-    ) -> tuple[int, str]:
+    async def send_webhook(self, url: str, payload: str, signature: str, timeout: int = 30) -> tuple[int, str]:
         """
         Send webhook HTTP POST request.
 
@@ -92,8 +86,7 @@ class WebhookService:
         Returns:
             None (logs delivery status to database)
         """
-        print(f"[DEBUG-PRINT] deliver_webhook called with event_type={event_type}, type={type(event_type)}, value={event_type.value}")
-        logger.info(f"[DEBUG-LOG] deliver_webhook called with event_type={event_type}, type={type(event_type)}, value={event_type.value}")
+        logger.info(f"[WEBHOOK] deliver_webhook called with event_type={event_type.value}")
         subscription = self.subscription_repo.get_by_id(session, subscription_id)
         if not subscription or not subscription.is_active:
             logger.warning(f"[WEBHOOK] Skipping inactive subscription {subscription_id}")
@@ -119,9 +112,7 @@ class WebhookService:
             status=book.status.value,
         )
 
-        webhook_payload = WebhookEventPayload(
-            event=event_type, timestamp=datetime.now(timezone.utc), data=event_data
-        )
+        webhook_payload = WebhookEventPayload(event=event_type, timestamp=datetime.now(timezone.utc), data=event_data)
 
         payload_json = webhook_payload.model_dump_json()
 
@@ -156,9 +147,7 @@ class WebhookService:
                 )
                 logger.debug(f"[WEBHOOK] Payload: {payload_json[:500]}")
 
-                status_code, response_body = await self.send_webhook(
-                    subscription.url, payload_json, signature
-                )
+                status_code, response_body = await self.send_webhook(subscription.url, payload_json, signature)
 
                 # Update log with response
                 log.response_status = status_code
@@ -175,7 +164,9 @@ class WebhookService:
                 else:
                     error_msg = f"HTTP {status_code}: {response_body[:200]}"
                     log.error_message = error_msg
-                    logger.warning(f"[WEBHOOK] Webhook {log.id} failed with status {status_code}, response: {response_body[:200]}")
+                    logger.warning(
+                        f"[WEBHOOK] Webhook {log.id} failed with status {status_code}, response: {response_body[:200]}"
+                    )
 
             except Exception as e:
                 error_msg = f"Exception: {str(e)}"
@@ -190,11 +181,11 @@ class WebhookService:
                 # Mark as failed after all retries
                 log.status = WebhookDeliveryStatus.FAILED.value
                 session.commit()
-                logger.error(f"[WEBHOOK] Webhook {log.id} permanently failed after {max_retries} attempts to {subscription.url}")
+                logger.error(
+                    f"[WEBHOOK] Webhook {log.id} permanently failed after {max_retries} attempts to {subscription.url}"
+                )
 
-    async def broadcast_event(
-        self, session: Session, event_type: WebhookEventType, book: Book
-    ) -> None:
+    async def broadcast_event(self, session: Session, event_type: WebhookEventType, book: Book) -> None:
         """
         Broadcast a webhook event to all active subscriptions.
 
@@ -210,7 +201,9 @@ class WebhookService:
         subscriptions = self.subscription_repo.list_active(session)
 
         if not subscriptions:
-            logger.warning(f"[WEBHOOK] No active webhook subscriptions found for {event_type.value} - no webhooks will be sent")
+            logger.warning(
+                f"[WEBHOOK] No active webhook subscriptions found for {event_type.value} - no webhooks will be sent"
+            )
             return
 
         logger.info(
@@ -221,9 +214,7 @@ class WebhookService:
             logger.info(f"[WEBHOOK] - Subscription {sub.id}: {sub.url} (events: {sub.event_types})")
 
         # Deliver to all subscriptions concurrently
-        tasks = [
-            self.deliver_webhook(session, sub.id, event_type, book) for sub in subscriptions
-        ]
+        tasks = [self.deliver_webhook(session, sub.id, event_type, book) for sub in subscriptions]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Log any exceptions from delivery tasks
@@ -246,8 +237,7 @@ class WebhookService:
         Returns:
             None (logs delivery status to database)
         """
-        print(f"[DEBUG-PRINT] deliver_publisher_webhook called with event_type={event_type}, type={type(event_type)}, value={event_type.value}")
-        logger.info(f"[DEBUG-LOG] deliver_publisher_webhook called with event_type={event_type}, type={type(event_type)}, value={event_type.value}")
+        logger.info(f"[WEBHOOK] deliver_publisher_webhook called with event_type={event_type.value}")
         subscription = self.subscription_repo.get_by_id(session, subscription_id)
         if not subscription or not subscription.is_active:
             logger.warning(f"[WEBHOOK] Skipping inactive subscription {subscription_id}")
@@ -271,9 +261,7 @@ class WebhookService:
             logo_url=logo_url,
         )
 
-        webhook_payload = WebhookEventPayload(
-            event=event_type, timestamp=datetime.now(timezone.utc), data=event_data
-        )
+        webhook_payload = WebhookEventPayload(event=event_type, timestamp=datetime.now(timezone.utc), data=event_data)
 
         payload_json = webhook_payload.model_dump_json()
 
@@ -308,9 +296,7 @@ class WebhookService:
                 )
                 logger.debug(f"[WEBHOOK] Payload: {payload_json[:500]}")
 
-                status_code, response_body = await self.send_webhook(
-                    subscription.url, payload_json, signature
-                )
+                status_code, response_body = await self.send_webhook(subscription.url, payload_json, signature)
 
                 # Update log with response
                 log.response_status = status_code
@@ -327,12 +313,16 @@ class WebhookService:
                 else:
                     error_msg = f"HTTP {status_code}: {response_body[:200]}"
                     log.error_message = error_msg
-                    logger.warning(f"[WEBHOOK] Publisher webhook {log.id} failed with status {status_code}, response: {response_body[:200]}")
+                    logger.warning(
+                        f"[WEBHOOK] Publisher webhook {log.id} failed with status {status_code}, response: {response_body[:200]}"
+                    )
 
             except Exception as e:
                 error_msg = f"Exception: {str(e)}"
                 log.error_message = error_msg
-                logger.error(f"[WEBHOOK] Publisher webhook {log.id} delivery error to {subscription.url}: {e}", exc_info=True)
+                logger.error(
+                    f"[WEBHOOK] Publisher webhook {log.id} delivery error to {subscription.url}: {e}", exc_info=True
+                )
 
             # Retry with backoff if not last attempt
             if attempt < max_retries - 1:
@@ -342,7 +332,9 @@ class WebhookService:
                 # Mark as failed after all retries
                 log.status = WebhookDeliveryStatus.FAILED.value
                 session.commit()
-                logger.error(f"[WEBHOOK] Publisher webhook {log.id} permanently failed after {max_retries} attempts to {subscription.url}")
+                logger.error(
+                    f"[WEBHOOK] Publisher webhook {log.id} permanently failed after {max_retries} attempts to {subscription.url}"
+                )
 
     async def broadcast_publisher_event(
         self, session: Session, event_type: WebhookEventType, publisher: Publisher
@@ -362,7 +354,9 @@ class WebhookService:
         subscriptions = self.subscription_repo.list_active(session)
 
         if not subscriptions:
-            logger.warning(f"[WEBHOOK] No active webhook subscriptions found for {event_type.value} - no webhooks will be sent")
+            logger.warning(
+                f"[WEBHOOK] No active webhook subscriptions found for {event_type.value} - no webhooks will be sent"
+            )
             return
 
         logger.info(
@@ -373,9 +367,7 @@ class WebhookService:
             logger.info(f"[WEBHOOK] - Subscription {sub.id}: {sub.url} (events: {sub.event_types})")
 
         # Deliver to all subscriptions concurrently
-        tasks = [
-            self.deliver_publisher_webhook(session, sub.id, event_type, publisher) for sub in subscriptions
-        ]
+        tasks = [self.deliver_publisher_webhook(session, sub.id, event_type, publisher) for sub in subscriptions]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Log any exceptions from delivery tasks

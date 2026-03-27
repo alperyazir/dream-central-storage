@@ -220,9 +220,7 @@ class LLMService:
                     logger.error(f"[LLMService] Fallback provider also failed: {e}")
                     raise
 
-        raise ValueError(
-            "No LLM providers available. Configure DCS_DEEPSEEK_API_KEY or DCS_GEMINI_API_KEY."
-        )
+        raise ValueError("No LLM providers available. Configure DCS_DEEPSEEK_API_KEY or DCS_GEMINI_API_KEY.")
 
     async def chat(
         self,
@@ -285,10 +283,7 @@ class LLMService:
                     raise
 
         # No vision-capable provider - raise clear error
-        raise ValueError(
-            "Vision capabilities require Gemini provider. "
-            "Configure DCS_GEMINI_API_KEY to enable vision."
-        )
+        raise ValueError("Vision capabilities require Gemini provider. Configure DCS_GEMINI_API_KEY to enable vision.")
 
     async def simple_completion(
         self,

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 import pytest
 from minio.error import S3Error
 
+from app.services.ai_data.cleanup import AIDataCleanupManager
 from app.services.ai_data.models import (
     AIDataStorageError,
     AIDataStructure,
@@ -24,8 +24,6 @@ from app.services.ai_data.models import (
 )
 from app.services.ai_data.service import AIDataMetadataService
 from app.services.ai_data.structure import AIDataStructureManager
-from app.services.ai_data.cleanup import AIDataCleanupManager
-
 
 # =============================================================================
 # Test Data Models
@@ -618,9 +616,7 @@ class TestAIDataCleanupManager:
         mock_obj5 = MagicMock()
         mock_obj5.object_name = "pub/books/book/name/ai-data/metadata.json"
 
-        mock_minio_client.list_objects.return_value = [
-            mock_obj1, mock_obj2, mock_obj3, mock_obj4, mock_obj5
-        ]
+        mock_minio_client.list_objects.return_value = [mock_obj1, mock_obj2, mock_obj3, mock_obj4, mock_obj5]
 
         manager = AIDataCleanupManager(settings=mock_settings)
         stats = manager.cleanup_all("pub", "book", "name")

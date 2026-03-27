@@ -1,43 +1,53 @@
-import { useState, FormEvent, useEffect } from "react"
-import { useNavigate, useLocation } from "react-router-dom"
-import { Loader2, AlertCircle, BookOpenCheck } from "lucide-react"
+import { useState, FormEvent, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Loader2, AlertCircle, BookOpenCheck } from 'lucide-react';
 
-import { Button } from "components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "components/ui/card"
-import { Input } from "components/ui/input"
-import { Label } from "components/ui/label"
-import { Alert, AlertDescription } from "components/ui/alert"
-import { useAuthStore } from "stores/auth"
+import { Button } from 'components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from 'components/ui/card';
+import { Input } from 'components/ui/input';
+import { Label } from 'components/ui/label';
+import { Alert, AlertDescription } from 'components/ui/alert';
+import { useAuthStore } from 'stores/auth';
 
 const LoginPage = () => {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const { login, isAuthenticated, isAuthenticating, error, clearError } = useAuthStore()
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login, isAuthenticated, isAuthenticating, error, clearError } =
+    useAuthStore();
 
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/dashboard"
+  const from =
+    (location.state as { from?: { pathname: string } })?.from?.pathname ||
+    '/dashboard';
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate(from, { replace: true })
+      navigate(from, { replace: true });
     }
-  }, [isAuthenticated, navigate, from])
+  }, [isAuthenticated, navigate, from]);
 
   useEffect(() => {
-    return () => clearError()
-  }, [clearError])
+    return () => clearError();
+  }, [clearError]);
 
   const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     try {
-      await login({ email, password })
-      navigate(from, { replace: true })
+      await login({ email, password });
+      navigate(from, { replace: true });
     } catch {
+      /* ignored */
       // error is set in the store
     }
-  }
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted p-4">
@@ -84,15 +94,19 @@ const LoginPage = () => {
               </Alert>
             )}
 
-            <Button type="submit" className="w-full" disabled={isAuthenticating}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isAuthenticating}
+            >
               {isAuthenticating && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isAuthenticating ? "Signing in..." : "Sign in"}
+              {isAuthenticating ? 'Signing in...' : 'Sign in'}
             </Button>
           </form>
         </CardContent>
       </Card>
     </div>
-  )
-}
+  );
+};
 
-export default LoginPage
+export default LoginPage;

@@ -180,9 +180,7 @@ class JobAlreadyExistsError(QueueError):
     """Raised when trying to create a duplicate job."""
 
     def __init__(self, book_id: str):
-        super().__init__(
-            f"Job already exists for book: {book_id}", {"book_id": book_id}
-        )
+        super().__init__(f"Job already exists for book: {book_id}", {"book_id": book_id})
 
 
 class QueueConnectionError(QueueError):

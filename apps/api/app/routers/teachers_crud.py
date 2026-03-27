@@ -106,9 +106,7 @@ def list_teachers(
     _require_admin(credentials, db)
 
     if search or status_filter:
-        teachers = _teacher_repository.search(
-            db, query=search or "", status=status_filter, skip=skip, limit=limit
-        )
+        teachers = _teacher_repository.search(db, query=search or "", status=status_filter, skip=skip, limit=limit)
         total = len(teachers)  # For search, count matches (simplified)
     else:
         teachers = _teacher_repository.list_active(db, skip=skip, limit=limit)
@@ -311,13 +309,9 @@ def permanent_delete_teacher(
         )
         for obj in objects_to_delete:
             client.remove_object(settings.minio_teachers_bucket, obj.object_name)
-        logger.info(
-            f"Deleted {len(objects_to_delete)} objects from MinIO for teacher {teacher.teacher_id}"
-        )
+        logger.info(f"Deleted {len(objects_to_delete)} objects from MinIO for teacher {teacher.teacher_id}")
     except Exception as e:
-        logger.error(
-            f"Error deleting MinIO objects for teacher {teacher.teacher_id}: {e}"
-        )
+        logger.error(f"Error deleting MinIO objects for teacher {teacher.teacher_id}: {e}")
 
     # Permanently delete from database
     _teacher_repository.delete(db, teacher)
@@ -347,8 +341,7 @@ def get_teacher_storage_stats(
 
     # Convert by_type dict to FileTypeStats objects
     by_type = {
-        file_type: FileTypeStats(count=data["count"], size=data["size"])
-        for file_type, data in stats["by_type"].items()
+        file_type: FileTypeStats(count=data["count"], size=data["size"]) for file_type, data in stats["by_type"].items()
     }
 
     return StorageStatsResponse(

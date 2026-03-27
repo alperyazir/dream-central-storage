@@ -50,22 +50,16 @@ class Material(Base):
     file_type: Mapped[str] = mapped_column(String(50), nullable=False)  # pdf, txt, docx, mp3, etc.
     content_type: Mapped[str] = mapped_column(String(100), nullable=False)  # MIME type
     size: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="active", server_default="active"
-    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active", server_default="active")
 
     # AI Processing tracking
     ai_processing_status: Mapped[str] = mapped_column(
         String(30), nullable=False, default="not_started", server_default="not_started"
     )
-    ai_processed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    ai_processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ai_job_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

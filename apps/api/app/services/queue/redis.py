@@ -3,7 +3,7 @@
 import logging
 from typing import Optional
 
-from redis.asyncio import Redis, ConnectionPool
+from redis.asyncio import ConnectionPool, Redis
 from redis.asyncio.cluster import RedisCluster
 from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import RedisError

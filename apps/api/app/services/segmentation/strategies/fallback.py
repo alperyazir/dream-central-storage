@@ -47,11 +47,13 @@ class SingleModuleStrategy(SegmentationStrategy):
 
         title = kwargs.get("title", self.default_title)
 
-        return [ModuleBoundary(
-            title=title,
-            start_page=1,
-            confidence=1.0,
-        )]
+        return [
+            ModuleBoundary(
+                title=title,
+                start_page=1,
+                confidence=1.0,
+            )
+        ]
 
     def can_segment(self, pages: dict[int, str], **kwargs) -> bool:
         """Always can segment (fallback)."""
@@ -110,11 +112,13 @@ class PageSplitStrategy(SegmentationStrategy):
 
         if total_pages <= pages_per_module:
             # Book is small enough for single module
-            return [ModuleBoundary(
-                title="Module 1",
-                start_page=sorted_pages[0],
-                confidence=0.5,
-            )]
+            return [
+                ModuleBoundary(
+                    title="Module 1",
+                    start_page=sorted_pages[0],
+                    confidence=0.5,
+                )
+            ]
 
         boundaries = []
         module_num = 1
@@ -129,11 +133,13 @@ class PageSplitStrategy(SegmentationStrategy):
                 # Don't create tiny last module - it was already included in previous
                 break
 
-            boundaries.append(ModuleBoundary(
-                title=f"Module {module_num}",
-                start_page=start_page,
-                confidence=0.5,  # Low confidence for arbitrary splits
-            ))
+            boundaries.append(
+                ModuleBoundary(
+                    title=f"Module {module_num}",
+                    start_page=start_page,
+                    confidence=0.5,  # Low confidence for arbitrary splits
+                )
+            )
             module_num += 1
 
         return boundaries

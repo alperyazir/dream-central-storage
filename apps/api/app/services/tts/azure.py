@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
 
 import httpx
 
@@ -148,9 +147,7 @@ class AzureTTSProvider(TTSProvider):
         if request.audio_format.lower() == "wav":
             output_format = "riff-24khz-16bit-mono-pcm"
 
-        logger.debug(
-            f"[AzureTTS] Synthesizing {len(request.text)} chars with voice {voice}"
-        )
+        logger.debug(f"[AzureTTS] Synthesizing {len(request.text)} chars with voice {voice}")
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             # Get access token
@@ -200,10 +197,7 @@ class AzureTTSProvider(TTSProvider):
                         provider=self.provider_name,
                     )
 
-                logger.info(
-                    f"[AzureTTS] Synthesized {len(request.text)} chars, "
-                    f"audio size: {len(audio_data)} bytes"
-                )
+                logger.info(f"[AzureTTS] Synthesized {len(request.text)} chars, audio size: {len(audio_data)} bytes")
 
                 return TTSResponse(
                     audio_data=audio_data,
@@ -223,9 +217,7 @@ class AzureTTSProvider(TTSProvider):
                     details={"error": str(e)},
                 ) from e
 
-    async def synthesize_batch(
-        self, items: list[TTSBatchItem], concurrency: int = 5
-    ) -> TTSBatchResult:
+    async def synthesize_batch(self, items: list[TTSBatchItem], concurrency: int = 5) -> TTSBatchResult:
         """
         Synthesize speech for multiple items concurrently.
 
@@ -261,9 +253,7 @@ class AzureTTSProvider(TTSProvider):
         success_count = sum(1 for r in results if r is not None)
         failure_count = len(errors)
 
-        logger.info(
-            f"[AzureTTS] Batch complete: {success_count} succeeded, {failure_count} failed"
-        )
+        logger.info(f"[AzureTTS] Batch complete: {success_count} succeeded, {failure_count} failed")
 
         return TTSBatchResult(
             results=results,

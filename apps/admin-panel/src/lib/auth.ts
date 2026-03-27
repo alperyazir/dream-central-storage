@@ -25,5 +25,5 @@ export const validateSession = (
   tokenType: string = 'Bearer'
 ): Promise<SessionResponse> =>
   apiClient.get<SessionResponse>('/auth/session', {
-    headers: buildAuthHeaders(token, tokenType)
+    headers: buildAuthHeaders(token, tokenType),
   });

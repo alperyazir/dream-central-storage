@@ -1,127 +1,244 @@
-import { useEffect, useState, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Loader2, Pencil, ChevronRight, FolderOpen, Upload } from 'lucide-react'
-
-import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from 'components/ui/table'
-import { Input } from 'components/ui/input'
-import { Button } from 'components/ui/button'
-import { Badge } from 'components/ui/badge'
-import { Alert, AlertDescription } from 'components/ui/alert'
-import AuthenticatedImage from 'components/AuthenticatedImage'
-import PublisherFormDialog from 'components/PublisherFormDialog'
-import PublisherUploadDialog from 'components/PublisherUploadDialog'
-import { useAuthStore } from 'stores/auth'
+import { useEffect, useState, useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
-  fetchPublisher, fetchPublisherBooks, fetchPublisherAssets, fetchPublisherAssetFiles,
-  type Publisher, type PublisherBook, type AssetTypeInfo, type AssetFileInfo
-} from 'lib/publishers'
+  ArrowLeft,
+  Loader2,
+  Pencil,
+  ChevronRight,
+  FolderOpen,
+  Upload,
+} from 'lucide-react';
+
+import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from 'components/ui/table';
+import { Input } from 'components/ui/input';
+import { Button } from 'components/ui/button';
+import { Badge } from 'components/ui/badge';
+import { Alert, AlertDescription } from 'components/ui/alert';
+import AuthenticatedImage from 'components/AuthenticatedImage';
+import PublisherFormDialog from 'components/PublisherFormDialog';
+import PublisherUploadDialog from 'components/PublisherUploadDialog';
+import { useAuthStore } from 'stores/auth';
+import {
+  fetchPublisher,
+  fetchPublisherBooks,
+  fetchPublisherAssets,
+  fetchPublisherAssetFiles,
+  type Publisher,
+  type PublisherBook,
+  type AssetTypeInfo,
+  type AssetFileInfo,
+} from 'lib/publishers';
 
 const fmtBytes = (n?: number) => {
-  if (!n) return '0 B'
-  const u = ['B','KB','MB','GB']
-  const e = Math.min(Math.floor(Math.log(n)/Math.log(1024)), u.length-1)
-  const v = n/Math.pow(1024,e)
-  return `${v.toFixed(v>=10||e===0?0:1)} ${u[e]}`
-}
+  if (!n) return '0 B';
+  const u = ['B', 'KB', 'MB', 'GB'];
+  const e = Math.min(Math.floor(Math.log(n) / Math.log(1024)), u.length - 1);
+  const v = n / Math.pow(1024, e);
+  return `${v.toFixed(v >= 10 || e === 0 ? 0 : 1)} ${u[e]}`;
+};
 
 const PublisherDetailPage = () => {
-  const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const { token, tokenType } = useAuthStore()
-  const tt = tokenType ?? 'Bearer'
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { token, tokenType } = useAuthStore();
+  const tt = tokenType ?? 'Bearer';
 
-  const [publisher, setPublisher] = useState<Publisher | null>(null)
-  const [books, setBooks] = useState<PublisherBook[]>([])
-  const [assets, setAssets] = useState<AssetTypeInfo[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [formOpen, setFormOpen] = useState(false)
-  const [uploadOpen, setUploadOpen] = useState(false)
-  const [bookSearch, setBookSearch] = useState('')
-  const [expandedAssets, setExpandedAssets] = useState<Set<string>>(new Set())
-  const [assetFiles, setAssetFiles] = useState<Record<string, AssetFileInfo[]>>({})
+  const [publisher, setPublisher] = useState<Publisher | null>(null);
+  const [books, setBooks] = useState<PublisherBook[]>([]);
+  const [assets, setAssets] = useState<AssetTypeInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [formOpen, setFormOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [bookSearch, setBookSearch] = useState('');
+  const [expandedAssets, setExpandedAssets] = useState<Set<string>>(new Set());
+  const [assetFiles, setAssetFiles] = useState<Record<string, AssetFileInfo[]>>(
+    {}
+  );
 
   const load = async () => {
-    if (!token || !id) return
-    setLoading(true); setError('')
+    if (!token || !id) return;
+    setLoading(true);
+    setError('');
     try {
       const [pub, bks, ast] = await Promise.all([
         fetchPublisher(Number(id), token, tt),
         fetchPublisherBooks(Number(id), token, tt),
-        fetchPublisherAssets(Number(id), token, tt).catch(() => ({ asset_types: [] as AssetTypeInfo[] }))
-      ])
-      setPublisher(pub); setBooks(bks); setAssets(ast.asset_types)
-    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load') }
-    finally { setLoading(false) }
-  }
+        fetchPublisherAssets(Number(id), token, tt).catch(() => ({
+          asset_types: [] as AssetTypeInfo[],
+        })),
+      ]);
+      setPublisher(pub);
+      setBooks(bks);
+      setAssets(ast.asset_types);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  useEffect(() => { load() }, [token, id])
+  useEffect(() => {
+    load();
+  }, [token, id]);
 
   const filteredBooks = useMemo(() => {
-    if (!bookSearch) return books
-    const q = bookSearch.toLowerCase()
-    return books.filter(b => (b.book_title || b.book_name).toLowerCase().includes(q) || b.book_name.toLowerCase().includes(q))
-  }, [books, bookSearch])
+    if (!bookSearch) return books;
+    const q = bookSearch.toLowerCase();
+    return books.filter(
+      (b) =>
+        (b.book_title || b.book_name).toLowerCase().includes(q) ||
+        b.book_name.toLowerCase().includes(q)
+    );
+  }, [books, bookSearch]);
 
   const toggleAsset = async (name: string) => {
-    const next = new Set(expandedAssets)
-    if (next.has(name)) { next.delete(name) } else {
-      next.add(name)
+    const next = new Set(expandedAssets);
+    if (next.has(name)) {
+      next.delete(name);
+    } else {
+      next.add(name);
       if (!assetFiles[name] && token && id) {
-        try { const files = await fetchPublisherAssetFiles(Number(id), name, token, tt); setAssetFiles(p => ({ ...p, [name]: files })) } catch {}
+        try {
+          const files = await fetchPublisherAssetFiles(
+            Number(id),
+            name,
+            token,
+            tt
+          );
+          setAssetFiles((p) => ({ ...p, [name]: files }));
+        } catch {
+          /* ignored */
+        }
       }
     }
-    setExpandedAssets(next)
-  }
+    setExpandedAssets(next);
+  };
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin" /></div>
-  if (!publisher) return <Alert variant="destructive"><AlertDescription>{error || 'Publisher not found'}</AlertDescription></Alert>
+  if (loading)
+    return (
+      <div className="flex justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  if (!publisher)
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{error || 'Publisher not found'}</AlertDescription>
+      </Alert>
+    );
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/publishers')}><ArrowLeft className="h-5 w-5" /></Button>
-        <h1 className="text-2xl font-semibold flex-1">{publisher.display_name || publisher.name}</h1>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate('/publishers')}
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <h1 className="text-2xl font-semibold flex-1">
+          {publisher.display_name || publisher.name}
+        </h1>
         <div className="flex gap-2">
-          <Button onClick={() => setUploadOpen(true)}><Upload className="h-4 w-4" /> Upload</Button>
-          <Button variant="outline" onClick={() => setFormOpen(true)}><Pencil className="h-4 w-4" /> Edit</Button>
+          <Button onClick={() => setUploadOpen(true)}>
+            <Upload className="h-4 w-4" /> Upload
+          </Button>
+          <Button variant="outline" onClick={() => setFormOpen(true)}>
+            <Pencil className="h-4 w-4" /> Edit
+          </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card>
-          <CardHeader><CardTitle>Publisher Info</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Publisher Info</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-3">
-            <AuthenticatedImage src={publisher.logo_url || ''} token={token} tokenType={tt} alt={publisher.name} className="h-16 w-16 rounded-lg" />
+            <AuthenticatedImage
+              src={publisher.logo_url || ''}
+              token={token}
+              tokenType={tt}
+              alt={publisher.name}
+              className="h-16 w-16 rounded-lg"
+            />
             <div className="space-y-1 text-sm">
-              <div><span className="text-muted-foreground">Name:</span> {publisher.name}</div>
-              <div><span className="text-muted-foreground">Display:</span> {publisher.display_name || '—'}</div>
-              <div><span className="text-muted-foreground">Email:</span> {publisher.contact_email || '—'}</div>
-              <div><span className="text-muted-foreground">Status:</span> <Badge variant={publisher.status === 'active' ? 'success' : 'secondary'}>{publisher.status}</Badge></div>
-              {publisher.description && <div><span className="text-muted-foreground">Description:</span> {publisher.description}</div>}
+              <div>
+                <span className="text-muted-foreground">Name:</span>{' '}
+                {publisher.name}
+              </div>
+              <div>
+                <span className="text-muted-foreground">Display:</span>{' '}
+                {publisher.display_name || '—'}
+              </div>
+              <div>
+                <span className="text-muted-foreground">Email:</span>{' '}
+                {publisher.contact_email || '—'}
+              </div>
+              <div>
+                <span className="text-muted-foreground">Status:</span>{' '}
+                <Badge
+                  variant={
+                    publisher.status === 'active' ? 'success' : 'secondary'
+                  }
+                >
+                  {publisher.status}
+                </Badge>
+              </div>
+              {publisher.description && (
+                <div>
+                  <span className="text-muted-foreground">Description:</span>{' '}
+                  {publisher.description}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
 
         <Card className="lg:col-span-2">
-          <CardHeader><CardTitle>Assets ({assets.length} types)</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Assets ({assets.length} types)</CardTitle>
+          </CardHeader>
           <CardContent>
-            {!assets.length ? <p className="text-muted-foreground text-sm">No assets</p> : (
+            {!assets.length ? (
+              <p className="text-muted-foreground text-sm">No assets</p>
+            ) : (
               <div className="space-y-1">
-                {assets.map(a => (
+                {assets.map((a) => (
                   <div key={a.name}>
-                    <button className="flex w-full items-center gap-2 rounded-md p-2 text-sm hover:bg-muted transition-colors" onClick={() => toggleAsset(a.name)}>
-                      <ChevronRight className={`h-4 w-4 transition-transform ${expandedAssets.has(a.name) ? 'rotate-90' : ''}`} />
+                    <button
+                      className="flex w-full items-center gap-2 rounded-md p-2 text-sm hover:bg-muted transition-colors"
+                      onClick={() => toggleAsset(a.name)}
+                    >
+                      <ChevronRight
+                        className={`h-4 w-4 transition-transform ${expandedAssets.has(a.name) ? 'rotate-90' : ''}`}
+                      />
                       <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                      <span className="flex-1 text-left font-medium">{a.name}</span>
+                      <span className="flex-1 text-left font-medium">
+                        {a.name}
+                      </span>
                       <Badge variant="outline">{a.file_count} files</Badge>
-                      <span className="text-xs text-muted-foreground">{fmtBytes(a.total_size)}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {fmtBytes(a.total_size)}
+                      </span>
                     </button>
                     {expandedAssets.has(a.name) && assetFiles[a.name] && (
                       <div className="ml-10 space-y-0.5">
-                        {assetFiles[a.name].map(f => (
-                          <div key={f.path} className="flex items-center gap-2 text-xs text-muted-foreground py-0.5">
+                        {assetFiles[a.name].map((f) => (
+                          <div
+                            key={f.path}
+                            className="flex items-center gap-2 text-xs text-muted-foreground py-0.5"
+                          >
                             <span className="truncate flex-1">{f.name}</span>
                             <span>{fmtBytes(f.size)}</span>
                           </div>
@@ -139,34 +256,81 @@ const PublisherDetailPage = () => {
       <Card>
         <CardHeader className="flex-row items-center justify-between">
           <CardTitle>Books ({books.length})</CardTitle>
-          <Input placeholder="Search books..." value={bookSearch} onChange={e => setBookSearch(e.target.value)} className="max-w-xs" />
+          <Input
+            placeholder="Search books..."
+            value={bookSearch}
+            onChange={(e) => setBookSearch(e.target.value)}
+            className="max-w-xs"
+          />
         </CardHeader>
         <CardContent className="p-0">
           <Table>
-            <TableHeader><TableRow>
-              <TableHead>Title</TableHead><TableHead>Language</TableHead><TableHead>Category</TableHead><TableHead className="text-center">Activities</TableHead><TableHead>Status</TableHead>
-            </TableRow></TableHeader>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Title</TableHead>
+                <TableHead>Language</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead className="text-center">Activities</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
             <TableBody>
               {!filteredBooks.length ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No books found</TableCell></TableRow>
-              ) : filteredBooks.map(b => (
-                <TableRow key={b.id}>
-                  <TableCell className="font-medium">{b.book_title || b.book_name}</TableCell>
-                  <TableCell><Badge variant="outline">{b.language.toUpperCase()}</Badge></TableCell>
-                  <TableCell>{b.category || '—'}</TableCell>
-                  <TableCell className="text-center"><Badge variant="secondary">{b.activity_count ?? 0}</Badge></TableCell>
-                  <TableCell><Badge variant="outline">{b.status}</Badge></TableCell>
+                <TableRow>
+                  <TableCell
+                    colSpan={5}
+                    className="text-center py-8 text-muted-foreground"
+                  >
+                    No books found
+                  </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                filteredBooks.map((b) => (
+                  <TableRow key={b.id}>
+                    <TableCell className="font-medium">
+                      {b.book_title || b.book_name}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {b.language.toUpperCase()}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{b.category || '—'}</TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="secondary">{b.activity_count ?? 0}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{b.status}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      <PublisherFormDialog open={formOpen} onClose={() => setFormOpen(false)} onSuccess={() => { setFormOpen(false); load() }} publisher={publisher} token={token} tokenType={tt} />
-      <PublisherUploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} onSuccess={load} token={token} tokenType={tt} initialPublisherId={publisher.id} />
+      <PublisherFormDialog
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        onSuccess={() => {
+          setFormOpen(false);
+          load();
+        }}
+        publisher={publisher}
+        token={token}
+        tokenType={tt}
+      />
+      <PublisherUploadDialog
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        onSuccess={load}
+        token={token}
+        tokenType={tt}
+        initialPublisherId={publisher.id}
+      />
     </div>
-  )
-}
+  );
+};
 
-export default PublisherDetailPage
+export default PublisherDetailPage;

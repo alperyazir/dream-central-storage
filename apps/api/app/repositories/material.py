@@ -9,9 +9,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.material import (
+    TEXT_MATERIAL_TYPES,
     AIProcessingStatusEnum,
     Material,
-    TEXT_MATERIAL_TYPES,
 )
 from app.repositories.base import BaseRepository
 
@@ -53,11 +53,7 @@ class MaterialRepository(BaseRepository[Material]):
         status: str | None = None,
     ) -> int:
         """Count materials for a specific teacher."""
-        statement = (
-            select(func.count())
-            .select_from(Material)
-            .where(Material.teacher_id == teacher_id)
-        )
+        statement = select(func.count()).select_from(Material).where(Material.teacher_id == teacher_id)
         if status:
             statement = statement.where(Material.status == status)
         return session.execute(statement).scalar() or 0
@@ -69,9 +65,7 @@ class MaterialRepository(BaseRepository[Material]):
         material_name: str,
     ) -> Material | None:
         """Fetch a material by teacher ID and material name."""
-        statement = select(Material).where(
-            Material.teacher_id == teacher_id, Material.material_name == material_name
-        )
+        statement = select(Material).where(Material.teacher_id == teacher_id, Material.material_name == material_name)
         return session.scalars(statement).first()
 
     def get_storage_stats(
@@ -88,9 +82,7 @@ class MaterialRepository(BaseRepository[Material]):
         total_stmt = select(
             func.count().label("count"),
             func.coalesce(func.sum(Material.size), 0).label("size"),
-        ).where(
-            Material.teacher_id == teacher_id, Material.status != "archived"
-        )
+        ).where(Material.teacher_id == teacher_id, Material.status != "archived")
         total_result = session.execute(total_stmt).first()
         total_count = total_result.count if total_result else 0
         total_size = total_result.size if total_result else 0
@@ -106,10 +98,7 @@ class MaterialRepository(BaseRepository[Material]):
             .group_by(Material.file_type)
         )
         by_type_result = session.execute(by_type_stmt).all()
-        by_type = {
-            row.file_type: {"count": row.count, "size": row.size}
-            for row in by_type_result
-        }
+        by_type = {row.file_type: {"count": row.count, "size": row.size} for row in by_type_result}
 
         # AI processable count (text materials)
         ai_processable_stmt = (
@@ -199,9 +188,7 @@ class MaterialRepository(BaseRepository[Material]):
         session.commit()
         return created
 
-    def update(
-        self, session: Session, material: Material, *, data: dict[str, object]
-    ) -> Material:
+    def update(self, session: Session, material: Material, *, data: dict[str, object]) -> Material:
         """Update an existing material."""
         for field, value in data.items():
             setattr(material, field, value)
@@ -231,8 +218,7 @@ class MaterialRepository(BaseRepository[Material]):
     def delete(self, session: Session, material: Material) -> None:
         """Permanently remove a material record from the database."""
         logger.info(
-            f"Deleting material '{material.material_name}' "
-            f"(ID: {material.id}, Teacher ID: {material.teacher_id})"
+            f"Deleting material '{material.material_name}' (ID: {material.id}, Teacher ID: {material.teacher_id})"
         )
         session.delete(material)
         session.commit()

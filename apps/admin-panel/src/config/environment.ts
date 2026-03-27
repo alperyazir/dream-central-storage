@@ -15,9 +15,11 @@ const resolvedBaseUrl = (() => {
 })();
 
 export const appConfig: AppConfig = Object.freeze({
-  apiBaseUrl: resolvedBaseUrl
+  apiBaseUrl: resolvedBaseUrl,
 });
 
-export const ensureLeadingSlash = (path: string) => (path.startsWith('/') ? path : `/${path}`);
+export const ensureLeadingSlash = (path: string) =>
+  path.startsWith('/') ? path : `/${path}`;
 
-export const buildApiUrl = (path: string) => `${appConfig.apiBaseUrl}${ensureLeadingSlash(path)}`;
+export const buildApiUrl = (path: string) =>
+  `${appConfig.apiBaseUrl}${ensureLeadingSlash(path)}`;

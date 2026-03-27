@@ -4,45 +4,46 @@ import logging
 from typing import Any
 
 from app.core.config import get_settings
-from app.services.queue.models import (
-    ProcessingJobType,
-    ProcessingStatus,
-    PROCESSING_STAGES,
-    FULL_PROCESSING_STAGES,
-    LLM_ONLY_STAGES,
-    UNIFIED_PROCESSING_STAGES,
-    ANALYSIS_ONLY_STAGES,
-    MATERIAL_FULL_STAGES,
-    MATERIAL_TEXT_ONLY_STAGES,
-    MATERIAL_LLM_ONLY_STAGES,
-    QueueError,
+from app.services.ai_data import (
+    ProcessingStatus as AIDataProcessingStatus,
 )
-from app.services.queue.repository import JobRepository
-from app.services.queue.redis import get_redis_connection
-from app.services.queue.service import ProgressReporter
+
+# Import AI data services for metadata and structure management
+from app.services.ai_data import (
+    get_ai_data_cleanup_manager,
+    get_ai_data_metadata_service,
+    get_ai_data_structure_manager,
+)
+
+# Import audio generation service for audio_generation stage
+from app.services.audio_generation import get_audio_generation_service, get_audio_storage
 
 # Import PDF extraction service for text_extraction stage
-from app.services.pdf import get_extraction_service, get_ai_storage
+from app.services.pdf import get_ai_storage, get_extraction_service
+from app.services.queue.models import (
+    ANALYSIS_ONLY_STAGES,
+    FULL_PROCESSING_STAGES,
+    LLM_ONLY_STAGES,
+    MATERIAL_FULL_STAGES,
+    MATERIAL_LLM_ONLY_STAGES,
+    MATERIAL_TEXT_ONLY_STAGES,
+    UNIFIED_PROCESSING_STAGES,
+    ProcessingJobType,
+    ProcessingStatus,
+    QueueError,
+)
+from app.services.queue.redis import get_redis_connection
+from app.services.queue.repository import JobRepository
+from app.services.queue.service import ProgressReporter
 
 # Import segmentation service for segmentation stage
-from app.services.segmentation import get_segmentation_service, get_module_storage
+from app.services.segmentation import get_module_storage, get_segmentation_service
 
 # Import topic analysis service for topic_analysis stage
 from app.services.topic_analysis import get_topic_analysis_service, get_topic_storage
 
 # Import vocabulary extraction service for vocabulary stage
 from app.services.vocabulary_extraction import get_vocabulary_extraction_service, get_vocabulary_storage
-
-# Import audio generation service for audio_generation stage
-from app.services.audio_generation import get_audio_generation_service, get_audio_storage
-
-# Import AI data services for metadata and structure management
-from app.services.ai_data import (
-    get_ai_data_metadata_service,
-    get_ai_data_structure_manager,
-    get_ai_data_cleanup_manager,
-    ProcessingStatus as AIDataProcessingStatus,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -140,9 +141,7 @@ async def process_book_task(
                 cleanup_manager.cleanup_all(publisher_name, book_id, book_name)
 
             # Initialize directory structure
-            structure_manager.initialize_ai_data_structure(
-                publisher_name, book_id, book_name
-            )
+            structure_manager.initialize_ai_data_structure(publisher_name, book_id, book_name)
 
             # Create initial metadata.json
             metadata_service.create_metadata(
@@ -186,10 +185,12 @@ async def process_book_task(
                     job_id,
                     stage_error,
                 )
-                errors.append({
-                    "stage": stage,
-                    "error": str(stage_error),
-                })
+                errors.append(
+                    {
+                        "stage": stage,
+                        "error": str(stage_error),
+                    }
+                )
 
                 # Update metadata.json with stage failure
                 if book_name:
@@ -620,10 +621,7 @@ async def _run_segmentation(
         "method": result.method.value,
         "saved_modules": len(saved.get("modules", [])),
         "metadata_path": saved.get("metadata"),
-        "modules": [
-            {"id": m.module_id, "title": m.title, "pages": len(m.pages)}
-            for m in result.modules
-        ],
+        "modules": [{"id": m.module_id, "title": m.title, "pages": len(m.pages)} for m in result.modules],
     }
 
 
@@ -816,9 +814,7 @@ async def _run_chunked_analysis(
             step_detail = "Processing..."
 
         # Schedule async progress report
-        asyncio.create_task(
-            progress.report_progress("chunked_analysis", chunked_progress.overall_percent, step_detail)
-        )
+        asyncio.create_task(progress.report_progress("chunked_analysis", chunked_progress.overall_percent, step_detail))
 
     # Report initial progress
     await progress.report_progress("chunked_analysis", 5)
@@ -888,6 +884,7 @@ async def _load_text_pages_for_analysis(
         response.release_conn()
 
         import json
+
         metadata = json.loads(meta_data.decode("utf-8"))
         total_pages = metadata.get("total_pages", 0)
 
@@ -1341,8 +1338,6 @@ async def process_material_task(
     Raises:
         QueueError: If processing fails
     """
-    from app.services.material_extraction import get_material_extraction_service
-    from app.services.material_ai_data import get_material_ai_storage
 
     settings = get_settings()
     redis_conn = await get_redis_connection(url=settings.redis_url)
@@ -1397,10 +1392,12 @@ async def process_material_task(
                     job_id,
                     stage_error,
                 )
-                errors.append({
-                    "stage": stage,
-                    "error": str(stage_error),
-                })
+                errors.append(
+                    {
+                        "stage": stage,
+                        "error": str(stage_error),
+                    }
+                )
 
                 # Text extraction is critical
                 if stage == "material_text_extraction":
@@ -1557,8 +1554,8 @@ async def _run_material_text_extraction(
     Returns:
         Extraction result data
     """
-    from app.services.material_extraction import get_material_extraction_service
     from app.services.material_ai_data import get_material_ai_storage
+    from app.services.material_extraction import get_material_extraction_service
 
     logger.info(
         "Starting material text extraction for %s (teacher: %s, type: %s)",
@@ -1673,15 +1670,17 @@ async def _run_material_analysis(
     vocabulary = []
 
     for module in result.modules:
-        modules.append({
-            "id": module.module_id,
-            "title": module.title,
-            "pages": list(module.pages),
-            "topics": module.topics,
-            "grammar_points": module.grammar_points,
-            "difficulty": module.difficulty,
-            "vocabulary": [w.model_dump() for w in module.vocabulary] if hasattr(module, 'vocabulary') else [],
-        })
+        modules.append(
+            {
+                "id": module.module_id,
+                "title": module.title,
+                "pages": list(module.pages),
+                "topics": module.topics,
+                "grammar_points": module.grammar_points,
+                "difficulty": module.difficulty,
+                "vocabulary": [w.model_dump() for w in module.vocabulary] if hasattr(module, "vocabulary") else [],
+            }
+        )
 
     if result.vocabulary:
         vocabulary = [w.model_dump() for w in result.vocabulary]
@@ -1697,7 +1696,7 @@ async def _run_material_analysis(
         "processing_time_seconds": result.processing_time_seconds,
     }
 
-    saved = ai_storage.save_analysis_result(
+    ai_storage.save_analysis_result(
         teacher_id=teacher_id,
         material_name=material_name,
         modules=modules,
@@ -1744,8 +1743,8 @@ async def _run_material_audio_generation(
     Returns:
         Audio generation result data
     """
-    from app.services.material_ai_data import get_material_ai_storage
     from app.services.audio_generation import get_audio_generation_service
+    from app.services.material_ai_data import get_material_ai_storage
 
     logger.info(
         "Starting material audio generation for %s (teacher: %s)",
@@ -1877,12 +1876,12 @@ async def create_bundle_task(
 
     from app.services import get_minio_client, get_minio_client_external
     from app.services.standalone_apps import (
-        TEMPLATE_PREFIX,
-        BUNDLE_PREFIX,
         ALLOWED_PLATFORMS,
+        BUNDLE_PREFIX,
         PRESIGNED_URL_EXPIRY_SECONDS,
-        TemplateNotFoundError,
+        TEMPLATE_PREFIX,
         InvalidPlatformError,
+        TemplateNotFoundError,
     )
 
     settings = get_settings()
@@ -1927,17 +1926,13 @@ async def create_bundle_task(
         try:
             client.stat_object(apps_bucket, template_object_name)
         except Exception as exc:
-            raise TemplateNotFoundError(
-                f"Template for platform '{normalized_platform}' not found"
-            ) from exc
+            raise TemplateNotFoundError(f"Template for platform '{normalized_platform}' not found") from exc
 
         # Check if bundle already exists (unless force=True)
         if not force:
             bundle_prefix = f"{BUNDLE_PREFIX}/{publisher_name}/{book_name}/"
             try:
-                existing_bundles = list(
-                    client.list_objects(apps_bucket, prefix=bundle_prefix, recursive=True)
-                )
+                existing_bundles = list(client.list_objects(apps_bucket, prefix=bundle_prefix, recursive=True))
                 for obj in existing_bundles:
                     file_name = obj.object_name.split("/")[-1]
                     if f"({normalized_platform})" in file_name.lower():
@@ -1963,8 +1958,8 @@ async def create_bundle_task(
                             "file_name": file_name,
                             "file_size": obj.size,
                         }
-            except Exception:
-                pass  # No existing bundle, continue to create
+            except Exception as e:
+                logger.warning("Failed to check bundle cache: %s", e)
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # 1. Download template (5-15%)
@@ -2006,9 +2001,7 @@ async def create_bundle_task(
             # 5. Download book assets (25-70%)
             await update_progress(25, "Downloading book assets...")
             book_prefix = f"{publisher_name}/books/{book_name}/"
-            objects = list(client.list_objects(
-                publishers_bucket, prefix=book_prefix, recursive=True
-            ))
+            objects = list(client.list_objects(publishers_bucket, prefix=book_prefix, recursive=True))
 
             asset_count = 0
             total_objects = len([o for o in objects if not o.is_dir])
@@ -2017,7 +2010,7 @@ async def create_bundle_task(
                 if obj.is_dir:
                     continue
 
-                relative_path = obj.object_name[len(book_prefix):]
+                relative_path = obj.object_name[len(book_prefix) :]
                 if not relative_path:
                     continue
 

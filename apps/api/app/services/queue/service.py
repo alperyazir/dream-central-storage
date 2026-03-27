@@ -2,27 +2,24 @@
 
 import logging
 import uuid
-from datetime import datetime
 from typing import Optional
 
 from arq import ArqRedis, create_pool
 from arq.connections import RedisSettings
-from arq.jobs import Job, JobStatus
+from arq.jobs import Job
 
 from app.core.config import get_settings
 from app.services.queue.models import (
+    PROCESSING_STAGES,
     JobPriority,
     ProcessingJob,
     ProcessingJobType,
     ProcessingStatus,
-    QueueStats,
-    PROCESSING_STAGES,
-    JobNotFoundError,
-    QueueConnectionError,
     QueueError,
+    QueueStats,
 )
-from app.services.queue.repository import JobRepository
 from app.services.queue.redis import RedisConnection, get_redis_connection
+from app.services.queue.repository import JobRepository
 
 logger = logging.getLogger(__name__)
 
@@ -59,10 +56,7 @@ class ProgressReporter:
         stage_index = self._stage_order.index(stage)
 
         # Sum weights of completed stages
-        stages_before = sum(
-            PROCESSING_STAGES[s]
-            for s in self._stage_order[:stage_index]
-        )
+        stages_before = sum(PROCESSING_STAGES[s] for s in self._stage_order[:stage_index])
 
         # Add progress within current stage
         stage_contribution = stage_progress * stage_weight // 100

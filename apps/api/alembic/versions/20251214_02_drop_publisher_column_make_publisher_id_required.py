@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision = "20251214_02"
 down_revision = "20251214_01"
@@ -18,9 +18,7 @@ def upgrade() -> None:
     connection = op.get_bind()
 
     # Check for books with NULL publisher_id
-    result = connection.execute(
-        sa.text("SELECT COUNT(*) FROM books WHERE publisher_id IS NULL")
-    )
+    result = connection.execute(sa.text("SELECT COUNT(*) FROM books WHERE publisher_id IS NULL"))
     null_count = result.scalar()
 
     if null_count > 0:
@@ -33,15 +31,12 @@ def upgrade() -> None:
             """)
         )
         # Get the default publisher's id
-        result = connection.execute(
-            sa.text("SELECT id FROM publishers WHERE name = '_unknown'")
-        )
+        result = connection.execute(sa.text("SELECT id FROM publishers WHERE name = '_unknown'"))
         default_publisher_id = result.scalar()
 
         # Update orphan books
         connection.execute(
-            sa.text("UPDATE books SET publisher_id = :pid WHERE publisher_id IS NULL"),
-            {"pid": default_publisher_id}
+            sa.text("UPDATE books SET publisher_id = :pid WHERE publisher_id IS NULL"), {"pid": default_publisher_id}
         )
 
     # Step 2: Make publisher_id NOT NULL
@@ -58,10 +53,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     # Step 1: Re-add the publisher string column
-    op.add_column(
-        "books",
-        sa.Column("publisher", sa.String(length=255), nullable=True)
-    )
+    op.add_column("books", sa.Column("publisher", sa.String(length=255), nullable=True))
 
     # Step 2: Populate publisher from the relationship
     connection = op.get_bind()

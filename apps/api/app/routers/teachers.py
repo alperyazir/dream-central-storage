@@ -21,7 +21,7 @@ from app.db import get_db
 from app.repositories.material import MaterialRepository
 from app.repositories.teacher import TeacherRepository
 from app.repositories.user import UserRepository
-from app.services import get_minio_client, move_prefix_to_trash, RelocationError
+from app.services import RelocationError, get_minio_client, move_prefix_to_trash
 
 router = APIRouter(prefix="/teachers", tags=["Teachers"])
 _bearer_scheme = HTTPBearer(auto_error=True)
@@ -378,10 +378,7 @@ async def download_teacher_material(
     if range_header:
         is_range_request = True
         start, end = _parse_range_header(range_header, file_size)
-        logger.debug(
-            "Range request for '%s': bytes=%d-%d (total=%d)",
-            object_key, start, end, file_size
-        )
+        logger.debug("Range request for '%s': bytes=%d-%d (total=%d)", object_key, start, end, file_size)
 
     content_length = end - start + 1
 
@@ -413,10 +410,7 @@ async def download_teacher_material(
 
     if is_range_request:
         headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
-        logger.info(
-            "Streaming range %d-%d/%d for '%s'",
-            start, end, file_size, object_key
-        )
+        logger.info("Streaming range %d-%d/%d for '%s'", start, end, file_size, object_key)
         return StreamingResponse(
             iterator(),
             status_code=status.HTTP_206_PARTIAL_CONTENT,

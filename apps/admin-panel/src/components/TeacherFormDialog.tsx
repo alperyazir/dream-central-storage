@@ -1,110 +1,143 @@
-import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronUp, Loader2, RotateCcw } from 'lucide-react'
+import { useEffect, useState } from 'react';
+import { ChevronDown, ChevronUp, Loader2, RotateCcw } from 'lucide-react';
 
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from 'components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from 'components/ui/select'
-import { Button } from 'components/ui/button'
-import { Input } from 'components/ui/input'
-import { Label } from 'components/ui/label'
-import { Switch } from 'components/ui/switch'
-import { Separator } from 'components/ui/separator'
-import { Alert, AlertDescription } from 'components/ui/alert'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from 'components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from 'components/ui/select';
+import { Button } from 'components/ui/button';
+import { Input } from 'components/ui/input';
+import { Label } from 'components/ui/label';
+import { Switch } from 'components/ui/switch';
+import { Separator } from 'components/ui/separator';
+import { Alert, AlertDescription } from 'components/ui/alert';
 import {
   createTeacher,
   updateTeacher,
   type Teacher,
   type TeacherListItem,
-} from 'lib/teacherManagement'
+} from 'lib/teacherManagement';
 
 interface TeacherFormDialogProps {
-  open: boolean
-  onClose: () => void
-  onSuccess: () => void
-  teacher?: TeacherListItem | Teacher | null
-  token: string | null
-  tokenType: string | null
+  open: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  teacher?: TeacherListItem | Teacher | null;
+  token: string | null;
+  tokenType: string | null;
 }
 
-export function TeacherFormDialog({ open, onClose, onSuccess, teacher, token, tokenType }: TeacherFormDialogProps) {
-  const isEdit = !!teacher
+export function TeacherFormDialog({
+  open,
+  onClose,
+  onSuccess,
+  teacher,
+  token,
+  tokenType,
+}: TeacherFormDialogProps) {
+  const isEdit = !!teacher;
 
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [showAISettings, setShowAISettings] = useState(false)
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [showAISettings, setShowAISettings] = useState(false);
 
-  const [teacherId, setTeacherId] = useState('')
-  const [displayName, setDisplayName] = useState('')
-  const [email, setEmail] = useState('')
-  const [status, setStatus] = useState('active')
+  const [teacherId, setTeacherId] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState('active');
 
   // AI settings
-  const [aiAutoProcessEnabled, setAiAutoProcessEnabled] = useState<boolean | null>(null)
-  const [aiProcessingPriority, setAiProcessingPriority] = useState('')
-  const [aiAudioLanguages, setAiAudioLanguages] = useState('')
+  const [aiAutoProcessEnabled, setAiAutoProcessEnabled] = useState<
+    boolean | null
+  >(null);
+  const [aiProcessingPriority, setAiProcessingPriority] = useState('');
+  const [aiAudioLanguages, setAiAudioLanguages] = useState('');
 
   useEffect(() => {
-    if (!open) return
+    if (!open) return;
     if (teacher) {
-      setTeacherId(teacher.teacher_id)
-      setDisplayName(teacher.display_name || '')
-      setEmail(teacher.email || '')
-      setStatus(teacher.status)
-      setAiAutoProcessEnabled(teacher.ai_auto_process_enabled)
-      setAiProcessingPriority(teacher.ai_processing_priority || '')
-      setAiAudioLanguages(teacher.ai_audio_languages || '')
+      setTeacherId(teacher.teacher_id);
+      setDisplayName(teacher.display_name || '');
+      setEmail(teacher.email || '');
+      setStatus(teacher.status);
+      setAiAutoProcessEnabled(teacher.ai_auto_process_enabled);
+      setAiProcessingPriority(teacher.ai_processing_priority || '');
+      setAiAudioLanguages(teacher.ai_audio_languages || '');
       setShowAISettings(
         teacher.ai_auto_process_enabled !== null ||
-        !!teacher.ai_processing_priority ||
-        !!teacher.ai_audio_languages
-      )
+          !!teacher.ai_processing_priority ||
+          !!teacher.ai_audio_languages
+      );
     } else {
-      setTeacherId('')
-      setDisplayName('')
-      setEmail('')
-      setStatus('active')
-      setAiAutoProcessEnabled(null)
-      setAiProcessingPriority('')
-      setAiAudioLanguages('')
-      setShowAISettings(false)
+      setTeacherId('');
+      setDisplayName('');
+      setEmail('');
+      setStatus('active');
+      setAiAutoProcessEnabled(null);
+      setAiProcessingPriority('');
+      setAiAudioLanguages('');
+      setShowAISettings(false);
     }
-    setError('')
-  }, [open, teacher])
+    setError('');
+  }, [open, teacher]);
 
   const handleSubmit = async () => {
-    if (!teacherId.trim()) { setError('Teacher ID is required'); return }
-    if (!token || !tokenType) return
+    if (!teacherId.trim()) {
+      setError('Teacher ID is required');
+      return;
+    }
+    if (!token || !tokenType) return;
 
-    setLoading(true)
-    setError('')
+    setLoading(true);
+    setError('');
 
     try {
       if (isEdit && teacher) {
-        await updateTeacher(teacher.id, {
-          display_name: displayName.trim() || undefined,
-          email: email.trim() || undefined,
-          status,
-          ai_auto_process_enabled: aiAutoProcessEnabled,
-          ai_processing_priority: aiProcessingPriority || null,
-          ai_audio_languages: aiAudioLanguages.trim() || null,
-        }, token, tokenType)
+        await updateTeacher(
+          teacher.id,
+          {
+            display_name: displayName.trim() || undefined,
+            email: email.trim() || undefined,
+            status,
+            ai_auto_process_enabled: aiAutoProcessEnabled,
+            ai_processing_priority: aiProcessingPriority || null,
+            ai_audio_languages: aiAudioLanguages.trim() || null,
+          },
+          token,
+          tokenType
+        );
       } else {
-        await createTeacher({
-          teacher_id: teacherId.trim(),
-          display_name: displayName.trim() || undefined,
-          email: email.trim() || undefined,
-          ai_auto_process_enabled: aiAutoProcessEnabled,
-          ai_processing_priority: aiProcessingPriority || undefined,
-          ai_audio_languages: aiAudioLanguages.trim() || undefined,
-        }, token, tokenType)
+        await createTeacher(
+          {
+            teacher_id: teacherId.trim(),
+            display_name: displayName.trim() || undefined,
+            email: email.trim() || undefined,
+            ai_auto_process_enabled: aiAutoProcessEnabled,
+            ai_processing_priority: aiProcessingPriority || undefined,
+            ai_audio_languages: aiAudioLanguages.trim() || undefined,
+          },
+          token,
+          tokenType
+        );
       }
-      onSuccess()
-      onClose()
+      onSuccess();
+      onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save teacher')
+      setError(err instanceof Error ? err.message : 'Failed to save teacher');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -124,22 +157,37 @@ export function TeacherFormDialog({ open, onClose, onSuccess, teacher, token, to
               placeholder={isEdit ? '' : 'e.g., teacher-001'}
             />
             <p className="text-xs text-muted-foreground">
-              {isEdit ? 'Teacher ID cannot be changed' : 'Unique identifier for this teacher'}
+              {isEdit
+                ? 'Teacher ID cannot be changed'
+                : 'Unique identifier for this teacher'}
             </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="teacher-name">Display Name</Label>
-            <Input id="teacher-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="e.g., John Smith" />
+            <Input
+              id="teacher-name"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="e.g., John Smith"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="teacher-email">Email</Label>
-            <Input id="teacher-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="teacher@school.com" />
+            <Input
+              id="teacher-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="teacher@school.com"
+            />
           </div>
           {isEdit && (
             <div className="space-y-2">
               <Label>Status</Label>
               <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="inactive">Inactive</SelectItem>
@@ -157,7 +205,11 @@ export function TeacherFormDialog({ open, onClose, onSuccess, teacher, token, to
             className="flex w-full items-center justify-between text-sm font-medium hover:text-primary transition-colors"
           >
             AI Processing Settings
-            {showAISettings ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {showAISettings ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
           </button>
 
           {showAISettings && (
@@ -166,12 +218,21 @@ export function TeacherFormDialog({ open, onClose, onSuccess, teacher, token, to
                 <div className="space-y-0.5">
                   <Label>Auto-process</Label>
                   <p className="text-xs text-muted-foreground">
-                    {aiAutoProcessEnabled === null ? '(using default)' : aiAutoProcessEnabled ? 'Enabled' : 'Disabled'}
+                    {aiAutoProcessEnabled === null
+                      ? '(using default)'
+                      : aiAutoProcessEnabled
+                        ? 'Enabled'
+                        : 'Disabled'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   {aiAutoProcessEnabled !== null && (
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setAiAutoProcessEnabled(null)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setAiAutoProcessEnabled(null)}
+                    >
                       <RotateCcw className="h-3 w-3" />
                     </Button>
                   )}
@@ -183,8 +244,15 @@ export function TeacherFormDialog({ open, onClose, onSuccess, teacher, token, to
               </div>
               <div className="space-y-2">
                 <Label>Processing Priority</Label>
-                <Select value={aiProcessingPriority || 'default'} onValueChange={(v) => setAiProcessingPriority(v === 'default' ? '' : v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={aiProcessingPriority || 'default'}
+                  onValueChange={(v) =>
+                    setAiProcessingPriority(v === 'default' ? '' : v)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="default">Use default</SelectItem>
                     <SelectItem value="high">High</SelectItem>
@@ -200,7 +268,9 @@ export function TeacherFormDialog({ open, onClose, onSuccess, teacher, token, to
                   onChange={(e) => setAiAudioLanguages(e.target.value)}
                   placeholder="e.g., en,tr"
                 />
-                <p className="text-xs text-muted-foreground">Comma-separated language codes</p>
+                <p className="text-xs text-muted-foreground">
+                  Comma-separated language codes
+                </p>
               </div>
             </div>
           )}
@@ -213,15 +283,20 @@ export function TeacherFormDialog({ open, onClose, onSuccess, teacher, token, to
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={loading || !teacherId.trim()}>
+          <Button variant="outline" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={loading || !teacherId.trim()}
+          >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             {isEdit ? 'Save Changes' : 'Create Teacher'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
-export default TeacherFormDialog
+export default TeacherFormDialog;

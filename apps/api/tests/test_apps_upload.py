@@ -161,7 +161,11 @@ def test_delete_app_requires_authentication() -> None:
 def test_delete_app_validates_platform(monkeypatch) -> None:
     from app.routers import apps as apps_router
 
-    monkeypatch.setattr(apps_router, "move_prefix_to_trash", lambda **kwargs: RelocationReport("apps", "trash", "macos/1.0/", "apps/macos/1.0/", 0))
+    monkeypatch.setattr(
+        apps_router,
+        "move_prefix_to_trash",
+        lambda **kwargs: RelocationReport("apps", "trash", "macos/1.0/", "apps/macos/1.0/", 0),
+    )
 
     client = TestClient(app)
     response = client.request(
@@ -176,7 +180,11 @@ def test_delete_app_validates_platform(monkeypatch) -> None:
 def test_delete_app_validates_path_prefix(monkeypatch) -> None:
     from app.routers import apps as apps_router
 
-    monkeypatch.setattr(apps_router, "move_prefix_to_trash", lambda **kwargs: RelocationReport("apps", "trash", "macos/1.0/", "apps/macos/1.0/", 0))
+    monkeypatch.setattr(
+        apps_router,
+        "move_prefix_to_trash",
+        lambda **kwargs: RelocationReport("apps", "trash", "macos/1.0/", "apps/macos/1.0/", 0),
+    )
 
     client = TestClient(app)
     response = client.request(
@@ -191,7 +199,11 @@ def test_delete_app_validates_path_prefix(monkeypatch) -> None:
 def test_delete_app_validates_missing_version(monkeypatch) -> None:
     from app.routers import apps as apps_router
 
-    monkeypatch.setattr(apps_router, "move_prefix_to_trash", lambda **kwargs: RelocationReport("apps", "trash", "macos/1.0/", "apps/macos/1.0/", 0))
+    monkeypatch.setattr(
+        apps_router,
+        "move_prefix_to_trash",
+        lambda **kwargs: RelocationReport("apps", "trash", "macos/1.0/", "apps/macos/1.0/", 0),
+    )
 
     client = TestClient(app)
     response = client.request(

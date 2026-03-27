@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import io
 import json
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -62,6 +61,7 @@ CONTENT_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 # Auth tests
 # ---------------------------------------------------------------------------
 
+
 def test_create_ai_content_requires_auth():
     client = TestClient(app, raise_server_exceptions=False)
     resp = client.post("/books/42/ai-content/", json={"manifest": SAMPLE_MANIFEST, "content": SAMPLE_CONTENT})
@@ -90,6 +90,7 @@ def test_delete_ai_content_requires_auth():
 # 404 — book not found
 # ---------------------------------------------------------------------------
 
+
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
 def test_create_ai_content_book_not_found(mock_repo, mock_auth, auth_headers):
@@ -108,6 +109,7 @@ def test_create_ai_content_book_not_found(mock_repo, mock_auth, auth_headers):
 # ---------------------------------------------------------------------------
 # Create AI content
 # ---------------------------------------------------------------------------
+
 
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
@@ -140,6 +142,7 @@ def test_create_ai_content_success(mock_repo, mock_auth, mock_get_client, mock_b
 # ---------------------------------------------------------------------------
 # List AI content
 # ---------------------------------------------------------------------------
+
 
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
@@ -188,6 +191,7 @@ def test_list_ai_content_with_entries(mock_repo, mock_auth, mock_get_client, moc
 # ---------------------------------------------------------------------------
 # Get AI content
 # ---------------------------------------------------------------------------
+
 
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
@@ -245,6 +249,7 @@ def test_get_ai_content_not_found(mock_repo, mock_auth, mock_get_client, mock_bo
 # Delete AI content
 # ---------------------------------------------------------------------------
 
+
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
@@ -286,6 +291,7 @@ def test_delete_ai_content_not_found(mock_repo, mock_auth, mock_get_client, mock
 # ---------------------------------------------------------------------------
 # Upload single audio
 # ---------------------------------------------------------------------------
+
 
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
@@ -363,6 +369,7 @@ def test_upload_audio_content_not_found(mock_repo, mock_auth, mock_get_client, m
 # Batch audio upload
 # ---------------------------------------------------------------------------
 
+
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
@@ -417,6 +424,7 @@ def test_batch_audio_upload_mixed(mock_repo, mock_auth, mock_get_client, mock_bo
 # ---------------------------------------------------------------------------
 # Stream audio
 # ---------------------------------------------------------------------------
+
 
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")

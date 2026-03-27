@@ -22,25 +22,37 @@ class BookRepository(BaseRepository[Book]):
         session.commit()
         return created
 
-    def list_all_books(self, session: Session) -> list[Book]:
+    def list_all_books(
+        self, session: Session, *, skip: int = 0, limit: int = 50
+    ) -> list[Book]:
         """List all books that are not archived (not in trash)."""
-        statement = select(Book).where(Book.status != BookStatusEnum.ARCHIVED)
+        statement = (
+            select(Book)
+            .where(Book.status != BookStatusEnum.ARCHIVED)
+            .offset(skip)
+            .limit(limit)
+        )
         return list(session.scalars(statement).all())
 
-    def list_by_publisher_id(self, session: Session, publisher_id: int) -> list[Book]:
+    def list_by_publisher_id(
+        self, session: Session, publisher_id: int, *, skip: int = 0, limit: int = 50
+    ) -> list[Book]:
         """List all non-archived books for a specific publisher."""
-        statement = select(Book).where(
-            Book.publisher_id == publisher_id,
-            Book.status != BookStatusEnum.ARCHIVED,
+        statement = (
+            select(Book)
+            .where(
+                Book.publisher_id == publisher_id,
+                Book.status != BookStatusEnum.ARCHIVED,
+            )
+            .offset(skip)
+            .limit(limit)
         )
         return list(session.scalars(statement).all())
 
     def get_by_id(self, session: Session, identifier: int) -> Book | None:
         return self.get(session, identifier)
 
-    def get_by_publisher_id_and_name(
-        self, session: Session, *, publisher_id: int, book_name: str
-    ) -> Book | None:
+    def get_by_publisher_id_and_name(self, session: Session, *, publisher_id: int, book_name: str) -> Book | None:
         """Find a book by publisher ID and book name."""
         statement = select(Book).where(
             Book.publisher_id == publisher_id,

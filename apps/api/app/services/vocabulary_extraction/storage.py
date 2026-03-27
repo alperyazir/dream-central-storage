@@ -87,9 +87,7 @@ class VocabularyStorage:
         book_name: str,
     ) -> str:
         """Build path for vocabulary extraction metadata file."""
-        return self._build_ai_data_path(
-            publisher_id, book_id, book_name, "vocabulary_metadata.json"
-        )
+        return self._build_ai_data_path(publisher_id, book_id, book_name, "vocabulary_metadata.json")
 
     def load_vocabulary(
         self,
@@ -276,14 +274,10 @@ class VocabularyStorage:
         client = get_minio_client(self.settings)
         bucket = self.settings.minio_publishers_bucket
 
-        path = self._build_module_path(
-            publisher_id, book_id, book_name, module_result.module_id
-        )
+        path = self._build_module_path(publisher_id, book_id, book_name, module_result.module_id)
 
         # Load existing module
-        existing = self.get_module(
-            publisher_id, book_id, book_name, module_result.module_id
-        )
+        existing = self.get_module(publisher_id, book_id, book_name, module_result.module_id)
         if existing is None:
             logger.warning(
                 "Module %d not found for vocabulary update: %s",

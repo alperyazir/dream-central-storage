@@ -7,7 +7,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 # =============================================================================
 # Teacher Schemas
 # =============================================================================
@@ -159,12 +158,6 @@ class StorageStatsResponse(BaseModel):
 
     total_size: int = Field(..., description="Total storage size in bytes")
     total_count: int = Field(..., description="Total number of files")
-    by_type: dict[str, FileTypeStats] = Field(
-        default_factory=dict, description="Breakdown by file type"
-    )
-    ai_processable_count: int = Field(
-        default=0, description="Number of files that can be AI processed"
-    )
-    ai_processed_count: int = Field(
-        default=0, description="Number of files that have been AI processed"
-    )
+    by_type: dict[str, FileTypeStats] = Field(default_factory=dict, description="Breakdown by file type")
+    ai_processable_count: int = Field(default=0, description="Number of files that can be AI processed")
+    ai_processed_count: int = Field(default=0, description="Number of files that have been AI processed")

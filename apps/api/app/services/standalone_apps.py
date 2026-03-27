@@ -5,7 +5,6 @@ from __future__ import annotations
 import io
 import logging
 import os
-import shutil
 import tempfile
 import zipfile
 from dataclasses import dataclass
@@ -13,9 +12,6 @@ from datetime import datetime, timedelta, timezone
 
 from minio import Minio
 from minio.error import S3Error
-
-from app.core.config import Settings
-
 
 logger = logging.getLogger(__name__)
 
@@ -77,9 +73,7 @@ def _validate_platform(platform: str) -> str:
     """Validate and normalize platform name."""
     normalized = platform.lower()
     if normalized not in ALLOWED_PLATFORMS:
-        raise InvalidPlatformError(
-            f"Invalid platform '{platform}'. Allowed: {', '.join(sorted(ALLOWED_PLATFORMS))}"
-        )
+        raise InvalidPlatformError(f"Invalid platform '{platform}'. Allowed: {', '.join(sorted(ALLOWED_PLATFORMS))}")
     return normalized
 
 
@@ -213,9 +207,7 @@ def get_template_download_url(
         return url
     except S3Error as exc:
         if exc.code == "NoSuchKey":
-            raise TemplateNotFoundError(
-                f"Template for platform '{normalized_platform}' not found"
-            ) from exc
+            raise TemplateNotFoundError(f"Template for platform '{normalized_platform}' not found") from exc
         raise
 
 
@@ -246,9 +238,7 @@ def delete_template(
         client.stat_object(bucket, object_name)
     except S3Error as exc:
         if exc.code == "NoSuchKey":
-            raise TemplateNotFoundError(
-                f"Template for platform '{normalized_platform}' not found"
-            ) from exc
+            raise TemplateNotFoundError(f"Template for platform '{normalized_platform}' not found") from exc
         raise
 
     client.remove_object(bucket, object_name)
@@ -305,18 +295,14 @@ def create_bundle(
         client.stat_object(apps_bucket, template_object_name)
     except S3Error as exc:
         if exc.code == "NoSuchKey":
-            raise TemplateNotFoundError(
-                f"Template for platform '{normalized_platform}' not found"
-            ) from exc
+            raise TemplateNotFoundError(f"Template for platform '{normalized_platform}' not found") from exc
         raise
 
     # Check if bundle already exists (unless force=True)
     if not force:
         bundle_prefix = f"{BUNDLE_PREFIX}/{publisher_name}/{book_name}/"
         try:
-            existing_bundles = list(
-                client.list_objects(apps_bucket, prefix=bundle_prefix, recursive=True)
-            )
+            existing_bundles = list(client.list_objects(apps_bucket, prefix=bundle_prefix, recursive=True))
             # Find bundle matching this platform
             for obj in existing_bundles:
                 file_name = obj.object_name.split("/")[-1]
@@ -330,9 +316,7 @@ def create_bundle(
                         obj.object_name,
                     )
                     # Return existing bundle
-                    expires_at = datetime.now(timezone.utc) + timedelta(
-                        seconds=PRESIGNED_URL_EXPIRY_SECONDS
-                    )
+                    expires_at = datetime.now(timezone.utc) + timedelta(seconds=PRESIGNED_URL_EXPIRY_SECONDS)
                     download_url = external_client.presigned_get_object(
                         bucket_name=apps_bucket,
                         object_name=obj.object_name,
@@ -381,9 +365,7 @@ def create_bundle(
 
             # 5. Download book assets from publishers bucket
             book_prefix = f"{publisher_name}/books/{book_name}/"
-            objects = client.list_objects(
-                publishers_bucket, prefix=book_prefix, recursive=True
-            )
+            objects = client.list_objects(publishers_bucket, prefix=book_prefix, recursive=True)
 
             asset_count = 0
             for obj in objects:
@@ -402,9 +384,7 @@ def create_bundle(
                 client.fget_object(publishers_bucket, obj.object_name, dest_path)
                 asset_count += 1
 
-            logger.info(
-                "Copied %d assets for book %s/%s", asset_count, publisher_name, book_name
-            )
+            logger.info("Copied %d assets for book %s/%s", asset_count, publisher_name, book_name)
 
             # 6. Create bundle zip
             # Use format: "(platform) FlowBook v1.4.11 - BookName" or fallback
@@ -433,9 +413,7 @@ def create_bundle(
             )
 
             # 7. Generate presigned URL
-            expires_at = datetime.now(timezone.utc) + timedelta(
-                seconds=PRESIGNED_URL_EXPIRY_SECONDS
-            )
+            expires_at = datetime.now(timezone.utc) + timedelta(seconds=PRESIGNED_URL_EXPIRY_SECONDS)
             download_url = external_client.presigned_get_object(
                 bucket_name=apps_bucket,
                 object_name=bundle_object_name,

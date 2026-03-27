@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.services.tts.azure import AzureTTSProvider
 from app.services.tts.base import (
     VOICE_MAPPING,
     TTSAuthError,
@@ -19,10 +20,8 @@ from app.services.tts.base import (
     TTSVoice,
     get_default_voice,
 )
-from app.services.tts.azure import AzureTTSProvider
 from app.services.tts.edge import EdgeTTSProvider
 from app.services.tts.service import TTSService
-
 
 # =============================================================================
 # Fixtures
@@ -182,6 +181,7 @@ class TestEdgeTTSProvider:
     @pytest.mark.asyncio
     async def test_synthesize_success(self, edge_provider, mock_audio_data):
         """Test successful synthesis by mocking the provider's synthesize method."""
+
         # We mock at the provider level since edge_tts may not be installed
         async def mock_synthesize(request):
             return TTSResponse(
@@ -202,6 +202,7 @@ class TestEdgeTTSProvider:
     @pytest.mark.asyncio
     async def test_synthesize_error_handling(self, edge_provider):
         """Test error handling in synthesis."""
+
         async def mock_synthesize_error(request):
             raise TTSProviderError("Synthesis failed", provider="edge")
 
@@ -213,6 +214,7 @@ class TestEdgeTTSProvider:
     @pytest.mark.asyncio
     async def test_batch_synthesize(self, edge_provider, mock_audio_data):
         """Test batch synthesis."""
+
         async def mock_synthesize(request):
             return TTSResponse(
                 audio_data=mock_audio_data,
@@ -366,9 +368,7 @@ class TestTTSService:
         """Test fallback when primary provider fails."""
         mock_primary = AsyncMock(spec=EdgeTTSProvider)
         mock_primary.provider_name = "edge"
-        mock_primary.synthesize.side_effect = TTSProviderError(
-            "Connection failed", provider="edge"
-        )
+        mock_primary.synthesize.side_effect = TTSProviderError("Connection failed", provider="edge")
 
         mock_fallback = AsyncMock(spec=AzureTTSProvider)
         mock_fallback.provider_name = "azure"
@@ -394,15 +394,11 @@ class TestTTSService:
         """Test error when both providers fail."""
         mock_primary = AsyncMock(spec=EdgeTTSProvider)
         mock_primary.provider_name = "edge"
-        mock_primary.synthesize.side_effect = TTSProviderError(
-            "Primary failed", provider="edge"
-        )
+        mock_primary.synthesize.side_effect = TTSProviderError("Primary failed", provider="edge")
 
         mock_fallback = AsyncMock(spec=AzureTTSProvider)
         mock_fallback.provider_name = "azure"
-        mock_fallback.synthesize.side_effect = TTSProviderError(
-            "Fallback failed", provider="azure"
-        )
+        mock_fallback.synthesize.side_effect = TTSProviderError("Fallback failed", provider="azure")
 
         service = TTSService(
             settings=mock_settings,
@@ -418,9 +414,7 @@ class TestTTSService:
         """Test disabling fallback."""
         mock_primary = AsyncMock(spec=EdgeTTSProvider)
         mock_primary.provider_name = "edge"
-        mock_primary.synthesize.side_effect = TTSProviderError(
-            "Primary failed", provider="edge"
-        )
+        mock_primary.synthesize.side_effect = TTSProviderError("Primary failed", provider="edge")
 
         service = TTSService(
             settings=mock_settings,
@@ -445,9 +439,7 @@ class TestTTSService:
             mock_get.return_value = mock_provider
 
             service = TTSService(settings=mock_settings)
-            response = await service.synthesize(
-                TTSRequest(text="Hello"), force_provider="azure"
-            )
+            response = await service.synthesize(TTSRequest(text="Hello"), force_provider="azure")
 
             assert response.provider == "azure"
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from io import BytesIO
 from typing import TYPE_CHECKING
 
 import fitz  # pymupdf

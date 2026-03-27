@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,7 +13,6 @@ from app.services.pdf.models import (
     ExtractionMethod,
     OCRError,
     PageText,
-    PDFAnalysisResult,
     PDFCorruptedError,
     PDFExtractionError,
     PDFExtractionResult,
@@ -25,7 +23,6 @@ from app.services.pdf.models import (
 from app.services.pdf.ocr import PDFOCRService
 from app.services.pdf.service import PDFExtractionService
 from app.services.pdf.storage import AIDataStorage
-
 
 # =============================================================================
 # Fixtures
@@ -646,7 +643,9 @@ class TestIntegration:
         page1.insert_text((50, 80), "We need enough words and characters to pass the detection thresholds properly.")
 
         page2 = doc.new_page()
-        page2.insert_text((50, 50), "This is page two with additional text content for the second page of our test PDF.")
+        page2.insert_text(
+            (50, 50), "This is page two with additional text content for the second page of our test PDF."
+        )
         page2.insert_text((50, 80), "The detection requires at least fifty characters and ten words per page minimum.")
 
         pdf_bytes = doc.tobytes()

@@ -92,9 +92,7 @@ def get_webhook_subscription(
 
     subscription = _subscription_repository.get_by_id(db, subscription_id)
     if subscription is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Webhook subscription not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Webhook subscription not found")
 
     return WebhookSubscriptionRead.model_validate(subscription)
 
@@ -112,9 +110,7 @@ def update_webhook_subscription(
 
     subscription = _subscription_repository.get_by_id(db, subscription_id)
     if subscription is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Webhook subscription not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Webhook subscription not found")
 
     update_data = payload.model_dump(exclude_unset=True)
     if not update_data:
@@ -136,9 +132,7 @@ def delete_webhook_subscription(
 
     subscription = _subscription_repository.get_by_id(db, subscription_id)
     if subscription is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Webhook subscription not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Webhook subscription not found")
 
     _subscription_repository.delete(db, subscription)
 
@@ -156,9 +150,7 @@ def list_webhook_delivery_logs(
     # Verify subscription exists
     subscription = _subscription_repository.get_by_id(db, subscription_id)
     if subscription is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Webhook subscription not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Webhook subscription not found")
 
     logs = _delivery_log_repository.list_by_subscription(db, subscription_id)
     return [WebhookDeliveryLogRead.model_validate(log) for log in logs]

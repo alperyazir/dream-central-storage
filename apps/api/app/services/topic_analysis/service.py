@@ -80,7 +80,7 @@ class TopicAnalysisService:
         """
         # Try to extract JSON from response
         # LLM might include markdown code blocks or extra text
-        json_match = re.search(r'\{[\s\S]*\}', response)
+        json_match = re.search(r"\{[\s\S]*\}", response)
         if not json_match:
             raise InvalidLLMResponseError(
                 book_id=book_id,
@@ -100,9 +100,7 @@ class TopicAnalysisService:
                 parse_error=str(e),
             ) from e
 
-    def _extract_topic_result(
-        self, parsed: dict[str, Any], max_topics: int, max_grammar_points: int
-    ) -> TopicResult:
+    def _extract_topic_result(self, parsed: dict[str, Any], max_topics: int, max_grammar_points: int) -> TopicResult:
         """
         Extract TopicResult from parsed JSON response.
 
@@ -206,7 +204,9 @@ class TopicAnalysisService:
                 temperature=temperature,
                 max_tokens=1024,
             )
-            provider_name = self.llm_service.primary_provider.provider_name if self.llm_service.primary_provider else "unknown"
+            provider_name = (
+                self.llm_service.primary_provider.provider_name if self.llm_service.primary_provider else "unknown"
+            )
 
             # Parse response
             parsed = self._parse_json_response(response, module_id, book_id)

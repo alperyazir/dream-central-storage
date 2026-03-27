@@ -33,7 +33,11 @@ export const loadPersistedAuth = (): PersistedAuthSession | null => {
     }
 
     const parsed = JSON.parse(raw) as PersistedAuthSession | null;
-    if (!parsed || typeof parsed.token !== 'string' || typeof parsed.tokenType !== 'string') {
+    if (
+      !parsed ||
+      typeof parsed.token !== 'string' ||
+      typeof parsed.tokenType !== 'string'
+    ) {
       return null;
     }
 

@@ -9,8 +9,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models.publisher import Publisher
 from app.models.book import Book, BookStatusEnum
+from app.models.publisher import Publisher
 
 
 @pytest.fixture
@@ -250,7 +250,11 @@ def test_list_publishers_pagination_called(
     assert response.status_code == 200
     mock_repo.list_paginated.assert_called_once()
     call_args = mock_repo.list_paginated.call_args
-    assert call_args.kwargs.get("skip") == 10 or call_args[1].get("skip") == 10 or (len(call_args[0]) > 1 and call_args[0][1] == 10)
+    assert (
+        call_args.kwargs.get("skip") == 10
+        or call_args[1].get("skip") == 10
+        or (len(call_args[0]) > 1 and call_args[0][1] == 10)
+    )
 
 
 # =============================================================================
@@ -654,9 +658,7 @@ def test_create_publisher_triggers_webhook(
 
     assert response.status_code == 201
     # Verify webhook was scheduled (called via background_tasks)
-    mock_trigger_webhook.assert_called_once_with(
-        mock_publisher.id, WebhookEventType.PUBLISHER_CREATED
-    )
+    mock_trigger_webhook.assert_called_once_with(mock_publisher.id, WebhookEventType.PUBLISHER_CREATED)
 
 
 @patch("app.routers.publishers._trigger_publisher_webhook")
@@ -699,9 +701,7 @@ def test_update_publisher_triggers_webhook(
     )
 
     assert response.status_code == 200
-    mock_trigger_webhook.assert_called_once_with(
-        updated_publisher.id, WebhookEventType.PUBLISHER_UPDATED
-    )
+    mock_trigger_webhook.assert_called_once_with(updated_publisher.id, WebhookEventType.PUBLISHER_UPDATED)
 
 
 @patch("app.routers.publishers._trigger_publisher_webhook")
@@ -740,9 +740,7 @@ def test_delete_publisher_triggers_webhook(
     response = client.delete("/publishers/1", headers=auth_headers)
 
     assert response.status_code == 200
-    mock_trigger_webhook.assert_called_once_with(
-        deleted_publisher.id, WebhookEventType.PUBLISHER_DELETED
-    )
+    mock_trigger_webhook.assert_called_once_with(deleted_publisher.id, WebhookEventType.PUBLISHER_DELETED)
 
 
 # =============================================================================

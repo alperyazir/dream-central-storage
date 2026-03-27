@@ -27,9 +27,7 @@ class SegmentationMethod(str, Enum):
 class SegmentationError(Exception):
     """Base exception for segmentation errors."""
 
-    def __init__(
-        self, message: str, book_id: str, details: dict[str, Any] | None = None
-    ) -> None:
+    def __init__(self, message: str, book_id: str, details: dict[str, Any] | None = None) -> None:
         self.message = message
         self.book_id = book_id
         self.details = details or {}
@@ -48,9 +46,7 @@ class InvalidModuleDefinitionError(SegmentationError):
     """Raised when manual module definition is invalid."""
 
     def __init__(self, book_id: str, reason: str) -> None:
-        super().__init__(
-            f"Invalid module definition: {reason}", book_id, {"reason": reason}
-        )
+        super().__init__(f"Invalid module definition: {reason}", book_id, {"reason": reason})
         self.reason = reason
 
 
@@ -148,9 +144,7 @@ class SegmentationResult:
     total_pages: int
     modules: list[Module]
     method: SegmentationMethod
-    segmented_at: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    segmented_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property
     def module_count(self) -> int:
@@ -199,13 +193,9 @@ class ManualModuleDefinition:
         if self.start_page < 1:
             errors.append(f"start_page must be >= 1, got {self.start_page}")
         if self.end_page < self.start_page:
-            errors.append(
-                f"end_page ({self.end_page}) must be >= start_page ({self.start_page})"
-            )
+            errors.append(f"end_page ({self.end_page}) must be >= start_page ({self.start_page})")
         if self.end_page > total_pages:
-            errors.append(
-                f"end_page ({self.end_page}) exceeds total pages ({total_pages})"
-            )
+            errors.append(f"end_page ({self.end_page}) exceeds total pages ({total_pages})")
         if not self.title.strip():
             errors.append("title cannot be empty")
         return errors

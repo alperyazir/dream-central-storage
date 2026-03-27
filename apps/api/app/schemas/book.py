@@ -31,7 +31,9 @@ class BookCreate(BookBase):
     Publisher string field is derived from the publisher relationship for API responses.
     """
 
-    publisher_id: int | None = Field(default=None, description="Required publisher ID (foreign key to publishers table)")
+    publisher_id: int | None = Field(
+        default=None, description="Required publisher ID (foreign key to publishers table)"
+    )
 
 
 class BookUpdate(BaseModel):

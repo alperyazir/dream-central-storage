@@ -2,8 +2,21 @@ import { ApiClient, apiClient } from './api';
 import { buildAuthHeaders } from './http';
 
 // Main 4 options for UI
-export type ProcessingJobType = 'full' | 'text_only' | 'llm_only' | 'audio_only' | 'unified' | 'analysis_only' | 'vocabulary_only';
-export type ProcessingStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'partial' | 'cancelled';
+export type ProcessingJobType =
+  | 'full'
+  | 'text_only'
+  | 'llm_only'
+  | 'audio_only'
+  | 'unified'
+  | 'analysis_only'
+  | 'vocabulary_only';
+export type ProcessingStatus =
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'partial'
+  | 'cancelled';
 export type JobPriority = 'high' | 'normal' | 'low';
 
 export interface ProcessingTriggerRequest {
@@ -75,10 +88,9 @@ export const getProcessingStatus = (
   tokenType: string = 'Bearer',
   client: ApiClient = apiClient
 ): Promise<ProcessingStatusResponse> =>
-  client.get<ProcessingStatusResponse>(
-    `/books/${bookId}/process-ai/status`,
-    { headers: buildAuthHeaders(token, tokenType) }
-  );
+  client.get<ProcessingStatusResponse>(`/books/${bookId}/process-ai/status`, {
+    headers: buildAuthHeaders(token, tokenType),
+  });
 
 /**
  * Delete AI data for a book, optionally triggering reprocessing.
@@ -99,7 +111,16 @@ export const deleteAIData = (
 /**
  * Get status color for display.
  */
-export const getStatusColor = (status: ProcessingStatus): 'default' | 'primary' | 'secondary' | 'success' | 'error' | 'info' | 'warning' => {
+export const getStatusColor = (
+  status: ProcessingStatus
+):
+  | 'default'
+  | 'primary'
+  | 'secondary'
+  | 'success'
+  | 'error'
+  | 'info'
+  | 'warning' => {
   switch (status) {
     case 'queued':
       return 'info';
@@ -216,8 +237,10 @@ export const getBooksWithProcessingStatus = (
   if (params.status) searchParams.set('status', params.status);
   if (params.publisher) searchParams.set('publisher', params.publisher);
   if (params.search) searchParams.set('search', params.search);
-  if (params.page !== undefined) searchParams.set('page', params.page.toString());
-  if (params.page_size !== undefined) searchParams.set('page_size', params.page_size.toString());
+  if (params.page !== undefined)
+    searchParams.set('page', params.page.toString());
+  if (params.page_size !== undefined)
+    searchParams.set('page_size', params.page_size.toString());
 
   const queryString = searchParams.toString();
   const url = `/processing/books${queryString ? `?${queryString}` : ''}`;
@@ -274,7 +297,14 @@ export const bulkReprocess = (
  */
 export const getExtendedStatusColor = (
   status: ExtendedProcessingStatus
-): 'default' | 'primary' | 'secondary' | 'success' | 'error' | 'info' | 'warning' => {
+):
+  | 'default'
+  | 'primary'
+  | 'secondary'
+  | 'success'
+  | 'error'
+  | 'info'
+  | 'warning' => {
   if (status === 'not_started') return 'default';
   return getStatusColor(status as ProcessingStatus);
 };
@@ -282,7 +312,9 @@ export const getExtendedStatusColor = (
 /**
  * Get human-readable label for extended status.
  */
-export const getExtendedStatusLabel = (status: ExtendedProcessingStatus): string => {
+export const getExtendedStatusLabel = (
+  status: ExtendedProcessingStatus
+): string => {
   if (status === 'not_started') return 'Not Started';
   return getStatusLabel(status as ProcessingStatus);
 };
@@ -521,9 +553,12 @@ export const getAIVocabulary = (
   client: ApiClient = apiClient
 ): Promise<VocabularyResponse> => {
   const searchParams = new URLSearchParams();
-  if (params.module_id !== undefined) searchParams.set('module_id', params.module_id.toString());
-  if (params.page !== undefined) searchParams.set('page', params.page.toString());
-  if (params.page_size !== undefined) searchParams.set('page_size', params.page_size.toString());
+  if (params.module_id !== undefined)
+    searchParams.set('module_id', params.module_id.toString());
+  if (params.page !== undefined)
+    searchParams.set('page', params.page.toString());
+  if (params.page_size !== undefined)
+    searchParams.set('page_size', params.page_size.toString());
 
   const queryString = searchParams.toString();
   const url = `/books/${bookId}/ai-data/vocabulary${queryString ? `?${queryString}` : ''}`;

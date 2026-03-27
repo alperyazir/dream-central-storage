@@ -32,9 +32,7 @@ class PartOfSpeech(str, Enum):
 class VocabularyExtractionError(Exception):
     """Base exception for vocabulary extraction errors."""
 
-    def __init__(
-        self, message: str, book_id: str, details: dict[str, Any] | None = None
-    ) -> None:
+    def __init__(self, message: str, book_id: str, details: dict[str, Any] | None = None) -> None:
         self.message = message
         self.book_id = book_id
         self.details = details or {}
@@ -117,6 +115,7 @@ class DuplicateVocabularyError(VocabularyExtractionError):
 def _slugify(text: str) -> str:
     """Create a URL-safe slug from text."""
     import re
+
     # Convert to lowercase
     slug = text.lower()
     # Replace spaces and special chars with underscores

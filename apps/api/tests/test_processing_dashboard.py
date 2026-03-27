@@ -6,8 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services.queue.models import ProcessingJob, ProcessingJobType, ProcessingStatus, JobPriority
-
+from app.services.queue.models import ProcessingJob, ProcessingStatus
 
 # =============================================================================
 # Mock Fixtures
@@ -306,6 +305,7 @@ class TestClearProcessingError:
     ) -> None:
         """Test clearing error fails for job not in failed state."""
         from fastapi import HTTPException
+
         from app.routers.processing import clear_processing_error
 
         mock_auth.return_value = 1
@@ -352,7 +352,7 @@ class TestBulkReprocess:
         mock_book: MagicMock,
     ) -> None:
         """Test bulk reprocessing multiple books."""
-        from app.routers.processing import bulk_reprocess, BulkReprocessRequest
+        from app.routers.processing import BulkReprocessRequest, bulk_reprocess
 
         mock_auth.return_value = 1  # User auth, not API key
         mock_book_repo.get_by_id.return_value = mock_book
@@ -388,7 +388,8 @@ class TestBulkReprocess:
     ) -> None:
         """Test bulk reprocess requires user authentication (not API key)."""
         from fastapi import HTTPException
-        from app.routers.processing import bulk_reprocess, BulkReprocessRequest
+
+        from app.routers.processing import BulkReprocessRequest, bulk_reprocess
 
         mock_auth.return_value = -1  # API key auth
 
@@ -420,7 +421,7 @@ class TestBulkReprocess:
         mock_has_content: MagicMock,
     ) -> None:
         """Test bulk reprocess skips books that don't exist."""
-        from app.routers.processing import bulk_reprocess, BulkReprocessRequest
+        from app.routers.processing import BulkReprocessRequest, bulk_reprocess
 
         mock_auth.return_value = 1
         mock_book_repo.get_by_id.return_value = None  # Book not found

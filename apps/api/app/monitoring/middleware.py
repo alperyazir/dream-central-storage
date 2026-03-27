@@ -6,7 +6,7 @@ import threading
 import time
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, Iterable, Tuple
+from typing import Dict, Tuple
 
 MetricKey = Tuple[str, str, str]
 PathKey = Tuple[str, str]
@@ -86,17 +86,13 @@ def render_metrics() -> str:
     lines.append("# TYPE dream_requests_total counter")
     with _metrics_lock:
         for (method, path, status), value in sorted(_request_counts.items()):
-            lines.append(
-                f'dream_requests_total{{method="{method}",path="{path}",status="{status}"}} {value}'
-            )
+            lines.append(f'dream_requests_total{{method="{method}",path="{path}",status="{status}"}} {value}')
 
         lines.append("# HELP dream_request_errors_total HTTP requests that resulted in errors")
         lines.append("# TYPE dream_request_errors_total counter")
         if _error_counts:
             for (method, path, status), value in sorted(_error_counts.items()):
-                lines.append(
-                    f'dream_request_errors_total{{method="{method}",path="{path}",status="{status}"}} {value}'
-                )
+                lines.append(f'dream_request_errors_total{{method="{method}",path="{path}",status="{status}"}} {value}')
         else:
             lines.append('dream_request_errors_total{method="",path="",status=""} 0')
 
@@ -110,8 +106,6 @@ def render_metrics() -> str:
         lines.append("# HELP dream_request_duration_seconds_count Total number of timed requests")
         lines.append("# TYPE dream_request_duration_seconds_count counter")
         for (method, path), stats in sorted(_latency_stats.items()):
-            lines.append(
-                f'dream_request_duration_seconds_count{{method="{method}",path="{path}"}} {stats.count}'
-            )
+            lines.append(f'dream_request_duration_seconds_count{{method="{method}",path="{path}"}} {stats.count}')
 
     return "\n".join(lines) + "\n"

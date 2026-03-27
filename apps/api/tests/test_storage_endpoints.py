@@ -65,9 +65,7 @@ def test_list_app_contents() -> None:
     from app.routers import storage
 
     fake_client = MagicMock()
-    fake_client.list_objects.return_value = [
-        SimpleNamespace(object_name="macos/1.0/app.exe", size=100)
-    ]
+    fake_client.list_objects.return_value = [SimpleNamespace(object_name="macos/1.0/app.exe", size=100)]
     storage.get_minio_client = lambda settings: fake_client
 
     client = TestClient(app)
@@ -86,9 +84,7 @@ def test_list_app_contents_linux() -> None:
     from app.routers import storage
 
     fake_client = MagicMock()
-    fake_client.list_objects.return_value = [
-        SimpleNamespace(object_name="linux/2.0/app.tar.gz", size=150)
-    ]
+    fake_client.list_objects.return_value = [SimpleNamespace(object_name="linux/2.0/app.tar.gz", size=150)]
     storage.get_minio_client = lambda settings: fake_client
 
     client = TestClient(app)
@@ -107,9 +103,7 @@ def test_list_app_contents_with_version() -> None:
     from app.routers import storage
 
     fake_client = MagicMock()
-    fake_client.list_objects.return_value = [
-        SimpleNamespace(object_name="macos/1.1/app.exe", size=200)
-    ]
+    fake_client.list_objects.return_value = [SimpleNamespace(object_name="macos/1.1/app.exe", size=200)]
     storage.get_minio_client = lambda settings: fake_client
 
     client = TestClient(app)
@@ -580,9 +574,7 @@ def test_download_book_object_mime_type_detection(monkeypatch) -> None:
 
         fake_client = MagicMock()
         # MinIO returns generic type, but we should override based on extension
-        fake_client.stat_object.return_value = SimpleNamespace(
-            size=len(data), content_type="application/octet-stream"
-        )
+        fake_client.stat_object.return_value = SimpleNamespace(size=len(data), content_type="application/octet-stream")
         fake_client.get_object.return_value = fake_obj
 
         monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)

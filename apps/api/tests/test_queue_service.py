@@ -2,28 +2,25 @@
 
 from __future__ import annotations
 
-import json
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.services.queue.models import (
+    PROCESSING_STAGES,
+    JobAlreadyExistsError,
+    JobNotFoundError,
     JobPriority,
     ProcessingJob,
     ProcessingJobType,
     ProcessingStatus,
-    QueueStats,
-    PROCESSING_STAGES,
-    JobAlreadyExistsError,
-    JobNotFoundError,
     QueueConnectionError,
     QueueError,
+    QueueStats,
 )
+from app.services.queue.redis import RedisConnection
 from app.services.queue.repository import JobRepository
 from app.services.queue.service import ProgressReporter, QueueService
-from app.services.queue.redis import RedisConnection
-
 
 # =============================================================================
 # Fixtures
@@ -299,33 +296,23 @@ class TestJobRepository:
             await job_repository.get_job("nonexistent-id")
 
     @pytest.mark.asyncio
-    async def test_update_job_status_queued_to_processing(
-        self, job_repository, sample_job
-    ):
+    async def test_update_job_status_queued_to_processing(self, job_repository, sample_job):
         """Test status transition QUEUED -> PROCESSING."""
         await job_repository.create_job(sample_job)
 
-        updated = await job_repository.update_job_status(
-            sample_job.job_id, ProcessingStatus.PROCESSING
-        )
+        updated = await job_repository.update_job_status(sample_job.job_id, ProcessingStatus.PROCESSING)
 
         assert updated.status == ProcessingStatus.PROCESSING
         assert updated.started_at is not None
         assert updated.completed_at is None
 
     @pytest.mark.asyncio
-    async def test_update_job_status_processing_to_completed(
-        self, job_repository, sample_job
-    ):
+    async def test_update_job_status_processing_to_completed(self, job_repository, sample_job):
         """Test status transition PROCESSING -> COMPLETED."""
         await job_repository.create_job(sample_job)
-        await job_repository.update_job_status(
-            sample_job.job_id, ProcessingStatus.PROCESSING
-        )
+        await job_repository.update_job_status(sample_job.job_id, ProcessingStatus.PROCESSING)
 
-        updated = await job_repository.update_job_status(
-            sample_job.job_id, ProcessingStatus.COMPLETED
-        )
+        updated = await job_repository.update_job_status(sample_job.job_id, ProcessingStatus.COMPLETED)
 
         assert updated.status == ProcessingStatus.COMPLETED
         assert updated.completed_at is not None
@@ -349,9 +336,7 @@ class TestJobRepository:
         """Test updating job progress."""
         await job_repository.create_job(sample_job)
 
-        updated = await job_repository.update_job_progress(
-            sample_job.job_id, 50, current_step="text_extraction"
-        )
+        updated = await job_repository.update_job_progress(sample_job.job_id, 50, current_step="text_extraction")
 
         assert updated.progress == 50
         assert updated.current_step == "text_extraction"
@@ -383,12 +368,8 @@ class TestJobRepository:
     @pytest.mark.asyncio
     async def test_list_jobs_no_filter(self, job_repository):
         """Test listing all jobs."""
-        job1 = ProcessingJob(
-            job_id="job-1", book_id="book-1", publisher_id="pub-1"
-        )
-        job2 = ProcessingJob(
-            job_id="job-2", book_id="book-2", publisher_id="pub-1"
-        )
+        job1 = ProcessingJob(job_id="job-1", book_id="book-1", publisher_id="pub-1")
+        job2 = ProcessingJob(job_id="job-2", book_id="book-2", publisher_id="pub-1")
         await job_repository.create_job(job1)
         await job_repository.create_job(job2)
 
@@ -399,20 +380,14 @@ class TestJobRepository:
     @pytest.mark.asyncio
     async def test_list_jobs_by_status(self, job_repository):
         """Test listing jobs filtered by status."""
-        job1 = ProcessingJob(
-            job_id="job-1", book_id="book-1", publisher_id="pub-1"
-        )
-        job2 = ProcessingJob(
-            job_id="job-2", book_id="book-2", publisher_id="pub-1"
-        )
+        job1 = ProcessingJob(job_id="job-1", book_id="book-1", publisher_id="pub-1")
+        job2 = ProcessingJob(job_id="job-2", book_id="book-2", publisher_id="pub-1")
         await job_repository.create_job(job1)
         await job_repository.create_job(job2)
         await job_repository.update_job_status("job-1", ProcessingStatus.PROCESSING)
 
         queued_jobs = await job_repository.list_jobs(status=ProcessingStatus.QUEUED)
-        processing_jobs = await job_repository.list_jobs(
-            status=ProcessingStatus.PROCESSING
-        )
+        processing_jobs = await job_repository.list_jobs(status=ProcessingStatus.PROCESSING)
 
         assert len(queued_jobs) == 1
         assert queued_jobs[0].job_id == "job-2"
@@ -422,16 +397,12 @@ class TestJobRepository:
     @pytest.mark.asyncio
     async def test_list_jobs_by_book_id(self, job_repository):
         """Test listing jobs filtered by book ID."""
-        job1 = ProcessingJob(
-            job_id="job-1", book_id="book-1", publisher_id="pub-1"
-        )
+        job1 = ProcessingJob(job_id="job-1", book_id="book-1", publisher_id="pub-1")
         # Complete job1 first so we can create job2 for same book
         await job_repository.create_job(job1)
         await job_repository.update_job_status("job-1", ProcessingStatus.COMPLETED)
 
-        job2 = ProcessingJob(
-            job_id="job-2", book_id="book-1", publisher_id="pub-1"
-        )
+        job2 = ProcessingJob(job_id="job-2", book_id="book-1", publisher_id="pub-1")
         await job_repository.create_job(job2)
 
         jobs = await job_repository.list_jobs(book_id="book-1")
@@ -458,15 +429,9 @@ class TestJobRepository:
     @pytest.mark.asyncio
     async def test_count_jobs_by_status(self, job_repository):
         """Test counting jobs by status."""
-        job1 = ProcessingJob(
-            job_id="job-1", book_id="book-1", publisher_id="pub-1"
-        )
-        job2 = ProcessingJob(
-            job_id="job-2", book_id="book-2", publisher_id="pub-1"
-        )
-        job3 = ProcessingJob(
-            job_id="job-3", book_id="book-3", publisher_id="pub-1"
-        )
+        job1 = ProcessingJob(job_id="job-1", book_id="book-1", publisher_id="pub-1")
+        job2 = ProcessingJob(job_id="job-2", book_id="book-2", publisher_id="pub-1")
+        job3 = ProcessingJob(job_id="job-3", book_id="book-3", publisher_id="pub-1")
         await job_repository.create_job(job1)
         await job_repository.create_job(job2)
         await job_repository.create_job(job3)
@@ -635,9 +600,7 @@ class TestQueueService:
             book_id="book-123",
             publisher_id="pub-456",
         )
-        await job_repository.update_job_status(
-            created.job_id, ProcessingStatus.COMPLETED
-        )
+        await job_repository.update_job_status(created.job_id, ProcessingStatus.COMPLETED)
 
         with pytest.raises(QueueError) as exc_info:
             await queue_service.cancel_job(created.job_id)
@@ -650,9 +613,7 @@ class TestQueueService:
             book_id="book-123",
             publisher_id="pub-456",
         )
-        await job_repository.update_job_status(
-            created.job_id, ProcessingStatus.FAILED, error_message="Test failure"
-        )
+        await job_repository.update_job_status(created.job_id, ProcessingStatus.FAILED, error_message="Test failure")
 
         retried = await queue_service.retry_job(created.job_id)
 
@@ -677,12 +638,8 @@ class TestQueueService:
     async def test_get_queue_stats(self, queue_service, job_repository):
         """Test getting queue statistics."""
         # Create some jobs in different states
-        job1 = await queue_service.enqueue_job(
-            book_id="book-1", publisher_id="pub-1"
-        )
-        job2 = await queue_service.enqueue_job(
-            book_id="book-2", publisher_id="pub-1"
-        )
+        job1 = await queue_service.enqueue_job(book_id="book-1", publisher_id="pub-1")
+        job2 = await queue_service.enqueue_job(book_id="book-2", publisher_id="pub-1")
         await job_repository.update_job_status(job1.job_id, ProcessingStatus.PROCESSING)
         await job_repository.update_job_status(job2.job_id, ProcessingStatus.COMPLETED)
 
@@ -706,13 +663,9 @@ class TestQueueService:
     @pytest.mark.asyncio
     async def test_list_jobs_with_filter(self, queue_service, job_repository):
         """Test listing jobs with status filter."""
-        job1 = await queue_service.enqueue_job(
-            book_id="book-1", publisher_id="pub-1"
-        )
+        job1 = await queue_service.enqueue_job(book_id="book-1", publisher_id="pub-1")
         await queue_service.enqueue_job(book_id="book-2", publisher_id="pub-1")
-        await job_repository.update_job_status(
-            job1.job_id, ProcessingStatus.PROCESSING
-        )
+        await job_repository.update_job_status(job1.job_id, ProcessingStatus.PROCESSING)
 
         processing = await queue_service.list_jobs(status=ProcessingStatus.PROCESSING)
 

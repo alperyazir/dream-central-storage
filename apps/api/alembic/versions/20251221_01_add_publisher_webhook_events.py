@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision = "20251221_01"
 down_revision = "20251214_02"
@@ -20,12 +20,14 @@ def upgrade() -> None:
     connection = op.get_bind()
 
     # First, drop any existing check constraint on event_type
-    result = connection.execute(sa.text("""
+    result = connection.execute(
+        sa.text("""
         SELECT conname FROM pg_constraint
         WHERE conrelid = 'webhook_delivery_logs'::regclass
         AND contype = 'c'
         AND pg_get_constraintdef(oid) LIKE '%event_type%'
-    """))
+    """)
+    )
     constraint_names = [row[0] for row in result]
 
     for constraint_name in constraint_names:
@@ -33,21 +35,27 @@ def upgrade() -> None:
 
     # Fix existing data: convert uppercase enum NAMES to lowercase VALUES
     # This handles data that may have been stored incorrectly
-    connection.execute(sa.text("""
+    connection.execute(
+        sa.text("""
         UPDATE webhook_delivery_logs SET event_type = 'book.created' WHERE event_type = 'BOOK_CREATED';
-    """))
-    connection.execute(sa.text("""
+    """)
+    )
+    connection.execute(
+        sa.text("""
         UPDATE webhook_delivery_logs SET event_type = 'book.updated' WHERE event_type = 'BOOK_UPDATED';
-    """))
-    connection.execute(sa.text("""
+    """)
+    )
+    connection.execute(
+        sa.text("""
         UPDATE webhook_delivery_logs SET event_type = 'book.deleted' WHERE event_type = 'BOOK_DELETED';
-    """))
+    """)
+    )
 
     # Add new CHECK constraint with all event types
     op.create_check_constraint(
         "ck_webhook_delivery_logs_event_type",
         "webhook_delivery_logs",
-        "event_type IN ('book.created', 'book.updated', 'book.deleted', 'publisher.created', 'publisher.updated', 'publisher.deleted')"
+        "event_type IN ('book.created', 'book.updated', 'book.deleted', 'publisher.created', 'publisher.updated', 'publisher.deleted')",
     )
 
 
@@ -58,13 +66,15 @@ def downgrade() -> None:
     # Restore original constraint (only book events)
     # First delete any publisher events that may have been logged
     connection = op.get_bind()
-    connection.execute(sa.text("""
+    connection.execute(
+        sa.text("""
         DELETE FROM webhook_delivery_logs
         WHERE event_type IN ('publisher.created', 'publisher.updated', 'publisher.deleted')
-    """))
+    """)
+    )
 
     op.create_check_constraint(
         "ck_webhook_delivery_logs_event_type",
         "webhook_delivery_logs",
-        "event_type IN ('book.created', 'book.updated', 'book.deleted')"
+        "event_type IN ('book.created', 'book.updated', 'book.deleted')",
     )

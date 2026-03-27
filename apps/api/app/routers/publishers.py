@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.security import decode_access_token, verify_api_key_from_db
-from app.db import get_db, SessionLocal
+from app.db import SessionLocal, get_db
 from app.models.webhook import WebhookEventType
 from app.repositories.publisher import PublisherRepository
 from app.repositories.user import UserRepository
@@ -28,7 +28,7 @@ from app.schemas.publisher import (
     PublisherRead,
     PublisherUpdate,
 )
-from app.services import get_minio_client, move_prefix_to_trash, RelocationError
+from app.services import RelocationError, get_minio_client, move_prefix_to_trash
 from app.services.webhook import WebhookService
 
 router = APIRouter(prefix="/publishers", tags=["Publishers"])
@@ -51,6 +51,7 @@ def _trigger_publisher_webhook(publisher_id: int, event_type: WebhookEventType) 
                 logger.warning(f"[WEBHOOK] Publisher {publisher_id} not found for webhook broadcast")
     except Exception as e:
         logger.error(f"[WEBHOOK] Failed to trigger publisher webhook: {e}", exc_info=True)
+
 
 # Asset type validation
 ASSET_TYPE_PATTERN = re.compile(r"^[a-z0-9_-]{1,50}$")
@@ -125,9 +126,13 @@ def create_publisher(
         )
 
     # Trigger webhook in background
-    logger.info(f"[WEBHOOK-TRIGGER] Scheduling PUBLISHER_CREATED webhook for publisher_id={publisher.id}, name='{publisher.name}'")
+    logger.info(
+        f"[WEBHOOK-TRIGGER] Scheduling PUBLISHER_CREATED webhook for publisher_id={publisher.id}, name='{publisher.name}'"
+    )
     background_tasks.add_task(_trigger_publisher_webhook, publisher.id, WebhookEventType.PUBLISHER_CREATED)
-    logger.debug(f"[WEBHOOK-TRIGGER] PUBLISHER_CREATED webhook task added to background queue for publisher_id={publisher.id}")
+    logger.debug(
+        f"[WEBHOOK-TRIGGER] PUBLISHER_CREATED webhook task added to background queue for publisher_id={publisher.id}"
+    )
 
     return PublisherRead.model_validate(publisher)
 
@@ -262,9 +267,13 @@ def update_publisher(
         )
 
     # Trigger webhook in background
-    logger.info(f"[WEBHOOK-TRIGGER] Scheduling PUBLISHER_UPDATED webhook for publisher_id={updated.id}, name='{updated.name}', updated_fields={list(update_data.keys())}")
+    logger.info(
+        f"[WEBHOOK-TRIGGER] Scheduling PUBLISHER_UPDATED webhook for publisher_id={updated.id}, name='{updated.name}', updated_fields={list(update_data.keys())}"
+    )
     background_tasks.add_task(_trigger_publisher_webhook, updated.id, WebhookEventType.PUBLISHER_UPDATED)
-    logger.debug(f"[WEBHOOK-TRIGGER] PUBLISHER_UPDATED webhook task added to background queue for publisher_id={updated.id}")
+    logger.debug(
+        f"[WEBHOOK-TRIGGER] PUBLISHER_UPDATED webhook task added to background queue for publisher_id={updated.id}"
+    )
 
     return PublisherRead.model_validate(updated)
 
@@ -290,9 +299,13 @@ def soft_delete_publisher(
     updated = _publisher_repository.update(db, publisher, data={"status": "inactive"})
 
     # Trigger webhook in background
-    logger.info(f"[WEBHOOK-TRIGGER] Scheduling PUBLISHER_DELETED webhook for publisher_id={updated.id}, name='{updated.name}', status='inactive'")
+    logger.info(
+        f"[WEBHOOK-TRIGGER] Scheduling PUBLISHER_DELETED webhook for publisher_id={updated.id}, name='{updated.name}', status='inactive'"
+    )
     background_tasks.add_task(_trigger_publisher_webhook, updated.id, WebhookEventType.PUBLISHER_DELETED)
-    logger.debug(f"[WEBHOOK-TRIGGER] PUBLISHER_DELETED webhook task added to background queue for publisher_id={updated.id}")
+    logger.debug(
+        f"[WEBHOOK-TRIGGER] PUBLISHER_DELETED webhook task added to background queue for publisher_id={updated.id}"
+    )
 
     return PublisherRead.model_validate(updated)
 
@@ -323,9 +336,13 @@ def restore_publisher(
     updated = _publisher_repository.update(db, publisher, data={"status": "active"})
 
     # Trigger webhook as created (since it's being restored)
-    logger.info(f"[WEBHOOK-TRIGGER] Scheduling PUBLISHER_CREATED webhook (restore) for publisher_id={updated.id}, name='{updated.name}', status='active'")
+    logger.info(
+        f"[WEBHOOK-TRIGGER] Scheduling PUBLISHER_CREATED webhook (restore) for publisher_id={updated.id}, name='{updated.name}', status='active'"
+    )
     background_tasks.add_task(_trigger_publisher_webhook, updated.id, WebhookEventType.PUBLISHER_CREATED)
-    logger.debug(f"[WEBHOOK-TRIGGER] PUBLISHER_CREATED webhook task (restore) added to background queue for publisher_id={updated.id}")
+    logger.debug(
+        f"[WEBHOOK-TRIGGER] PUBLISHER_CREATED webhook task (restore) added to background queue for publisher_id={updated.id}"
+    )
 
     return PublisherRead.model_validate(updated)
 
@@ -637,8 +654,10 @@ def download_asset_file(
     publisher_id: int,
     asset_type: str,
     filename: str,
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
 ):
+    _require_admin(credentials, db)
     """Download an asset file."""
     from fastapi.responses import StreamingResponse
 

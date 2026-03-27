@@ -2,16 +2,16 @@
 
 from .minio import ensure_buckets, get_minio_client, get_minio_client_external
 from .storage import (
-    UploadConflictError,
-    UploadError,
+    DeletionReport,
     RelocationError,
     RelocationReport,
     RestorationError,
-    DeletionReport,
     TrashDeletionError,
     TrashEntry,
     TrashEntryNotFoundError,
     TrashRetentionError,
+    UploadConflictError,
+    UploadError,
     delete_prefix_from_trash,
     ensure_version_target,
     extract_manifest_version,

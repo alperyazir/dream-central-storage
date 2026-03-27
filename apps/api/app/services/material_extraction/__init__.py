@@ -1,13 +1,13 @@
 """Material extraction service package."""
 
 from app.services.material_extraction.models import (
+    ExtractionFailedError,
     ExtractionMethod,
     FileType,
     MaterialExtractionError,
     MaterialExtractionResult,
     PageText,
     UnsupportedFileTypeError,
-    ExtractionFailedError,
 )
 from app.services.material_extraction.service import (
     MaterialExtractionService,

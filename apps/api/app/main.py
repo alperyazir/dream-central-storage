@@ -4,15 +4,31 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
 
 from app.core.config import get_settings
-from app.routers import ai_content, ai_data, api_keys, apps, auth, books, health, processing, publishers, standalone_apps, storage, teachers, teachers_crud, webhooks
-from app.services import ensure_buckets, get_minio_client
-from app.monitoring import MetricsMiddleware, router as monitoring_router
 from app.db import SessionLocal
+from app.monitoring import MetricsMiddleware
+from app.monitoring import router as monitoring_router
 from app.repositories.user import UserRepository
+from app.routers import (
+    ai_content,
+    ai_data,
+    api_keys,
+    apps,
+    auth,
+    books,
+    health,
+    processing,
+    publishers,
+    standalone_apps,
+    storage,
+    teachers,
+    teachers_crud,
+    webhooks,
+)
 from app.scripts.create_admin import create_admin_user
-
+from app.services import ensure_buckets, get_minio_client
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -64,11 +80,7 @@ def ensure_default_admin() -> None:
             default_password = "admin"
 
             try:
-                user = create_admin_user(
-                    session,
-                    email=default_email,
-                    password=default_password
-                )
+                user = create_admin_user(session, email=default_email, password=default_password)
                 logger.info(
                     "Created default admin user (email: %s, id: %d)",
                     default_email,
@@ -80,8 +92,23 @@ def ensure_default_admin() -> None:
             logger.info("Users already exist, skipping default admin creation")
 
 
+def _validate_startup_config() -> None:
+    """Check critical configuration at startup."""
+    if settings.jwt_secret_key == "CHANGE_ME":
+        raise RuntimeError(
+            "SEC-C1: jwt_secret_key is still the default 'CHANGE_ME'. "
+            "Set the DCS_JWT_SECRET_KEY environment variable to a secure random value."
+        )
+    if settings.database_password == "dream_password":
+        logger.warning(
+            "SEC-C5: database_password is still the default 'dream_password'. "
+            "Set DCS_DATABASE_PASSWORD to a strong password before deploying to production."
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _validate_startup_config()
     await wait_for_minio()
     ensure_default_admin()
     yield
@@ -95,8 +122,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.resolved_cors_allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 app.include_router(auth.router)
@@ -115,6 +142,12 @@ app.include_router(teachers_crud.router)
 app.include_router(webhooks.router)
 app.include_router(health.router)
 app.include_router(monitoring_router)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    logger.error("Unhandled exception: %s", exc, exc_info=True)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 @app.get("/health", tags=["Health"])

@@ -184,8 +184,7 @@ class DeepSeekProvider(LLMProvider):
         usage.estimated_cost_usd = self.estimate_cost(usage, model)
 
         logger.info(
-            f"[DeepSeek] Completed request: {usage.total_tokens} tokens, "
-            f"${usage.estimated_cost_usd:.6f} estimated cost"
+            f"[DeepSeek] Completed request: {usage.total_tokens} tokens, ${usage.estimated_cost_usd:.6f} estimated cost"
         )
 
         return LLMResponse(
@@ -218,9 +217,7 @@ class DeepSeekProvider(LLMProvider):
         )
         return await self.complete(request)
 
-    async def complete_with_vision(
-        self, prompt: str, images: list[bytes], **kwargs: Any
-    ) -> LLMResponse:
+    async def complete_with_vision(self, prompt: str, images: list[bytes], **kwargs: Any) -> LLMResponse:
         """
         DeepSeek does not support vision. Raises NotImplementedError.
 

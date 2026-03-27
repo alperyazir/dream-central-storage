@@ -95,9 +95,7 @@ class AudioGenerationService:
             )
 
         except TTSProviderError as e:
-            logger.warning(
-                f"[AudioGeneration] TTS failed for word '{word}' ({language}): {e}"
-            )
+            logger.warning(f"[AudioGeneration] TTS failed for word '{word}' ({language}): {e}")
             return WordAudioResult(
                 word_id=word_id,
                 word=word,
@@ -106,9 +104,7 @@ class AudioGenerationService:
                 error_message=str(e),
             )
         except Exception as e:
-            logger.error(
-                f"[AudioGeneration] Unexpected error for word '{word}' ({language}): {e}"
-            )
+            logger.error(f"[AudioGeneration] Unexpected error for word '{word}' ({language}): {e}")
             return WordAudioResult(
                 word_id=word_id,
                 word=word,
@@ -170,12 +166,14 @@ class AudioGenerationService:
                         id=f"{word_id}_word",
                     )
                 )
-                item_metadata.append({
-                    "word_id": word_id,
-                    "word": word,
-                    "language": language,
-                    "type": "word",
-                })
+                item_metadata.append(
+                    {
+                        "word_id": word_id,
+                        "word": word,
+                        "language": language,
+                        "type": "word",
+                    }
+                )
 
             if translation:
                 # Use word_id for translation file too (different folder)
@@ -187,13 +185,15 @@ class AudioGenerationService:
                         id=f"{word_id}_translation",
                     )
                 )
-                item_metadata.append({
-                    "word_id": translation_id,
-                    "word": translation,
-                    "language": translation_language,
-                    "type": "translation",
-                    "original_word_id": word_id,
-                })
+                item_metadata.append(
+                    {
+                        "word_id": translation_id,
+                        "word": translation,
+                        "language": translation_language,
+                        "type": "translation",
+                        "original_word_id": word_id,
+                    }
+                )
 
         total_items = len(batch_items)
         logger.info(
@@ -202,7 +202,7 @@ class AudioGenerationService:
         )
 
         # Process in batches using TTS batch processing
-        concurrency = getattr(self.settings, 'audio_generation_concurrency', 5)
+        concurrency = getattr(self.settings, "audio_generation_concurrency", 5)
         batch_result = await self.tts_service.synthesize_batch(
             items=batch_items,
             concurrency=concurrency,
@@ -271,16 +271,14 @@ class AudioGenerationService:
             audio_files=audio_files,
         )
 
-        logger.info(
-            f"[AudioGeneration] Completed: {result.generated_count} generated, "
-            f"{result.failed_count} failed"
-        )
+        logger.info(f"[AudioGeneration] Completed: {result.generated_count} generated, {result.failed_count} failed")
 
         return result, audio_data
 
     def _slugify(self, text: str) -> str:
         """Create a URL-safe slug from text."""
         import re
+
         slug = text.lower()
         slug = re.sub(r"[^a-z0-9]+", "_", slug)
         slug = slug.strip("_")
