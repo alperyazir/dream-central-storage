@@ -230,7 +230,9 @@ class JobRepository:
         ):
             await self._redis.expire(job_key, self._job_ttl)
 
-        logger.info("Updated job %s status: %s -> %s", job_id, old_status.value, status.value)
+        logger.info(
+            "Updated job %s status: %s -> %s", job_id, old_status.value, status.value
+        )
         return await self.get_job(job_id)
 
     async def update_job_progress(
@@ -282,7 +284,9 @@ class JobRepository:
         job_key = self._job_key(job_id)
         await self._redis.hincrby(job_key, "retry_count", 1)
 
-        logger.info("Incremented retry count for job %s to %d", job_id, job.retry_count + 1)
+        logger.info(
+            "Incremented retry count for job %s to %d", job_id, job.retry_count + 1
+        )
         return await self.get_job(job_id)
 
     async def list_jobs(

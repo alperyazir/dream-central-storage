@@ -116,7 +116,9 @@ class TestPageText:
     """Tests for PageText dataclass."""
 
     def test_create_page_text(self):
-        page = PageText(page_number=1, text="Hello world", method=ExtractionMethod.NATIVE)
+        page = PageText(
+            page_number=1, text="Hello world", method=ExtractionMethod.NATIVE
+        )
         assert page.page_number == 1
         assert page.text == "Hello world"
         assert page.method == ExtractionMethod.NATIVE
@@ -140,7 +142,11 @@ class TestPDFExtractionResult:
     def test_create_result(self):
         pages = [
             PageText(page_number=1, text="Hello world", method=ExtractionMethod.NATIVE),
-            PageText(page_number=2, text="Second page content", method=ExtractionMethod.NATIVE),
+            PageText(
+                page_number=2,
+                text="Second page content",
+                method=ExtractionMethod.NATIVE,
+            ),
         ]
         result = PDFExtractionResult(
             book_id="book-123",
@@ -378,7 +384,9 @@ class TestPDFOCRService:
             )
             mock_get_llm.return_value = mock_llm
 
-            ocr_service = PDFOCRService(book_id="book-123", max_retries=2, retry_delay=0.01)
+            ocr_service = PDFOCRService(
+                book_id="book-123", max_retries=2, retry_delay=0.01
+            )
             result = await ocr_service.ocr_page(b"fake_image_bytes", page_number=1)
 
             assert result == "OCR extracted text from image"
@@ -395,7 +403,9 @@ class TestPDFOCRService:
             )
             mock_get_llm.return_value = mock_llm
 
-            ocr_service = PDFOCRService(book_id="book-123", max_retries=2, retry_delay=0.01)
+            ocr_service = PDFOCRService(
+                book_id="book-123", max_retries=2, retry_delay=0.01
+            )
 
             with pytest.raises(OCRError) as exc_info:
                 await ocr_service.ocr_page(b"fake_image_bytes", page_number=5)
@@ -429,7 +439,9 @@ class TestPDFExtractionService:
         assert len(result.pages) == 2
 
     @pytest.mark.asyncio
-    async def test_extract_with_progress_callback(self, sample_pdf_bytes, mock_settings):
+    async def test_extract_with_progress_callback(
+        self, sample_pdf_bytes, mock_settings
+    ):
         mock_settings.pdf_ocr_enabled = False
 
         progress_calls = []
@@ -514,7 +526,10 @@ class TestAIDataStorage:
     def test_build_metadata_path(self, mock_settings):
         storage = AIDataStorage(settings=mock_settings)
         path = storage._build_metadata_path("pub-123", "book-456", "my-book")
-        assert path == "pub-123/books/book-456/my-book/ai-data/text/extraction_metadata.json"
+        assert (
+            path
+            == "pub-123/books/book-456/my-book/ai-data/text/extraction_metadata.json"
+        )
 
     def test_save_extracted_text(self, mock_settings):
         with patch("app.services.pdf.storage.get_minio_client") as mock_minio:
@@ -524,8 +539,12 @@ class TestAIDataStorage:
             storage = AIDataStorage(settings=mock_settings)
 
             pages = [
-                PageText(page_number=1, text="Page one text", method=ExtractionMethod.NATIVE),
-                PageText(page_number=2, text="Page two text", method=ExtractionMethod.NATIVE),
+                PageText(
+                    page_number=1, text="Page one text", method=ExtractionMethod.NATIVE
+                ),
+                PageText(
+                    page_number=2, text="Page two text", method=ExtractionMethod.NATIVE
+                ),
             ]
             result = PDFExtractionResult(
                 book_id="book-123",
@@ -550,7 +569,9 @@ class TestAIDataStorage:
 
             storage = AIDataStorage(settings=mock_settings)
 
-            pages = [PageText(page_number=1, text="Text", method=ExtractionMethod.NATIVE)]
+            pages = [
+                PageText(page_number=1, text="Text", method=ExtractionMethod.NATIVE)
+            ]
             result = PDFExtractionResult(
                 book_id="book-123",
                 publisher_id="pub-456",
@@ -640,12 +661,24 @@ class TestIntegration:
         # Create PDF with sufficient text to pass detection thresholds
         doc = fitz.open()
         page1 = doc.new_page()
-        page1.insert_text((50, 50), "This is page one with plenty of text content for testing the extraction pipeline.")
-        page1.insert_text((50, 80), "We need enough words and characters to pass the detection thresholds properly.")
+        page1.insert_text(
+            (50, 50),
+            "This is page one with plenty of text content for testing the extraction pipeline.",
+        )
+        page1.insert_text(
+            (50, 80),
+            "We need enough words and characters to pass the detection thresholds properly.",
+        )
 
         page2 = doc.new_page()
-        page2.insert_text((50, 50), "This is page two with additional text content for the second page of our test PDF.")
-        page2.insert_text((50, 80), "The detection requires at least fifty characters and ten words per page minimum.")
+        page2.insert_text(
+            (50, 50),
+            "This is page two with additional text content for the second page of our test PDF.",
+        )
+        page2.insert_text(
+            (50, 80),
+            "The detection requires at least fifty characters and ten words per page minimum.",
+        )
 
         pdf_bytes = doc.tobytes()
         doc.close()

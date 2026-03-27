@@ -72,7 +72,9 @@ def _create_mock_book(
     status: BookStatusEnum = BookStatusEnum.DRAFT,
 ) -> Book:
     """Helper to create a Book with proper publisher relationship for testing."""
-    publisher = Publisher(id=1, name=publisher_name, display_name=publisher_name, status="active")
+    publisher = Publisher(
+        id=1, name=publisher_name, display_name=publisher_name, status="active"
+    )
     book = Book(
         id=id,
         publisher_id=1,
@@ -81,7 +83,7 @@ def _create_mock_book(
         category=category,
         status=status,
     )
-    object.__setattr__(book, 'publisher_rel', publisher)
+    object.__setattr__(book, "publisher_rel", publisher)
     return book
 
 
@@ -92,19 +94,25 @@ def setup_repositories(monkeypatch):
     monkeypatch.setattr(books, "_require_admin", lambda credentials, db: 1)
 
     # Create mock publisher
-    _mock_publisher = Publisher(id=1, name="Dream", display_name="Dream", status="active")
+    _mock_publisher = Publisher(
+        id=1, name="Dream", display_name="Dream", status="active"
+    )
 
     # Create mock book with proper relationship
     book = _create_mock_book(id=1, publisher_name="Dream", book_name="Sky")
     book.created_at = book.updated_at = None
 
-    monkeypatch.setattr(books._book_repository, "get_by_id", lambda db, identifier: book if identifier == 1 else None)
+    monkeypatch.setattr(
+        books._book_repository,
+        "get_by_id",
+        lambda db, identifier: book if identifier == 1 else None,
+    )
 
     # Mock publisher repository
     monkeypatch.setattr(
         books._publisher_repository,
         "get_or_create_by_name",
-        lambda db, name: Publisher(id=1, name=name, display_name=name, status="active")
+        lambda db, name: Publisher(id=1, name=name, display_name=name, status="active"),
     )
 
     yield
@@ -114,7 +122,12 @@ def test_upload_book_success(monkeypatch):
     from app.routers import books
 
     def fake_upload(**kwargs):
-        return [{"path": f"{kwargs['object_prefix']}chapter1.txt", "size": len("Once upon a time")}]
+        return [
+            {
+                "path": f"{kwargs['object_prefix']}chapter1.txt",
+                "size": len("Once upon a time"),
+            }
+        ]
 
     fake_client = MagicMock()
     fake_client.list_objects.return_value = []
@@ -146,7 +159,9 @@ def test_upload_book_requires_authentication():
 def test_upload_book_returns_404_for_missing_book(monkeypatch):
     from app.routers import books
 
-    monkeypatch.setattr(books._book_repository, "get_by_id", lambda db, identifier: None)
+    monkeypatch.setattr(
+        books._book_repository, "get_by_id", lambda db, identifier: None
+    )
 
     client = TestClient(app)
     response = client.post(
@@ -162,7 +177,11 @@ def test_upload_book_handles_upload_error(monkeypatch):
 
     fake_client = MagicMock()
     fake_client.list_objects.return_value = []
-    monkeypatch.setattr(books, "upload_book_archive", MagicMock(side_effect=books.UploadError("bad archive")))
+    monkeypatch.setattr(
+        books,
+        "upload_book_archive",
+        MagicMock(side_effect=books.UploadError("bad archive")),
+    )
     monkeypatch.setattr(books, "get_minio_client", lambda settings: fake_client)
 
     client = TestClient(app)
@@ -223,7 +242,9 @@ def test_upload_new_book_creates_metadata(monkeypatch):
 
     response = client.post(
         "/books/upload",
-        files={"file": ("SkyAtlas.zip", _make_zip_bytes(config=config), "application/zip")},
+        files={
+            "file": ("SkyAtlas.zip", _make_zip_bytes(config=config), "application/zip")
+        },
         headers=_auth_headers(),
     )
 
@@ -314,7 +335,9 @@ def test_upload_new_book_detects_duplicates(monkeypatch):
     monkeypatch.setattr(books, "_prefix_exists", lambda client, bucket, prefix: True)
 
     def unexpected_upload(**kwargs):  # pragma: no cover - defensive in case of bug
-        raise AssertionError("upload_book_archive should not be called for duplicate metadata")
+        raise AssertionError(
+            "upload_book_archive should not be called for duplicate metadata"
+        )
 
     monkeypatch.setattr(books, "upload_book_archive", unexpected_upload)
 
@@ -328,7 +351,9 @@ def test_upload_new_book_detects_duplicates(monkeypatch):
 
     response = client.post(
         "/books/upload",
-        files={"file": ("SkyAtlas.zip", _make_zip_bytes(config=config), "application/zip")},
+        files={
+            "file": ("SkyAtlas.zip", _make_zip_bytes(config=config), "application/zip")
+        },
         headers=_auth_headers(),
     )
 
@@ -348,6 +373,7 @@ def test_upload_new_book_uses_metadata_as_fallback(monkeypatch, caplog):
         "get_by_publisher_id_and_name",
         lambda db, publisher_id, book_name: None,
     )
+
     def fake_create(db, data):
         status_value = data.get("status", BookStatusEnum.DRAFT)
         if isinstance(status_value, str):
@@ -394,7 +420,9 @@ def test_upload_new_book_uses_metadata_as_fallback(monkeypatch, caplog):
         )
 
     assert response.status_code == 201
-    warnings = " ".join(record.message for record in caplog.records if record.levelname == "WARNING")
+    warnings = " ".join(
+        record.message for record in caplog.records if record.levelname == "WARNING"
+    )
     assert "metadata.json" in warnings
     assert "used to fill missing fields" in warnings
 

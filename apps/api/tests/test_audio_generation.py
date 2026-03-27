@@ -508,9 +508,7 @@ class TestAudioStorage:
             book_id="book-456",
             book_name="Test Book",
         )
-        assert (
-            prefix == "pub-123/books/book-456/Test Book/ai-data/audio/vocabulary/"
-        )
+        assert prefix == "pub-123/books/book-456/Test Book/ai-data/audio/vocabulary/"
 
     @patch("app.services.audio_generation.storage.get_minio_client")
     def test_load_vocabulary_not_found(self, mock_get_client, storage):
@@ -699,7 +697,9 @@ class TestAudioStorage:
         call_args = mock_client.put_object.call_args
         saved_data = call_args[0][2].read()  # Get the BytesIO data
         saved_json = json.loads(saved_data.decode("utf-8"))
-        assert saved_json["words"][0]["audio"]["word"] == "audio/vocabulary/en/hello.mp3"
+        assert (
+            saved_json["words"][0]["audio"]["word"] == "audio/vocabulary/en/hello.mp3"
+        )
 
     @patch("app.services.audio_generation.storage.get_minio_client")
     def test_cleanup_audio_directory(self, mock_get_client, storage):
@@ -709,9 +709,13 @@ class TestAudioStorage:
 
         # Mock list_objects to return some audio files
         mock_obj1 = MagicMock()
-        mock_obj1.object_name = "pub/books/book/Test/ai-data/audio/vocabulary/en/word1.mp3"
+        mock_obj1.object_name = (
+            "pub/books/book/Test/ai-data/audio/vocabulary/en/word1.mp3"
+        )
         mock_obj2 = MagicMock()
-        mock_obj2.object_name = "pub/books/book/Test/ai-data/audio/vocabulary/tr/word1.mp3"
+        mock_obj2.object_name = (
+            "pub/books/book/Test/ai-data/audio/vocabulary/tr/word1.mp3"
+        )
         mock_client.list_objects.return_value = [mock_obj1, mock_obj2]
 
         deleted_count = storage.cleanup_audio_directory(

@@ -44,13 +44,17 @@ def read_session(
     try:
         payload = decode_access_token(credentials.credentials, settings=get_settings())
     except ValueError as exc:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        ) from exc
 
     subject = payload.get("sub")
     try:
         user_id = int(subject)
     except (TypeError, ValueError) as exc:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        ) from exc
 
     user = _user_repository.get(db, user_id)
     if user is None:

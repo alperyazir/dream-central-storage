@@ -50,7 +50,12 @@ SAMPLE_MANIFEST = {
 
 SAMPLE_CONTENT = {
     "questions": [
-        {"id": "q1", "text": "What is the main idea?", "options": ["A", "B", "C"], "answer": "A"},
+        {
+            "id": "q1",
+            "text": "What is the main idea?",
+            "options": ["A", "B", "C"],
+            "answer": "A",
+        },
     ]
 }
 
@@ -61,9 +66,13 @@ CONTENT_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 # Auth tests
 # ---------------------------------------------------------------------------
 
+
 def test_create_ai_content_requires_auth():
     client = TestClient(app, raise_server_exceptions=False)
-    resp = client.post("/books/42/ai-content/", json={"manifest": SAMPLE_MANIFEST, "content": SAMPLE_CONTENT})
+    resp = client.post(
+        "/books/42/ai-content/",
+        json={"manifest": SAMPLE_MANIFEST, "content": SAMPLE_CONTENT},
+    )
     assert resp.status_code in {401, 403}
 
 
@@ -89,6 +98,7 @@ def test_delete_ai_content_requires_auth():
 # 404 — book not found
 # ---------------------------------------------------------------------------
 
+
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
 def test_create_ai_content_book_not_found(mock_repo, mock_auth, auth_headers):
@@ -108,10 +118,13 @@ def test_create_ai_content_book_not_found(mock_repo, mock_auth, auth_headers):
 # Create AI content
 # ---------------------------------------------------------------------------
 
+
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
-def test_create_ai_content_success(mock_repo, mock_auth, mock_get_client, mock_book, auth_headers):
+def test_create_ai_content_success(
+    mock_repo, mock_auth, mock_get_client, mock_book, auth_headers
+):
     mock_auth.return_value = 1
     mock_repo.get_by_id.return_value = mock_book
     mock_client = MagicMock()
@@ -140,10 +153,13 @@ def test_create_ai_content_success(mock_repo, mock_auth, mock_get_client, mock_b
 # List AI content
 # ---------------------------------------------------------------------------
 
+
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
-def test_list_ai_content_empty(mock_repo, mock_auth, mock_get_client, mock_book, auth_headers):
+def test_list_ai_content_empty(
+    mock_repo, mock_auth, mock_get_client, mock_book, auth_headers
+):
     mock_auth.return_value = 1
     mock_repo.get_by_id.return_value = mock_book
     mock_client = MagicMock()
@@ -159,7 +175,9 @@ def test_list_ai_content_empty(mock_repo, mock_auth, mock_get_client, mock_book,
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
-def test_list_ai_content_with_entries(mock_repo, mock_auth, mock_get_client, mock_book, auth_headers):
+def test_list_ai_content_with_entries(
+    mock_repo, mock_auth, mock_get_client, mock_book, auth_headers
+):
     mock_auth.return_value = 1
     mock_repo.get_by_id.return_value = mock_book
     mock_client = MagicMock()
@@ -188,10 +206,13 @@ def test_list_ai_content_with_entries(mock_repo, mock_auth, mock_get_client, moc
 # Get AI content
 # ---------------------------------------------------------------------------
 
+
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
-def test_get_ai_content_success(mock_repo, mock_auth, mock_get_client, mock_book, auth_headers):
+def test_get_ai_content_success(
+    mock_repo, mock_auth, mock_get_client, mock_book, auth_headers
+):
     mock_auth.return_value = 1
     mock_repo.get_by_id.return_value = mock_book
     mock_client = MagicMock()
@@ -228,12 +249,16 @@ def test_get_ai_content_invalid_uuid(mock_repo, mock_auth, mock_book, auth_heade
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
-def test_get_ai_content_not_found(mock_repo, mock_auth, mock_get_client, mock_book, auth_headers):
+def test_get_ai_content_not_found(
+    mock_repo, mock_auth, mock_get_client, mock_book, auth_headers
+):
     mock_auth.return_value = 1
     mock_repo.get_by_id.return_value = mock_book
     mock_client = MagicMock()
     mock_get_client.return_value = mock_client
-    mock_client.get_object.side_effect = S3Error("NoSuchKey", "NoSuchKey", "", "", "", "", "")
+    mock_client.get_object.side_effect = S3Error(
+        "NoSuchKey", "NoSuchKey", "", "", "", "", ""
+    )
 
     client = TestClient(app)
     resp = client.get(f"/books/42/ai-content/{CONTENT_ID}", headers=auth_headers)
@@ -244,19 +269,26 @@ def test_get_ai_content_not_found(mock_repo, mock_auth, mock_get_client, mock_bo
 # Delete AI content
 # ---------------------------------------------------------------------------
 
+
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
-def test_delete_ai_content_success(mock_repo, mock_auth, mock_get_client, mock_book, auth_headers):
+def test_delete_ai_content_success(
+    mock_repo, mock_auth, mock_get_client, mock_book, auth_headers
+):
     mock_auth.return_value = 1
     mock_repo.get_by_id.return_value = mock_book
     mock_client = MagicMock()
     mock_get_client.return_value = mock_client
 
     mock_obj1 = MagicMock()
-    mock_obj1.object_name = f"TestPub/books/TestBook/ai-content/{CONTENT_ID}/manifest.json"
+    mock_obj1.object_name = (
+        f"TestPub/books/TestBook/ai-content/{CONTENT_ID}/manifest.json"
+    )
     mock_obj2 = MagicMock()
-    mock_obj2.object_name = f"TestPub/books/TestBook/ai-content/{CONTENT_ID}/content.json"
+    mock_obj2.object_name = (
+        f"TestPub/books/TestBook/ai-content/{CONTENT_ID}/content.json"
+    )
     mock_client.list_objects.return_value = [mock_obj1, mock_obj2]
 
     client = TestClient(app)
@@ -270,7 +302,9 @@ def test_delete_ai_content_success(mock_repo, mock_auth, mock_get_client, mock_b
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
-def test_delete_ai_content_not_found(mock_repo, mock_auth, mock_get_client, mock_book, auth_headers):
+def test_delete_ai_content_not_found(
+    mock_repo, mock_auth, mock_get_client, mock_book, auth_headers
+):
     mock_auth.return_value = 1
     mock_repo.get_by_id.return_value = mock_book
     mock_client = MagicMock()
@@ -286,10 +320,13 @@ def test_delete_ai_content_not_found(mock_repo, mock_auth, mock_get_client, mock
 # Upload single audio
 # ---------------------------------------------------------------------------
 
+
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
-def test_upload_audio_success(mock_repo, mock_auth, mock_get_client, mock_book, auth_headers):
+def test_upload_audio_success(
+    mock_repo, mock_auth, mock_get_client, mock_book, auth_headers
+):
     mock_auth.return_value = 1
     mock_repo.get_by_id.return_value = mock_book
     mock_client = MagicMock()
@@ -341,12 +378,16 @@ def test_upload_audio_non_mp3(mock_repo, mock_auth, mock_book, auth_headers):
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
-def test_upload_audio_content_not_found(mock_repo, mock_auth, mock_get_client, mock_book, auth_headers):
+def test_upload_audio_content_not_found(
+    mock_repo, mock_auth, mock_get_client, mock_book, auth_headers
+):
     mock_auth.return_value = 1
     mock_repo.get_by_id.return_value = mock_book
     mock_client = MagicMock()
     mock_get_client.return_value = mock_client
-    mock_client.stat_object.side_effect = S3Error("NoSuchKey", "NoSuchKey", "", "", "", "", "")
+    mock_client.stat_object.side_effect = S3Error(
+        "NoSuchKey", "NoSuchKey", "", "", "", "", ""
+    )
 
     audio_data = b"\xff\xfb\x90\x00" * 10
     client = TestClient(app)
@@ -362,10 +403,13 @@ def test_upload_audio_content_not_found(mock_repo, mock_auth, mock_get_client, m
 # Batch audio upload
 # ---------------------------------------------------------------------------
 
+
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
-def test_batch_audio_upload_success(mock_repo, mock_auth, mock_get_client, mock_book, auth_headers):
+def test_batch_audio_upload_success(
+    mock_repo, mock_auth, mock_get_client, mock_book, auth_headers
+):
     mock_auth.return_value = 1
     mock_repo.get_by_id.return_value = mock_book
     mock_client = MagicMock()
@@ -390,7 +434,9 @@ def test_batch_audio_upload_success(mock_repo, mock_auth, mock_get_client, mock_
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
-def test_batch_audio_upload_mixed(mock_repo, mock_auth, mock_get_client, mock_book, auth_headers):
+def test_batch_audio_upload_mixed(
+    mock_repo, mock_auth, mock_get_client, mock_book, auth_headers
+):
     mock_auth.return_value = 1
     mock_repo.get_by_id.return_value = mock_book
     mock_client = MagicMock()
@@ -417,10 +463,13 @@ def test_batch_audio_upload_mixed(mock_repo, mock_auth, mock_get_client, mock_bo
 # Stream audio
 # ---------------------------------------------------------------------------
 
+
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
-def test_stream_audio_full(mock_repo, mock_auth, mock_get_client, mock_book, auth_headers):
+def test_stream_audio_full(
+    mock_repo, mock_auth, mock_get_client, mock_book, auth_headers
+):
     mock_auth.return_value = 1
     mock_repo.get_by_id.return_value = mock_book
     mock_client = MagicMock()
@@ -448,7 +497,9 @@ def test_stream_audio_full(mock_repo, mock_auth, mock_get_client, mock_book, aut
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
-def test_stream_audio_range(mock_repo, mock_auth, mock_get_client, mock_book, auth_headers):
+def test_stream_audio_range(
+    mock_repo, mock_auth, mock_get_client, mock_book, auth_headers
+):
     mock_auth.return_value = 1
     mock_repo.get_by_id.return_value = mock_book
     mock_client = MagicMock()
@@ -478,12 +529,16 @@ def test_stream_audio_range(mock_repo, mock_auth, mock_get_client, mock_book, au
 @patch("app.routers.ai_content.get_minio_client")
 @patch("app.routers.ai_content._require_admin")
 @patch("app.routers.ai_content._book_repository")
-def test_stream_audio_not_found(mock_repo, mock_auth, mock_get_client, mock_book, auth_headers):
+def test_stream_audio_not_found(
+    mock_repo, mock_auth, mock_get_client, mock_book, auth_headers
+):
     mock_auth.return_value = 1
     mock_repo.get_by_id.return_value = mock_book
     mock_client = MagicMock()
     mock_get_client.return_value = mock_client
-    mock_client.stat_object.side_effect = S3Error("NoSuchKey", "NoSuchKey", "", "", "", "", "")
+    mock_client.stat_object.side_effect = S3Error(
+        "NoSuchKey", "NoSuchKey", "", "", "", "", ""
+    )
 
     client = TestClient(app)
     resp = client.get(

@@ -23,7 +23,9 @@ class LLMProviderType(str, Enum):
 class LLMProviderError(Exception):
     """Base exception for LLM provider errors."""
 
-    def __init__(self, message: str, provider: str, details: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, message: str, provider: str, details: dict[str, Any] | None = None
+    ) -> None:
         self.message = message
         self.provider = provider
         self.details = details or {}
@@ -41,7 +43,9 @@ class LLMRateLimitError(LLMProviderError):
     ) -> None:
         self.retry_after = retry_after
         super().__init__(
-            f"Rate limit exceeded. Retry after {retry_after}s" if retry_after else "Rate limit exceeded",
+            f"Rate limit exceeded. Retry after {retry_after}s"
+            if retry_after
+            else "Rate limit exceeded",
             provider,
             details,
         )
@@ -64,9 +68,13 @@ class LLMConnectionError(LLMProviderError):
 class LLMModelNotFoundError(LLMProviderError):
     """Raised when requested model is not available."""
 
-    def __init__(self, provider: str, model: str, details: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, provider: str, model: str, details: dict[str, Any] | None = None
+    ) -> None:
         self.model = model
-        super().__init__(f"Model '{model}' not found or not available", provider, details)
+        super().__init__(
+            f"Model '{model}' not found or not available", provider, details
+        )
 
 
 # =============================================================================
@@ -84,7 +92,9 @@ class LLMMessage:
 
     def __post_init__(self) -> None:
         if self.role not in ("system", "user", "assistant"):
-            raise ValueError(f"Invalid role: {self.role}. Must be 'system', 'user', or 'assistant'")
+            raise ValueError(
+                f"Invalid role: {self.role}. Must be 'system', 'user', or 'assistant'"
+            )
 
 
 @dataclass
@@ -99,7 +109,9 @@ class LLMRequest:
     stop: list[str] | None = None
 
     @classmethod
-    def from_prompt(cls, prompt: str, system_prompt: str | None = None, **kwargs: Any) -> LLMRequest:
+    def from_prompt(
+        cls, prompt: str, system_prompt: str | None = None, **kwargs: Any
+    ) -> LLMRequest:
         """Create a request from a simple prompt string."""
         messages = []
         if system_prompt:

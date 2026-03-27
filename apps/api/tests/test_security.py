@@ -12,7 +12,9 @@ from app.core.security import create_access_token, decode_access_token
 
 def test_decode_access_token_returns_payload() -> None:
     settings = get_settings()
-    token = create_access_token(subject="42", settings=settings, expires_delta=timedelta(minutes=5))
+    token = create_access_token(
+        subject="42", settings=settings, expires_delta=timedelta(minutes=5)
+    )
 
     payload = decode_access_token(token, settings=settings)
 
@@ -22,10 +24,14 @@ def test_decode_access_token_returns_payload() -> None:
 
 def test_decode_access_token_rejects_tampered_signature() -> None:
     settings = get_settings()
-    token = create_access_token(subject="42", settings=settings, expires_delta=timedelta(minutes=5))
+    token = create_access_token(
+        subject="42", settings=settings, expires_delta=timedelta(minutes=5)
+    )
 
     header_segment, payload_segment, signature_segment = token.split(".")
-    tampered_payload = payload_segment[:-1] + ("a" if payload_segment[-1] != "a" else "b")
+    tampered_payload = payload_segment[:-1] + (
+        "a" if payload_segment[-1] != "a" else "b"
+    )
     tampered = ".".join([header_segment, tampered_payload, signature_segment])
 
     with pytest.raises(ValueError, match="Token signature mismatch"):
@@ -34,7 +40,9 @@ def test_decode_access_token_rejects_tampered_signature() -> None:
 
 def test_decode_access_token_rejects_expired_token() -> None:
     settings = get_settings()
-    token = create_access_token(subject="42", settings=settings, expires_delta=timedelta(seconds=-1))
+    token = create_access_token(
+        subject="42", settings=settings, expires_delta=timedelta(seconds=-1)
+    )
 
     with pytest.raises(ValueError, match="Token expired"):
         decode_access_token(token, settings=settings)

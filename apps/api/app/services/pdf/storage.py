@@ -88,7 +88,9 @@ class AIDataStorage:
             MinIO object path for the page text file.
         """
         filename = f"page_{page_number:03d}.txt"
-        return self._build_ai_data_path(publisher_id, book_id, book_name, "text", filename)
+        return self._build_ai_data_path(
+            publisher_id, book_id, book_name, "text", filename
+        )
 
     def _build_metadata_path(
         self,
@@ -236,9 +238,9 @@ class AIDataStorage:
         # Combine all pages with page markers
         parts = []
         for page in result.pages:
-            parts.append(f"\n{'='*60}")
+            parts.append(f"\n{'=' * 60}")
             parts.append(f"PAGE {page.page_number}")
-            parts.append(f"{'='*60}\n")
+            parts.append(f"{'=' * 60}\n")
             parts.append(page.text)
             parts.append("\n")
 

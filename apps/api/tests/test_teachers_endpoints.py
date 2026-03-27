@@ -85,7 +85,13 @@ def test_upload_teacher_material_invalid_mime_type(monkeypatch) -> None:
     response = client.post(
         "/teachers/teacher_123/upload",
         headers=_auth_headers(),
-        files={"file": ("malware.exe", io.BytesIO(file_content), "application/x-msdownload")},
+        files={
+            "file": (
+                "malware.exe",
+                io.BytesIO(file_content),
+                "application/x-msdownload",
+            )
+        },
     )
 
     assert response.status_code == 415
@@ -230,7 +236,9 @@ def test_download_teacher_material_success(monkeypatch) -> None:
     fake_obj.release_conn = MagicMock()
 
     fake_client = MagicMock()
-    fake_client.stat_object.return_value = SimpleNamespace(size=len(data), content_type="application/pdf")
+    fake_client.stat_object.return_value = SimpleNamespace(
+        size=len(data), content_type="application/pdf"
+    )
     fake_client.get_object.return_value = fake_obj
 
     monkeypatch.setattr(teachers, "get_minio_client", lambda settings: fake_client)
@@ -289,7 +297,9 @@ def test_download_teacher_material_range_request(monkeypatch) -> None:
     fake_obj.release_conn = MagicMock()
 
     fake_client = MagicMock()
-    fake_client.stat_object.return_value = SimpleNamespace(size=100, content_type="audio/mpeg")
+    fake_client.stat_object.return_value = SimpleNamespace(
+        size=100, content_type="audio/mpeg"
+    )
     fake_client.get_object.return_value = fake_obj
 
     monkeypatch.setattr(teachers, "get_minio_client", lambda settings: fake_client)
@@ -323,7 +333,9 @@ def test_download_teacher_material_nested_path(monkeypatch) -> None:
     fake_obj.release_conn = MagicMock()
 
     fake_client = MagicMock()
-    fake_client.stat_object.return_value = SimpleNamespace(size=len(data), content_type="audio/mpeg")
+    fake_client.stat_object.return_value = SimpleNamespace(
+        size=len(data), content_type="audio/mpeg"
+    )
     fake_client.get_object.return_value = fake_obj
 
     monkeypatch.setattr(teachers, "get_minio_client", lambda settings: fake_client)

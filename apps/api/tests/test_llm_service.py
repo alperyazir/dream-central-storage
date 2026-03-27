@@ -75,7 +75,10 @@ def mock_deepseek_response():
         "choices": [
             {
                 "index": 0,
-                "message": {"role": "assistant", "content": "Hello! How can I help you?"},
+                "message": {
+                    "role": "assistant",
+                    "content": "Hello! How can I help you?",
+                },
                 "finish_reason": "stop",
             }
         ],
@@ -160,7 +163,9 @@ class TestLLMUsage:
         assert usage.total_tokens == 15
 
     def test_cost_estimation(self):
-        usage = LLMUsage(prompt_tokens=100, completion_tokens=50, estimated_cost_usd=0.001)
+        usage = LLMUsage(
+            prompt_tokens=100, completion_tokens=50, estimated_cost_usd=0.001
+        )
         assert usage.estimated_cost_usd == 0.001
 
 
@@ -189,7 +194,9 @@ class TestDeepSeekProvider:
             assert response.usage.completion_tokens == 8
 
     @pytest.mark.asyncio
-    async def test_chat_convenience_method(self, deepseek_provider, mock_deepseek_response):
+    async def test_chat_convenience_method(
+        self, deepseek_provider, mock_deepseek_response
+    ):
         """Test chat convenience method."""
         with patch.object(
             deepseek_provider, "_make_request", new_callable=AsyncMock
@@ -295,7 +302,10 @@ class TestGeminiProvider:
         # GIF
         assert gemini_provider._detect_image_type(b"GIF89a") == "image/gif"
         # WebP
-        assert gemini_provider._detect_image_type(b"RIFF\x00\x00\x00\x00WEBP") == "image/webp"
+        assert (
+            gemini_provider._detect_image_type(b"RIFF\x00\x00\x00\x00WEBP")
+            == "image/webp"
+        )
         # Unknown (defaults to JPEG)
         assert gemini_provider._detect_image_type(b"unknown") == "image/jpeg"
 
@@ -318,7 +328,9 @@ class TestLLMService:
     """Tests for LLM service with fallback logic."""
 
     @pytest.mark.asyncio
-    async def test_primary_provider_success(self, mock_settings, mock_deepseek_response):
+    async def test_primary_provider_success(
+        self, mock_settings, mock_deepseek_response
+    ):
         """Test successful request using primary provider."""
         mock_primary = AsyncMock(spec=DeepSeekProvider)
         mock_primary.provider_name = "deepseek"
@@ -489,7 +501,9 @@ class TestExceptions:
     """Tests for custom exceptions."""
 
     def test_llm_provider_error(self):
-        error = LLMProviderError("Test error", provider="test", details={"key": "value"})
+        error = LLMProviderError(
+            "Test error", provider="test", details={"key": "value"}
+        )
         assert "test" in str(error)
         assert error.provider == "test"
         assert error.details == {"key": "value"}

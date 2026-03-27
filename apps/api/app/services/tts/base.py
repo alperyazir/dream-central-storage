@@ -110,7 +110,9 @@ class TTSVoiceNotFoundError(TTSProviderError):
         self, provider: str, voice: str, details: dict[str, Any] | None = None
     ) -> None:
         self.voice = voice
-        super().__init__(f"Voice '{voice}' not found or not available", provider, details)
+        super().__init__(
+            f"Voice '{voice}' not found or not available", provider, details
+        )
 
 
 # =============================================================================
@@ -169,8 +171,12 @@ class TTSBatchItem:
 class TTSBatchResult:
     """Result of a batch TTS operation."""
 
-    results: list[TTSResponse | None] = field(default_factory=list)  # None for failed items
-    errors: list[tuple[int, str]] = field(default_factory=list)  # (index, error_message)
+    results: list[TTSResponse | None] = field(
+        default_factory=list
+    )  # None for failed items
+    errors: list[tuple[int, str]] = field(
+        default_factory=list
+    )  # (index, error_message)
     success_count: int = 0
     failure_count: int = 0
 
@@ -247,9 +253,7 @@ class TTSProvider(ABC):
             True if provider is healthy, False otherwise.
         """
         try:
-            response = await self.synthesize(
-                TTSRequest(text="test", language="en")
-            )
+            response = await self.synthesize(TTSRequest(text="test", language="en"))
             return bool(response.audio_data)
         except Exception:
             return False

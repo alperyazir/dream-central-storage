@@ -136,7 +136,9 @@ class TTSService:
         Raises:
             TTSProviderError: If all retries fail.
         """
-        retries = max_retries if max_retries is not None else self.settings.tts_max_retries
+        retries = (
+            max_retries if max_retries is not None else self.settings.tts_max_retries
+        )
         last_error: Exception | None = None
         backoff_times = [1, 2, 4, 8, 16]  # Exponential backoff in seconds
 
@@ -145,7 +147,9 @@ class TTSService:
                 return await provider.synthesize(request)
             except TTSRateLimitError as e:
                 last_error = e
-                wait_time = e.retry_after or backoff_times[min(attempt, len(backoff_times) - 1)]
+                wait_time = (
+                    e.retry_after or backoff_times[min(attempt, len(backoff_times) - 1)]
+                )
                 logger.warning(
                     f"[TTSService] Rate limit hit on {provider.provider_name}, "
                     f"waiting {wait_time}s (attempt {attempt + 1}/{retries + 1})"
@@ -159,7 +163,9 @@ class TTSService:
                     f"(attempt {attempt + 1}/{retries + 1})"
                 )
                 if attempt < retries:
-                    await asyncio.sleep(backoff_times[min(attempt, len(backoff_times) - 1)])
+                    await asyncio.sleep(
+                        backoff_times[min(attempt, len(backoff_times) - 1)]
+                    )
 
         # If we get here, all retries failed
         raise last_error or TTSProviderError(
@@ -192,14 +198,18 @@ class TTSService:
         if force_provider:
             provider = self.get_provider(force_provider)
             if not provider:
-                raise ValueError(f"Provider '{force_provider}' not configured or unavailable")
+                raise ValueError(
+                    f"Provider '{force_provider}' not configured or unavailable"
+                )
             return await self._execute_with_retry(provider, request)
 
         # Try primary provider
         primary = self.primary_provider
         if primary:
             try:
-                logger.info(f"[TTSService] Using primary provider: {primary.provider_name}")
+                logger.info(
+                    f"[TTSService] Using primary provider: {primary.provider_name}"
+                )
                 return await self._execute_with_retry(primary, request)
             except TTSProviderError as e:
                 logger.error(f"[TTSService] Primary provider failed: {e}")
@@ -209,9 +219,13 @@ class TTSService:
         # Try fallback provider
         if use_fallback:
             fallback = self.fallback_provider
-            if fallback and (not primary or fallback.provider_name != primary.provider_name):
+            if fallback and (
+                not primary or fallback.provider_name != primary.provider_name
+            ):
                 try:
-                    logger.info(f"[TTSService] Falling back to: {fallback.provider_name}")
+                    logger.info(
+                        f"[TTSService] Falling back to: {fallback.provider_name}"
+                    )
                     return await self._execute_with_retry(fallback, request)
                 except TTSProviderError as e:
                     logger.error(f"[TTSService] Fallback provider also failed: {e}")

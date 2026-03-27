@@ -48,8 +48,12 @@ class AzureTTSProvider(TTSProvider):
         self.timeout = timeout
         self.max_retries = max_retries
         self._token: str | None = None
-        self._token_endpoint = f"https://{region}.api.cognitive.microsoft.com/sts/v1.0/issueToken"
-        self._tts_endpoint = f"https://{region}.tts.speech.microsoft.com/cognitiveservices/v1"
+        self._token_endpoint = (
+            f"https://{region}.api.cognitive.microsoft.com/sts/v1.0/issueToken"
+        )
+        self._tts_endpoint = (
+            f"https://{region}.tts.speech.microsoft.com/cognitiveservices/v1"
+        )
 
     def _get_ssml(self, text: str, voice: str, speed: float) -> str:
         """
@@ -113,7 +117,10 @@ class AzureTTSProvider(TTSProvider):
                 raise TTSProviderError(
                     message=f"Failed to get token: {response.status_code}",
                     provider=self.provider_name,
-                    details={"status_code": response.status_code, "response": response.text},
+                    details={
+                        "status_code": response.status_code,
+                        "response": response.text,
+                    },
                 )
 
             return response.text

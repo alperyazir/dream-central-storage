@@ -163,7 +163,9 @@ def _sanitize_segment(segment: str, label: str) -> str:
     if not sanitized:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=f"{label} is required")
     if any(separator in sanitized for separator in ("/", "\\")):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=f"{label} contains invalid characters")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail=f"{label} contains invalid characters"
+        )
     if sanitized in {"..", "."}:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=f"{label} is invalid")
     return sanitized
@@ -176,7 +178,9 @@ def _normalize_relative_path(path: str) -> str:
 
     posix_path = PurePosixPath(trimmed)
     if any(part in {"..", "."} for part in posix_path.parts):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="path must not traverse directories")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="path must not traverse directories"
+        )
 
     normalized = str(posix_path)
     if normalized.endswith("/"):
@@ -186,7 +190,9 @@ def _normalize_relative_path(path: str) -> str:
     return normalized
 
 
-def _build_book_object_key(publisher: str, book_name: str, relative_path: str | None = None) -> str:
+def _build_book_object_key(
+    publisher: str, book_name: str, relative_path: str | None = None
+) -> str:
     """Build the MinIO object key for book content.
 
     Path structure: {publisher}/books/{book_name}/...
@@ -242,17 +248,25 @@ async def get_book_config(
         client.stat_object(settings.minio_publishers_bucket, object_key)
     except S3Error as exc:
         if exc.code == "NoSuchKey":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="config.json not found") from exc
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, detail="config.json not found"
+            ) from exc
         logger.error("Failed statting config '%s/%s': %s", publisher, book_name, exc)
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to load config.json") from exc
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail="Unable to load config.json"
+        ) from exc
 
     try:
         response = client.get_object(settings.minio_publishers_bucket, object_key)
     except S3Error as exc:
         if exc.code == "NoSuchKey":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="config.json not found") from exc
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, detail="config.json not found"
+            ) from exc
         logger.error("Failed retrieving config '%s/%s': %s", publisher, book_name, exc)
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to load config.json") from exc
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail="Unable to load config.json"
+        ) from exc
 
     try:
         raw_data = response.read()
@@ -264,7 +278,9 @@ async def get_book_config(
         payload = json.loads(raw_data.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         logger.error("Invalid config.json for '%s/%s': %s", publisher, book_name, exc)
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="config.json is invalid") from exc
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail="config.json is invalid"
+        ) from exc
 
     return payload
 
@@ -282,7 +298,9 @@ async def get_book_cover(
     _require_admin(credentials, db)
 
     # Look up book to get the cover filename
-    book = _book_repository.get_by_publisher_name_and_book_name(db, publisher_name=publisher, book_name=book_name)
+    book = _book_repository.get_by_publisher_name_and_book_name(
+        db, publisher_name=publisher, book_name=book_name
+    )
     if book is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Book not found")
 
@@ -291,20 +309,28 @@ async def get_book_cover(
 
     settings = get_settings()
     client = get_minio_client(settings)
-    object_key = _build_book_object_key(publisher, book_name, f"images/{cover_filename}")
+    object_key = _build_book_object_key(
+        publisher, book_name, f"images/{cover_filename}"
+    )
 
     # Get file metadata
     try:
         stat = client.stat_object(settings.minio_publishers_bucket, object_key)
     except S3Error as exc:
         if exc.code == "NoSuchKey":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Book cover not found") from exc
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, detail="Book cover not found"
+            ) from exc
         logger.error("Failed statting book cover '%s': %s", object_key, exc)
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to load book cover") from exc
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail="Unable to load book cover"
+        ) from exc
 
     file_size = stat.size
     if file_size is None:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to determine file size")
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail="Unable to determine file size"
+        )
 
     # ETag support — return 304 if client already has this version
     etag = stat.etag
@@ -314,7 +340,10 @@ async def get_book_cover(
             return JSONResponse(
                 status_code=304,
                 content=None,
-                headers={"ETag": f'"{etag}"', "Cache-Control": "public, max-age=86400, immutable"},
+                headers={
+                    "ETag": f'"{etag}"',
+                    "Cache-Control": "public, max-age=86400, immutable",
+                },
             )
 
     # Determine MIME type from filename
@@ -387,13 +416,19 @@ async def download_book_object(
         stat = client.stat_object(settings.minio_publishers_bucket, object_key)
     except S3Error as exc:
         if exc.code == "NoSuchKey":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="File not found") from exc
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, detail="File not found"
+            ) from exc
         logger.error("Failed statting book object '%s': %s", object_key, exc)
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to load object metadata") from exc
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail="Unable to load object metadata"
+        ) from exc
 
     file_size = stat.size
     if file_size is None:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to determine file size")
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail="Unable to determine file size"
+        )
 
     # Determine MIME type (prefer our mapping over MinIO's detection)
     media_type = _get_media_type(path, getattr(stat, "content_type", None))
@@ -419,7 +454,10 @@ async def download_book_object(
         start, end = _parse_range_header(range_header, file_size)
         logger.debug(
             "Range request for '%s': bytes=%d-%d (total=%d)",
-            object_key, start, end, file_size
+            object_key,
+            start,
+            end,
+            file_size,
         )
 
     content_length = end - start + 1
@@ -468,8 +506,7 @@ async def download_book_object(
         # 206 Partial Content for range requests
         headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
         logger.info(
-            "Streaming range %d-%d/%d for '%s'",
-            start, end, file_size, object_key
+            "Streaming range %d-%d/%d for '%s'", start, end, file_size, object_key
         )
         return StreamingResponse(
             iterator(),
@@ -493,7 +530,9 @@ async def get_presigned_url(
     publisher: str,
     book_name: str,
     path: str = Query(..., description="Relative path to the object within the book"),
-    expires: int = Query(3600, ge=60, le=86400, description="URL expiry in seconds (default 1h, max 24h)"),
+    expires: int = Query(
+        3600, ge=60, le=86400, description="URL expiry in seconds (default 1h, max 24h)"
+    ),
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
 ):
@@ -513,8 +552,12 @@ async def get_presigned_url(
         client.stat_object(settings.minio_publishers_bucket, object_key)
     except S3Error as exc:
         if exc.code == "NoSuchKey":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="File not found") from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to verify object") from exc
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, detail="File not found"
+            ) from exc
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail="Unable to verify object"
+        ) from exc
 
     # Generate presigned URL using external client (correct host for browser access)
     external_client = get_minio_client_external(settings)
@@ -595,14 +638,18 @@ def _parse_trash_key(key: str) -> tuple[str, list[str]]:
 
 def _extract_book_identifiers(path_parts: list[str]) -> tuple[str, str]:
     if len(path_parts) < 3 or path_parts[1] != "books":
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Book restore key is incomplete")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="Book restore key is incomplete"
+        )
     return path_parts[0], path_parts[2]
 
 
 def _extract_teacher_identifiers(path_parts: list[str]) -> tuple[str, str]:
     """Extract teacher_id and material path from trash key parts."""
     if len(path_parts) < 2 or path_parts[1] != "materials":
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Teacher restore key is incomplete")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="Teacher restore key is incomplete"
+        )
     return path_parts[0], "/".join(path_parts[2:]) if len(path_parts) > 2 else ""
 
 
@@ -630,7 +677,11 @@ def restore_item(
         )
     except RestorationError as exc:
         message = str(exc)
-        status_code = status.HTTP_404_NOT_FOUND if "No trash objects" in message else status.HTTP_502_BAD_GATEWAY
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if "No trash objects" in message
+            else status.HTTP_502_BAD_GATEWAY
+        )
         raise HTTPException(status_code=status_code, detail=message) from exc
 
     item_type: Literal["book", "app", "teacher_material", "unknown"] = "unknown"
@@ -686,7 +737,9 @@ def delete_trash_entry(
     bucket, path_parts = _parse_trash_key(payload.key)
 
     # Override reason is optional now - no longer required for force deletion
-    override_reason = payload.override_reason.strip() if payload.override_reason else None
+    override_reason = (
+        payload.override_reason.strip() if payload.override_reason else None
+    )
 
     settings = get_settings()
     client = get_minio_client(settings)

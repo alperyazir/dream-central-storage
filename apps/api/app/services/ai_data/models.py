@@ -212,7 +212,9 @@ class ProcessingMetadata:
     def from_dict(cls, data: dict[str, Any]) -> ProcessingMetadata:
         """Create ProcessingMetadata from dictionary."""
         status_str = data.get("processing_status", "pending")
-        status = ProcessingStatus(status_str) if status_str else ProcessingStatus.PENDING
+        status = (
+            ProcessingStatus(status_str) if status_str else ProcessingStatus.PENDING
+        )
 
         started_at = data.get("processing_started_at")
         if isinstance(started_at, str):

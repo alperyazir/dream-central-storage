@@ -171,10 +171,7 @@ class PDFExtractionService:
             final_pages: list[PageText] = list(native_pages)
             ocr_performed = False
 
-            if (
-                analysis.scanned_pages > 0
-                and self.settings.pdf_ocr_enabled
-            ):
+            if analysis.scanned_pages > 0 and self.settings.pdf_ocr_enabled:
                 logger.info(
                     "OCR enabled, processing %d scanned pages",
                     analysis.scanned_pages,
@@ -237,7 +234,9 @@ class PDFExtractionService:
                 pages=final_pages,
                 method=method,
                 scanned_page_count=analysis.scanned_pages if ocr_performed else 0,
-                native_page_count=analysis.native_pages if ocr_performed else total_pages,
+                native_page_count=analysis.native_pages
+                if ocr_performed
+                else total_pages,
             )
 
             logger.info(
@@ -322,7 +321,11 @@ class PDFExtractionService:
 
             method = ExtractionMethod.NATIVE
             if ocr_performed:
-                method = ExtractionMethod.MIXED if analysis.native_pages > 0 else ExtractionMethod.OCR
+                method = (
+                    ExtractionMethod.MIXED
+                    if analysis.native_pages > 0
+                    else ExtractionMethod.OCR
+                )
 
             return PDFExtractionResult(
                 book_id=book_id,
@@ -332,7 +335,9 @@ class PDFExtractionService:
                 pages=final_pages,
                 method=method,
                 scanned_page_count=analysis.scanned_pages if ocr_performed else 0,
-                native_page_count=analysis.native_pages if ocr_performed else total_pages,
+                native_page_count=analysis.native_pages
+                if ocr_performed
+                else total_pages,
             )
 
 

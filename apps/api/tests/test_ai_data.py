@@ -202,7 +202,9 @@ class TestAIDataStructure:
         assert structure.base_path == "pub-123/books/my-book/ai-data"
         assert structure.text_path == "pub-123/books/my-book/ai-data/text"
         assert structure.modules_path == "pub-123/books/my-book/ai-data/modules"
-        assert structure.vocabulary_path == "pub-123/books/my-book/ai-data/vocabulary.json"
+        assert (
+            structure.vocabulary_path == "pub-123/books/my-book/ai-data/vocabulary.json"
+        )
         assert structure.audio_path == "pub-123/books/my-book/ai-data/audio"
         assert structure.metadata_path == "pub-123/books/my-book/ai-data/metadata.json"
 
@@ -329,7 +331,9 @@ class TestAIDataMetadataService:
         mock_minio_client.put_object.assert_called_once()
 
     @patch("app.services.ai_data.service.get_minio_client")
-    def test_get_metadata_not_found(self, mock_get_client, mock_settings, mock_minio_client):
+    def test_get_metadata_not_found(
+        self, mock_get_client, mock_settings, mock_minio_client
+    ):
         """Test getting metadata when it doesn't exist."""
         mock_get_client.return_value = mock_minio_client
         mock_minio_client.get_object.side_effect = S3Error(
@@ -347,7 +351,9 @@ class TestAIDataMetadataService:
         assert result is None
 
     @patch("app.services.ai_data.service.get_minio_client")
-    def test_get_metadata_success(self, mock_get_client, mock_settings, mock_minio_client):
+    def test_get_metadata_success(
+        self, mock_get_client, mock_settings, mock_minio_client
+    ):
         """Test getting existing metadata."""
         mock_get_client.return_value = mock_minio_client
 
@@ -374,7 +380,9 @@ class TestAIDataMetadataService:
         assert result.total_pages == 100
 
     @patch("app.services.ai_data.service.get_minio_client")
-    def test_update_metadata_text_extraction(self, mock_get_client, mock_settings, mock_minio_client):
+    def test_update_metadata_text_extraction(
+        self, mock_get_client, mock_settings, mock_minio_client
+    ):
         """Test updating metadata with text extraction results."""
         mock_get_client.return_value = mock_minio_client
 
@@ -406,7 +414,9 @@ class TestAIDataMetadataService:
         assert result.stages["text_extraction"].status == StageStatus.COMPLETED
 
     @patch("app.services.ai_data.service.get_minio_client")
-    def test_finalize_metadata_completed(self, mock_get_client, mock_settings, mock_minio_client):
+    def test_finalize_metadata_completed(
+        self, mock_get_client, mock_settings, mock_minio_client
+    ):
         """Test finalizing metadata with completed status."""
         mock_get_client.return_value = mock_minio_client
 
@@ -435,7 +445,9 @@ class TestAIDataMetadataService:
         assert result.processing_completed_at is not None
 
     @patch("app.services.ai_data.service.get_minio_client")
-    def test_finalize_metadata_failed(self, mock_get_client, mock_settings, mock_minio_client):
+    def test_finalize_metadata_failed(
+        self, mock_get_client, mock_settings, mock_minio_client
+    ):
         """Test finalizing metadata with failed status."""
         mock_get_client.return_value = mock_minio_client
 
@@ -466,7 +478,9 @@ class TestAIDataMetadataService:
         assert result.errors[0]["error"] == "Critical failure"
 
     @patch("app.services.ai_data.service.get_minio_client")
-    def test_metadata_exists_true(self, mock_get_client, mock_settings, mock_minio_client):
+    def test_metadata_exists_true(
+        self, mock_get_client, mock_settings, mock_minio_client
+    ):
         """Test checking if metadata exists."""
         mock_get_client.return_value = mock_minio_client
 
@@ -477,7 +491,9 @@ class TestAIDataMetadataService:
         mock_minio_client.stat_object.assert_called_once()
 
     @patch("app.services.ai_data.service.get_minio_client")
-    def test_metadata_exists_false(self, mock_get_client, mock_settings, mock_minio_client):
+    def test_metadata_exists_false(
+        self, mock_get_client, mock_settings, mock_minio_client
+    ):
         """Test checking if metadata doesn't exist."""
         mock_get_client.return_value = mock_minio_client
         mock_minio_client.stat_object.side_effect = S3Error(
@@ -525,7 +541,9 @@ class TestAIDataStructureManager:
         assert "modules" in structure.modules_path
 
     @patch("app.services.ai_data.structure.get_minio_client")
-    def test_initialize_ai_data_structure(self, mock_get_client, mock_settings, mock_minio_client):
+    def test_initialize_ai_data_structure(
+        self, mock_get_client, mock_settings, mock_minio_client
+    ):
         """Test initializing AI data structure."""
         mock_get_client.return_value = mock_minio_client
         # Simulate directories don't exist
@@ -558,7 +576,9 @@ class TestAIDataStructureManager:
         assert all(v is True for v in result.values())
 
     @patch("app.services.ai_data.structure.get_minio_client")
-    def test_structure_exists_true(self, mock_get_client, mock_settings, mock_minio_client):
+    def test_structure_exists_true(
+        self, mock_get_client, mock_settings, mock_minio_client
+    ):
         """Test checking if structure exists."""
         mock_get_client.return_value = mock_minio_client
         mock_minio_client.list_objects.return_value = [MagicMock()]
@@ -569,7 +589,9 @@ class TestAIDataStructureManager:
         assert result is True
 
     @patch("app.services.ai_data.structure.get_minio_client")
-    def test_structure_exists_false(self, mock_get_client, mock_settings, mock_minio_client):
+    def test_structure_exists_false(
+        self, mock_get_client, mock_settings, mock_minio_client
+    ):
         """Test checking if structure doesn't exist."""
         mock_get_client.return_value = mock_minio_client
         mock_minio_client.list_objects.return_value = []
@@ -613,12 +635,18 @@ class TestAIDataCleanupManager:
         mock_obj3 = MagicMock()
         mock_obj3.object_name = "pub/books/book/name/ai-data/vocabulary.json"
         mock_obj4 = MagicMock()
-        mock_obj4.object_name = "pub/books/book/name/ai-data/audio/vocabulary/en/hello.mp3"
+        mock_obj4.object_name = (
+            "pub/books/book/name/ai-data/audio/vocabulary/en/hello.mp3"
+        )
         mock_obj5 = MagicMock()
         mock_obj5.object_name = "pub/books/book/name/ai-data/metadata.json"
 
         mock_minio_client.list_objects.return_value = [
-            mock_obj1, mock_obj2, mock_obj3, mock_obj4, mock_obj5
+            mock_obj1,
+            mock_obj2,
+            mock_obj3,
+            mock_obj4,
+            mock_obj5,
         ]
 
         manager = AIDataCleanupManager(settings=mock_settings)
@@ -633,7 +661,9 @@ class TestAIDataCleanupManager:
         assert len(stats.errors) == 0
 
     @patch("app.services.ai_data.cleanup.get_minio_client")
-    def test_cleanup_selective_text_only(self, mock_get_client, mock_settings, mock_minio_client):
+    def test_cleanup_selective_text_only(
+        self, mock_get_client, mock_settings, mock_minio_client
+    ):
         """Test selective cleanup of text directory only."""
         mock_get_client.return_value = mock_minio_client
 
@@ -683,7 +713,9 @@ class TestAIDataCleanupManager:
         assert counts["total"] == 67
 
     @patch("app.services.ai_data.cleanup.get_minio_client")
-    def test_cleanup_handles_errors(self, mock_get_client, mock_settings, mock_minio_client):
+    def test_cleanup_handles_errors(
+        self, mock_get_client, mock_settings, mock_minio_client
+    ):
         """Test cleanup handles individual file deletion errors."""
         mock_get_client.return_value = mock_minio_client
 

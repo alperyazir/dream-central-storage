@@ -254,7 +254,9 @@ class AIDataCleanupManager:
         for dir_name, path in dir_paths.items():
             prefix = f"{path}/"
             try:
-                objects = list(client.list_objects(bucket, prefix=prefix, recursive=True))
+                objects = list(
+                    client.list_objects(bucket, prefix=prefix, recursive=True)
+                )
                 counts[dir_name] = len(objects)
                 counts["total"] += len(objects)
             except S3Error:

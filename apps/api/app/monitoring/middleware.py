@@ -64,10 +64,14 @@ class MetricsMiddleware:
         else:
             duration = time.perf_counter() - start_time
             status_code = status_holder.get("status", 500)
-            _record_metrics(method, path, status_code, duration, failed=status_code >= 500)
+            _record_metrics(
+                method, path, status_code, duration, failed=status_code >= 500
+            )
 
 
-def _record_metrics(method: str, path: str, status: int, duration: float, *, failed: bool) -> None:
+def _record_metrics(
+    method: str, path: str, status: int, duration: float, *, failed: bool
+) -> None:
     key: MetricKey = (method, path, str(status))
     path_key: PathKey = (method, path)
     with _metrics_lock:
@@ -90,7 +94,9 @@ def render_metrics() -> str:
                 f'dream_requests_total{{method="{method}",path="{path}",status="{status}"}} {value}'
             )
 
-        lines.append("# HELP dream_request_errors_total HTTP requests that resulted in errors")
+        lines.append(
+            "# HELP dream_request_errors_total HTTP requests that resulted in errors"
+        )
         lines.append("# TYPE dream_request_errors_total counter")
         if _error_counts:
             for (method, path, status), value in sorted(_error_counts.items()):
@@ -100,14 +106,18 @@ def render_metrics() -> str:
         else:
             lines.append('dream_request_errors_total{method="",path="",status=""} 0')
 
-        lines.append("# HELP dream_request_duration_seconds_sum Total time spent handling requests")
+        lines.append(
+            "# HELP dream_request_duration_seconds_sum Total time spent handling requests"
+        )
         lines.append("# TYPE dream_request_duration_seconds_sum counter")
         for (method, path), stats in sorted(_latency_stats.items()):
             lines.append(
                 f'dream_request_duration_seconds_sum{{method="{method}",path="{path}"}} {stats.total_duration}'
             )
 
-        lines.append("# HELP dream_request_duration_seconds_count Total number of timed requests")
+        lines.append(
+            "# HELP dream_request_duration_seconds_count Total number of timed requests"
+        )
         lines.append("# TYPE dream_request_duration_seconds_count counter")
         for (method, path), stats in sorted(_latency_stats.items()):
             lines.append(

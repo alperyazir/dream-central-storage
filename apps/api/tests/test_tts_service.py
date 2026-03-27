@@ -182,6 +182,7 @@ class TestEdgeTTSProvider:
     @pytest.mark.asyncio
     async def test_synthesize_success(self, edge_provider, mock_audio_data):
         """Test successful synthesis by mocking the provider's synthesize method."""
+
         # We mock at the provider level since edge_tts may not be installed
         async def mock_synthesize(request):
             return TTSResponse(
@@ -202,6 +203,7 @@ class TestEdgeTTSProvider:
     @pytest.mark.asyncio
     async def test_synthesize_error_handling(self, edge_provider):
         """Test error handling in synthesis."""
+
         async def mock_synthesize_error(request):
             raise TTSProviderError("Synthesis failed", provider="edge")
 
@@ -213,6 +215,7 @@ class TestEdgeTTSProvider:
     @pytest.mark.asyncio
     async def test_batch_synthesize(self, edge_provider, mock_audio_data):
         """Test batch synthesis."""
+
         async def mock_synthesize(request):
             return TTSResponse(
                 audio_data=mock_audio_data,
@@ -282,7 +285,9 @@ class TestAzureTTSProvider:
             mock_tts_response.status_code = 200
             mock_tts_response.content = mock_audio_data
 
-            mock_client.post = AsyncMock(side_effect=[mock_token_response, mock_tts_response])
+            mock_client.post = AsyncMock(
+                side_effect=[mock_token_response, mock_tts_response]
+            )
 
             request = TTSRequest(text="Hello", language="en")
             response = await azure_provider.synthesize(request)
@@ -324,7 +329,9 @@ class TestAzureTTSProvider:
             mock_tts_response.text = "Rate limited"
             mock_tts_response.headers = {"Retry-After": "30"}
 
-            mock_client.post = AsyncMock(side_effect=[mock_token_response, mock_tts_response])
+            mock_client.post = AsyncMock(
+                side_effect=[mock_token_response, mock_tts_response]
+            )
 
             request = TTSRequest(text="Hello", language="en")
             with pytest.raises(TTSRateLimitError) as exc_info:
@@ -552,7 +559,9 @@ class TestExceptions:
     """Tests for custom exceptions."""
 
     def test_tts_provider_error(self):
-        error = TTSProviderError("Test error", provider="test", details={"key": "value"})
+        error = TTSProviderError(
+            "Test error", provider="test", details={"key": "value"}
+        )
         assert "test" in str(error)
         assert error.provider == "test"
         assert error.details == {"key": "value"}

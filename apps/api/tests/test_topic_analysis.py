@@ -202,7 +202,9 @@ class TestBookAnalysisResult:
             ModuleAnalysisResult(
                 module_id=1,
                 module_title="Unit 1",
-                topic_result=TopicResult(topics=["test"], language="en", difficulty="A1"),
+                topic_result=TopicResult(
+                    topics=["test"], language="en", difficulty="A1"
+                ),
                 success=True,
             ),
             ModuleAnalysisResult(
@@ -382,13 +384,15 @@ class TestTopicAnalysisService:
     @pytest.mark.asyncio
     async def test_analyze_module_success(self, service, mock_llm_service):
         """Test successful module analysis."""
-        mock_llm_service.simple_completion.return_value = json.dumps({
-            "topics": ["greetings", "introductions"],
-            "grammar_points": ["present simple"],
-            "difficulty": "A1",
-            "language": "en",
-            "target_skills": ["reading", "listening"],
-        })
+        mock_llm_service.simple_completion.return_value = json.dumps(
+            {
+                "topics": ["greetings", "introductions"],
+                "grammar_points": ["present simple"],
+                "difficulty": "A1",
+                "language": "en",
+                "target_skills": ["reading", "listening"],
+            }
+        )
 
         # Text must be > 50 chars to trigger LLM analysis
         module_text = """
@@ -411,7 +415,9 @@ class TestTopicAnalysisService:
         assert result.topic_result.language == "en"
 
     @pytest.mark.asyncio
-    async def test_analyze_module_with_json_in_markdown(self, service, mock_llm_service):
+    async def test_analyze_module_with_json_in_markdown(
+        self, service, mock_llm_service
+    ):
         """Test parsing JSON wrapped in markdown code blocks."""
         mock_llm_service.simple_completion.return_value = """
 Here is the analysis:
@@ -471,16 +477,20 @@ Here is the analysis:
         assert "Insufficient text" in result.error_message
 
     @pytest.mark.asyncio
-    async def test_analyze_module_invalid_json_response(self, service, mock_llm_service):
+    async def test_analyze_module_invalid_json_response(
+        self, service, mock_llm_service
+    ):
         """Test handling invalid JSON response with fallback."""
         # First call returns invalid JSON, second returns valid
         mock_llm_service.simple_completion.side_effect = [
             "This is not valid JSON at all - just random text response",
-            json.dumps({
-                "topics": ["test"],
-                "difficulty": "B1",
-                "language": "en",
-            }),
+            json.dumps(
+                {
+                    "topics": ["test"],
+                    "difficulty": "B1",
+                    "language": "en",
+                }
+            ),
         ]
 
         # Text must be > 50 chars to trigger LLM analysis
@@ -526,13 +536,17 @@ Here is the analysis:
         assert "LLM provider error" in result.error_message
 
     @pytest.mark.asyncio
-    async def test_analyze_module_normalizes_difficulty(self, service, mock_llm_service):
+    async def test_analyze_module_normalizes_difficulty(
+        self, service, mock_llm_service
+    ):
         """Test that difficulty is normalized to uppercase."""
-        mock_llm_service.simple_completion.return_value = json.dumps({
-            "topics": ["test"],
-            "difficulty": "b2",  # lowercase
-            "language": "en",
-        })
+        mock_llm_service.simple_completion.return_value = json.dumps(
+            {
+                "topics": ["test"],
+                "difficulty": "b2",  # lowercase
+                "language": "en",
+            }
+        )
 
         # Text must be > 50 chars to trigger LLM analysis
         module_text = """
@@ -552,11 +566,13 @@ Here is the analysis:
     @pytest.mark.asyncio
     async def test_analyze_module_normalizes_language(self, service, mock_llm_service):
         """Test that language is normalized to lowercase."""
-        mock_llm_service.simple_completion.return_value = json.dumps({
-            "topics": ["test"],
-            "difficulty": "A1",
-            "language": "EN",  # uppercase
-        })
+        mock_llm_service.simple_completion.return_value = json.dumps(
+            {
+                "topics": ["test"],
+                "difficulty": "A1",
+                "language": "EN",  # uppercase
+            }
+        )
 
         # Text must be > 50 chars to trigger LLM analysis
         module_text = """
@@ -574,13 +590,17 @@ Here is the analysis:
         assert result.topic_result.language == "en"
 
     @pytest.mark.asyncio
-    async def test_analyze_module_invalid_difficulty_ignored(self, service, mock_llm_service):
+    async def test_analyze_module_invalid_difficulty_ignored(
+        self, service, mock_llm_service
+    ):
         """Test that invalid difficulty levels are ignored."""
-        mock_llm_service.simple_completion.return_value = json.dumps({
-            "topics": ["test"],
-            "difficulty": "X9",  # Invalid CEFR level
-            "language": "en",
-        })
+        mock_llm_service.simple_completion.return_value = json.dumps(
+            {
+                "topics": ["test"],
+                "difficulty": "X9",  # Invalid CEFR level
+                "language": "en",
+            }
+        )
 
         # Text must be > 50 chars to trigger LLM analysis
         module_text = """
@@ -600,11 +620,13 @@ Here is the analysis:
     @pytest.mark.asyncio
     async def test_analyze_module_limits_topics(self, service, mock_llm_service):
         """Test that topics are limited to max_topics setting."""
-        mock_llm_service.simple_completion.return_value = json.dumps({
-            "topics": ["t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8"],
-            "difficulty": "A1",
-            "language": "en",
-        })
+        mock_llm_service.simple_completion.return_value = json.dumps(
+            {
+                "topics": ["t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8"],
+                "difficulty": "A1",
+                "language": "en",
+            }
+        )
 
         # Text must be > 50 chars to trigger LLM analysis
         module_text = """
@@ -625,18 +647,28 @@ Here is the analysis:
     @pytest.mark.asyncio
     async def test_analyze_book_success(self, service, mock_llm_service):
         """Test successful book analysis."""
-        mock_llm_service.simple_completion.return_value = json.dumps({
-            "topics": ["greetings"],
-            "grammar_points": ["present simple"],
-            "difficulty": "A1",
-            "language": "en",
-            "target_skills": ["reading"],
-        })
+        mock_llm_service.simple_completion.return_value = json.dumps(
+            {
+                "topics": ["greetings"],
+                "grammar_points": ["present simple"],
+                "difficulty": "A1",
+                "language": "en",
+                "target_skills": ["reading"],
+            }
+        )
 
         # Text must be > 50 chars to trigger LLM analysis
         modules = [
-            {"module_id": 1, "title": "Unit 1", "text": "Hello world content here. This is an introduction to greetings and basic phrases."},
-            {"module_id": 2, "title": "Unit 2", "text": "More educational content about family and relationships in English language."},
+            {
+                "module_id": 1,
+                "title": "Unit 1",
+                "text": "Hello world content here. This is an introduction to greetings and basic phrases.",
+            },
+            {
+                "module_id": 2,
+                "title": "Unit 2",
+                "text": "More educational content about family and relationships in English language.",
+            },
         ]
 
         result = await service.analyze_book(
@@ -665,11 +697,13 @@ Here is the analysis:
     @pytest.mark.asyncio
     async def test_analyze_book_progress_callback(self, service, mock_llm_service):
         """Test that progress callback is called."""
-        mock_llm_service.simple_completion.return_value = json.dumps({
-            "topics": ["test"],
-            "difficulty": "A1",
-            "language": "en",
-        })
+        mock_llm_service.simple_completion.return_value = json.dumps(
+            {
+                "topics": ["test"],
+                "difficulty": "A1",
+                "language": "en",
+            }
+        )
 
         progress_calls = []
 
@@ -678,9 +712,21 @@ Here is the analysis:
 
         # Text must be > 50 chars to trigger LLM analysis
         modules = [
-            {"module_id": 1, "title": "Unit 1", "text": "Content one for the first module with enough text to process."},
-            {"module_id": 2, "title": "Unit 2", "text": "Content two for the second module with sufficient length."},
-            {"module_id": 3, "title": "Unit 3", "text": "Content three for the third module also long enough."},
+            {
+                "module_id": 1,
+                "title": "Unit 1",
+                "text": "Content one for the first module with enough text to process.",
+            },
+            {
+                "module_id": 2,
+                "title": "Unit 2",
+                "text": "Content two for the second module with sufficient length.",
+            },
+            {
+                "module_id": 3,
+                "title": "Unit 3",
+                "text": "Content three for the third module also long enough.",
+            },
         ]
 
         await service.analyze_book(
@@ -708,9 +754,21 @@ Here is the analysis:
 
         # Text must be > 50 chars to trigger LLM analysis
         modules = [
-            {"module_id": 1, "title": "Unit 1", "text": "English content for the first unit with greetings and introductions."},
-            {"module_id": 2, "title": "Unit 2", "text": "More English content covering family vocabulary and relationships."},
-            {"module_id": 3, "title": "Unit 3", "text": "Turkish content about colors and numbers in a different language."},
+            {
+                "module_id": 1,
+                "title": "Unit 1",
+                "text": "English content for the first unit with greetings and introductions.",
+            },
+            {
+                "module_id": 2,
+                "title": "Unit 2",
+                "text": "More English content covering family vocabulary and relationships.",
+            },
+            {
+                "module_id": 3,
+                "title": "Unit 3",
+                "text": "Turkish content about colors and numbers in a different language.",
+            },
         ]
 
         result = await service.analyze_book(
@@ -754,7 +812,9 @@ class TestTopicStorage:
         """Test building metadata file path."""
         path = storage._build_metadata_path("pub-1", "book-123", "TestBook")
         # Note: book_id is not in the path, only publisher_id and book_name
-        assert path == "pub-1/books/TestBook/ai-data/modules/topic_analysis_metadata.json"
+        assert (
+            path == "pub-1/books/TestBook/ai-data/modules/topic_analysis_metadata.json"
+        )
 
     @patch("app.services.topic_analysis.storage.get_minio_client")
     def test_get_module_found(self, mock_get_client, storage):
@@ -849,13 +909,19 @@ class TestTopicStorage:
 
         # Mock list_objects response
         mock_obj1 = MagicMock()
-        mock_obj1.object_name = "pub-1/books/book-123/Test/ai-data/modules/module_1.json"
+        mock_obj1.object_name = (
+            "pub-1/books/book-123/Test/ai-data/modules/module_1.json"
+        )
 
         mock_obj2 = MagicMock()
-        mock_obj2.object_name = "pub-1/books/book-123/Test/ai-data/modules/module_2.json"
+        mock_obj2.object_name = (
+            "pub-1/books/book-123/Test/ai-data/modules/module_2.json"
+        )
 
         mock_metadata = MagicMock()
-        mock_metadata.object_name = "pub-1/books/book-123/Test/ai-data/modules/segmentation_metadata.json"
+        mock_metadata.object_name = (
+            "pub-1/books/book-123/Test/ai-data/modules/segmentation_metadata.json"
+        )
 
         mock_client.list_objects.return_value = [mock_obj1, mock_obj2, mock_metadata]
 

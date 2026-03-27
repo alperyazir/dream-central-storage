@@ -14,7 +14,9 @@ class TemplateInfo(BaseModel):
     platform: str = Field(..., description="Platform identifier (mac, win, linux)")
     file_name: str = Field(..., description="Name of the uploaded template file")
     file_size: int = Field(..., description="Size of the template in bytes")
-    uploaded_at: datetime = Field(..., description="Timestamp when template was uploaded")
+    uploaded_at: datetime = Field(
+        ..., description="Timestamp when template was uploaded"
+    )
     download_url: str = Field(..., description="Presigned URL to download the template")
 
 
@@ -99,7 +101,9 @@ class BundleJobStatus(BaseModel):
     """Status of a bundle creation job."""
 
     job_id: str = Field(..., description="Unique job ID")
-    status: str = Field(..., description="Current status: queued, processing, completed, failed")
+    status: str = Field(
+        ..., description="Current status: queued, processing, completed, failed"
+    )
     progress: int = Field(default=0, description="Progress percentage 0-100")
     current_step: str = Field(default="", description="Current processing step")
     error_message: str | None = Field(None, description="Error message if failed")
@@ -118,7 +122,9 @@ class BundleJobResult(BaseModel):
     download_url: str | None = Field(None, description="Download URL if completed")
     file_name: str | None = Field(None, description="Bundle filename")
     file_size: int | None = Field(None, description="Bundle size in bytes")
-    cached: bool = Field(default=False, description="Whether existing bundle was returned")
+    cached: bool = Field(
+        default=False, description="Whether existing bundle was returned"
+    )
     error_message: str | None = Field(None, description="Error message if failed")
     created_at: datetime = Field(..., description="When job was created")
     completed_at: datetime | None = Field(None, description="When job completed")

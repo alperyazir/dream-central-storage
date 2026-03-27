@@ -51,7 +51,7 @@ def test_book_read_serializes_from_orm() -> None:
         status=BookStatusEnum.DRAFT,
     )
     # Set the relationship manually for testing (bypass SQLAlchemy instrumentation)
-    object.__setattr__(book, 'publisher_rel', publisher)
+    object.__setattr__(book, "publisher_rel", publisher)
     now = datetime.now(timezone.utc)
     book.created_at = now
     book.updated_at = now

@@ -47,7 +47,9 @@ class Material(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     material_name: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    file_type: Mapped[str] = mapped_column(String(50), nullable=False)  # pdf, txt, docx, mp3, etc.
+    file_type: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # pdf, txt, docx, mp3, etc.
     content_type: Mapped[str] = mapped_column(String(100), nullable=False)  # MIME type
     size: Mapped[int] = mapped_column(BigInteger, nullable=False)
     status: Mapped[str] = mapped_column(

@@ -15,7 +15,9 @@ class WebhookSubscriptionRepository(BaseRepository[WebhookSubscription]):
     def __init__(self) -> None:
         super().__init__(model=WebhookSubscription)
 
-    def create(self, session: Session, *, data: dict[str, object]) -> WebhookSubscription:
+    def create(
+        self, session: Session, *, data: dict[str, object]
+    ) -> WebhookSubscription:
         """Create a new webhook subscription."""
         subscription = WebhookSubscription(**data)
         created = self.add(session, subscription)
@@ -28,16 +30,24 @@ class WebhookSubscriptionRepository(BaseRepository[WebhookSubscription]):
 
     def list_active(self, session: Session) -> list[WebhookSubscription]:
         """Return only active webhook subscriptions."""
-        statement = select(WebhookSubscription).where(WebhookSubscription.is_active == True)  # noqa: E712
+        statement = select(WebhookSubscription).where(
+            WebhookSubscription.is_active == True
+        )  # noqa: E712
         result = session.execute(statement)
         return list(result.scalars())
 
-    def get_by_id(self, session: Session, identifier: int) -> WebhookSubscription | None:
+    def get_by_id(
+        self, session: Session, identifier: int
+    ) -> WebhookSubscription | None:
         """Get webhook subscription by ID."""
         return self.get(session, identifier)
 
     def update(
-        self, session: Session, subscription: WebhookSubscription, *, data: dict[str, object]
+        self,
+        session: Session,
+        subscription: WebhookSubscription,
+        *,
+        data: dict[str, object],
     ) -> WebhookSubscription:
         """Update an existing webhook subscription."""
         for field, value in data.items():
@@ -60,7 +70,9 @@ class WebhookDeliveryLogRepository(BaseRepository[WebhookDeliveryLog]):
     def __init__(self) -> None:
         super().__init__(model=WebhookDeliveryLog)
 
-    def create(self, session: Session, *, data: dict[str, object]) -> WebhookDeliveryLog:
+    def create(
+        self, session: Session, *, data: dict[str, object]
+    ) -> WebhookDeliveryLog:
         """Create a new webhook delivery log entry."""
         log = WebhookDeliveryLog(**data)
         created = self.add(session, log)

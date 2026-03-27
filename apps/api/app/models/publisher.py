@@ -42,18 +42,31 @@ class Publisher(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     logo_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     contact_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active", server_default="active")
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="active", server_default="active"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
     )
 
     # AI Processing Settings (nullable = use global default)
-    ai_auto_process_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=None)
-    ai_processing_priority: Mapped[str | None] = mapped_column(String(20), nullable=True, default=None)
-    ai_audio_languages: Mapped[str | None] = mapped_column(String(100), nullable=True, default=None)
+    ai_auto_process_enabled: Mapped[bool | None] = mapped_column(
+        Boolean, nullable=True, default=None
+    )
+    ai_processing_priority: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, default=None
+    )
+    ai_audio_languages: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, default=None
+    )
 
     # Relationship to books (cascade delete: when publisher is deleted, all books are deleted too)
-    books: Mapped[list["Book"]] = relationship("Book", back_populates="publisher_rel", cascade="all, delete-orphan")
+    books: Mapped[list["Book"]] = relationship(
+        "Book", back_populates="publisher_rel", cascade="all, delete-orphan"
+    )

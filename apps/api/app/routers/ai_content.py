@@ -77,7 +77,9 @@ def _get_book_or_404(db: Session, book_id: int):
     """Look up a book by ID or raise 404."""
     book = _book_repository.get_by_id(db, book_id)
     if book is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Book not found"
+        )
     return book
 
 
@@ -153,7 +155,10 @@ def _parse_range_header(range_header: str, file_size: int) -> tuple[int, int]:
 # 1) POST /books/{book_id}/ai-content/ — Create AI content
 # ---------------------------------------------------------------------------
 
-@router.post("/", response_model=AIContentCreateResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/", response_model=AIContentCreateResponse, status_code=status.HTTP_201_CREATED
+)
 def create_ai_content(
     book_id: int,
     payload: AIContentCreate,
@@ -201,7 +206,10 @@ def create_ai_content(
 
     logger.info(
         "Created AI content %s for book_id=%s (%s/%s)",
-        content_id, book_id, book.publisher, book.book_name,
+        content_id,
+        book_id,
+        book.publisher,
+        book.book_name,
     )
 
     return AIContentCreateResponse(
@@ -213,6 +221,7 @@ def create_ai_content(
 # ---------------------------------------------------------------------------
 # 2) GET /books/{book_id}/ai-content/ — List all content manifests
 # ---------------------------------------------------------------------------
+
 
 @router.get("/", response_model=list[ManifestRead])
 def list_ai_content(
@@ -234,9 +243,7 @@ def list_ai_content(
 
     # Collect manifest.json paths
     manifest_keys = [
-        obj.object_name
-        for obj in objects
-        if obj.object_name.endswith("/manifest.json")
+        obj.object_name for obj in objects if obj.object_name.endswith("/manifest.json")
     ]
 
     manifests: list[ManifestRead] = []
@@ -261,6 +268,7 @@ def list_ai_content(
 # ---------------------------------------------------------------------------
 # 3) GET /books/{book_id}/ai-content/{content_id} — Get manifest + content
 # ---------------------------------------------------------------------------
+
 
 @router.get("/{content_id}", response_model=AIContentRead)
 def get_ai_content(
@@ -289,8 +297,12 @@ def get_ai_content(
             resp.release_conn()
     except S3Error as exc:
         if exc.code == "NoSuchKey":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="AI content not found") from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Failed to read manifest") from exc
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, detail="AI content not found"
+            ) from exc
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail="Failed to read manifest"
+        ) from exc
 
     # Read content.json
     try:
@@ -302,8 +314,12 @@ def get_ai_content(
             resp.release_conn()
     except S3Error as exc:
         if exc.code == "NoSuchKey":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Content data not found") from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Failed to read content") from exc
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, detail="Content data not found"
+            ) from exc
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail="Failed to read content"
+        ) from exc
 
     return AIContentRead(
         content_id=content_id,
@@ -315,6 +331,7 @@ def get_ai_content(
 # ---------------------------------------------------------------------------
 # 4) DELETE /books/{book_id}/ai-content/{content_id} — Hard delete all
 # ---------------------------------------------------------------------------
+
 
 @router.delete("/{content_id}", status_code=status.HTTP_200_OK)
 def delete_ai_content(
@@ -344,7 +361,9 @@ def delete_ai_content(
 
     logger.info(
         "Deleted AI content %s for book_id=%s; removed %d objects",
-        content_id, book_id, removed,
+        content_id,
+        book_id,
+        removed,
     )
 
     return {"content_id": content_id, "objects_removed": removed}
@@ -354,7 +373,12 @@ def delete_ai_content(
 # 5) PUT /books/{book_id}/ai-content/{content_id}/audio/{filename} — Upload one audio
 # ---------------------------------------------------------------------------
 
-@router.put("/{content_id}/audio/{filename}", response_model=AudioUploadResponse, status_code=status.HTTP_201_CREATED)
+
+@router.put(
+    "/{content_id}/audio/{filename}",
+    response_model=AudioUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def upload_audio(
     book_id: int,
     content_id: str,
@@ -379,8 +403,12 @@ async def upload_audio(
         client.stat_object(bucket, f"{prefix}manifest.json")
     except S3Error as exc:
         if exc.code == "NoSuchKey":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="AI content not found") from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Storage error") from exc
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, detail="AI content not found"
+            ) from exc
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail="Storage error"
+        ) from exc
 
     audio_data = await file.read()
     object_key = f"{prefix}audio/{filename}"
@@ -393,7 +421,9 @@ async def upload_audio(
         content_type="audio/mpeg",
     )
 
-    logger.info("Uploaded audio %s for content %s (book_id=%s)", filename, content_id, book_id)
+    logger.info(
+        "Uploaded audio %s for content %s (book_id=%s)", filename, content_id, book_id
+    )
 
     return AudioUploadResponse(
         filename=filename,
@@ -406,7 +436,12 @@ async def upload_audio(
 # 6) POST /books/{book_id}/ai-content/{content_id}/audio/batch — Batch audio upload
 # ---------------------------------------------------------------------------
 
-@router.post("/{content_id}/audio/batch", response_model=BatchAudioResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/{content_id}/audio/batch",
+    response_model=BatchAudioResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def upload_audio_batch(
     book_id: int,
     content_id: str,
@@ -429,8 +464,12 @@ async def upload_audio_batch(
         client.stat_object(bucket, f"{prefix}manifest.json")
     except S3Error as exc:
         if exc.code == "NoSuchKey":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="AI content not found") from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Storage error") from exc
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, detail="AI content not found"
+            ) from exc
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail="Storage error"
+        ) from exc
 
     uploaded: list[AudioUploadResponse] = []
     failed: list[str] = []
@@ -451,18 +490,25 @@ async def upload_audio_batch(
                 length=len(audio_data),
                 content_type="audio/mpeg",
             )
-            uploaded.append(AudioUploadResponse(
-                filename=fname,
-                storage_path=object_key,
-                size=len(audio_data),
-            ))
+            uploaded.append(
+                AudioUploadResponse(
+                    filename=fname,
+                    storage_path=object_key,
+                    size=len(audio_data),
+                )
+            )
         except Exception as exc:
-            logger.error("Failed to upload audio %s for content %s: %s", fname, content_id, exc)
+            logger.error(
+                "Failed to upload audio %s for content %s: %s", fname, content_id, exc
+            )
             failed.append(fname)
 
     logger.info(
         "Batch audio upload for content %s (book_id=%s): %d uploaded, %d failed",
-        content_id, book_id, len(uploaded), len(failed),
+        content_id,
+        book_id,
+        len(uploaded),
+        len(failed),
     )
 
     return BatchAudioResponse(uploaded=uploaded, failed=failed)
@@ -471,6 +517,7 @@ async def upload_audio_batch(
 # ---------------------------------------------------------------------------
 # 7) GET /books/{book_id}/ai-content/{content_id}/audio/{filename} — Stream audio
 # ---------------------------------------------------------------------------
+
 
 @router.get("/{content_id}/audio/{filename}")
 async def stream_audio(
@@ -498,12 +545,18 @@ async def stream_audio(
         stat = client.stat_object(bucket, object_key)
     except S3Error as exc:
         if exc.code == "NoSuchKey":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Audio file not found") from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Storage error") from exc
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, detail="Audio file not found"
+            ) from exc
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail="Storage error"
+        ) from exc
 
     file_size = stat.size
     if file_size is None:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to determine file size")
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail="Unable to determine file size"
+        )
 
     start = 0
     end = file_size - 1

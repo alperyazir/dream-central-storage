@@ -30,10 +30,16 @@ from app.services.segmentation import get_segmentation_service, get_module_stora
 from app.services.topic_analysis import get_topic_analysis_service, get_topic_storage
 
 # Import vocabulary extraction service for vocabulary stage
-from app.services.vocabulary_extraction import get_vocabulary_extraction_service, get_vocabulary_storage
+from app.services.vocabulary_extraction import (
+    get_vocabulary_extraction_service,
+    get_vocabulary_storage,
+)
 
 # Import audio generation service for audio_generation stage
-from app.services.audio_generation import get_audio_generation_service, get_audio_storage
+from app.services.audio_generation import (
+    get_audio_generation_service,
+    get_audio_storage,
+)
 
 # Import AI data services for metadata and structure management
 from app.services.ai_data import (
@@ -149,7 +155,9 @@ async def process_book_task(
                 publisher_id=publisher_name,  # Use publisher name for path
                 book_name=book_name,
             )
-            logger.info("Initialized ai-data structure and metadata for book %s", book_id)
+            logger.info(
+                "Initialized ai-data structure and metadata for book %s", book_id
+            )
 
         for stage in stages_to_run:
             try:
@@ -185,10 +193,12 @@ async def process_book_task(
                     job_id,
                     stage_error,
                 )
-                errors.append({
-                    "stage": stage,
-                    "error": str(stage_error),
-                })
+                errors.append(
+                    {
+                        "stage": stage,
+                        "error": str(stage_error),
+                    }
+                )
 
                 # Update metadata.json with stage failure
                 if book_name:
@@ -816,7 +826,9 @@ async def _run_chunked_analysis(
 
         # Schedule async progress report
         asyncio.create_task(
-            progress.report_progress("chunked_analysis", chunked_progress.overall_percent, step_detail)
+            progress.report_progress(
+                "chunked_analysis", chunked_progress.overall_percent, step_detail
+            )
         )
 
     # Report initial progress
@@ -887,12 +899,15 @@ async def _load_text_pages_for_analysis(
         response.release_conn()
 
         import json
+
         metadata = json.loads(meta_data.decode("utf-8"))
         total_pages = metadata.get("total_pages", 0)
 
         # Load each page
         for page_num in range(1, total_pages + 1):
-            page_path = f"{publisher}/books/{book_name}/ai-data/text/page_{page_num:03d}.txt"
+            page_path = (
+                f"{publisher}/books/{book_name}/ai-data/text/page_{page_num:03d}.txt"
+            )
             try:
                 resp = client.get_object(bucket, page_path)
                 text = resp.read().decode("utf-8")
@@ -1394,10 +1409,12 @@ async def process_material_task(
                     job_id,
                     stage_error,
                 )
-                errors.append({
-                    "stage": stage,
-                    "error": str(stage_error),
-                })
+                errors.append(
+                    {
+                        "stage": stage,
+                        "error": str(stage_error),
+                    }
+                )
 
                 # Text extraction is critical
                 if stage == "material_text_extraction":
@@ -1670,15 +1687,19 @@ async def _run_material_analysis(
     vocabulary = []
 
     for module in result.modules:
-        modules.append({
-            "id": module.module_id,
-            "title": module.title,
-            "pages": list(module.pages),
-            "topics": module.topics,
-            "grammar_points": module.grammar_points,
-            "difficulty": module.difficulty,
-            "vocabulary": [w.model_dump() for w in module.vocabulary] if hasattr(module, 'vocabulary') else [],
-        })
+        modules.append(
+            {
+                "id": module.module_id,
+                "title": module.title,
+                "pages": list(module.pages),
+                "topics": module.topics,
+                "grammar_points": module.grammar_points,
+                "difficulty": module.difficulty,
+                "vocabulary": [w.model_dump() for w in module.vocabulary]
+                if hasattr(module, "vocabulary")
+                else [],
+            }
+        )
 
     if result.vocabulary:
         vocabulary = [w.model_dump() for w in result.vocabulary]
@@ -1933,7 +1954,9 @@ async def create_bundle_task(
             bundle_prefix = f"{BUNDLE_PREFIX}/{publisher_name}/{book_name}/"
             try:
                 existing_bundles = list(
-                    client.list_objects(apps_bucket, prefix=bundle_prefix, recursive=True)
+                    client.list_objects(
+                        apps_bucket, prefix=bundle_prefix, recursive=True
+                    )
                 )
                 for obj in existing_bundles:
                     file_name = obj.object_name.split("/")[-1]
@@ -1951,7 +1974,9 @@ async def create_bundle_task(
                         )
 
                         await update_progress(100, "Bundle ready (cached)")
-                        await repository.update_job_status(job_id, ProcessingStatus.COMPLETED)
+                        await repository.update_job_status(
+                            job_id, ProcessingStatus.COMPLETED
+                        )
 
                         return {
                             "status": "completed",
@@ -2003,9 +2028,11 @@ async def create_bundle_task(
             # 5. Download book assets (25-70%)
             await update_progress(25, "Downloading book assets...")
             book_prefix = f"{publisher_name}/books/{book_name}/"
-            objects = list(client.list_objects(
-                publishers_bucket, prefix=book_prefix, recursive=True
-            ))
+            objects = list(
+                client.list_objects(
+                    publishers_bucket, prefix=book_prefix, recursive=True
+                )
+            )
 
             asset_count = 0
             total_objects = len([o for o in objects if not o.is_dir])
@@ -2014,7 +2041,7 @@ async def create_bundle_task(
                 if obj.is_dir:
                     continue
 
-                relative_path = obj.object_name[len(book_prefix):]
+                relative_path = obj.object_name[len(book_prefix) :]
                 if not relative_path:
                     continue
 
@@ -2029,9 +2056,16 @@ async def create_bundle_task(
                 # Update progress (25-70%)
                 if total_objects > 0:
                     pct = 25 + int((i + 1) / total_objects * 45)
-                    await update_progress(pct, f"Downloaded {asset_count}/{total_objects} assets")
+                    await update_progress(
+                        pct, f"Downloaded {asset_count}/{total_objects} assets"
+                    )
 
-            logger.info("Copied %d assets for book %s/%s", asset_count, publisher_name, book_name)
+            logger.info(
+                "Copied %d assets for book %s/%s",
+                asset_count,
+                publisher_name,
+                book_name,
+            )
             await update_progress(70, f"Downloaded {asset_count} assets")
 
             # 6. Create bundle zip (70-90%)
@@ -2052,7 +2086,9 @@ async def create_bundle_task(
 
             # 7. Upload bundle (90-100%)
             await update_progress(92, "Uploading bundle...")
-            bundle_object_name = f"{BUNDLE_PREFIX}/{publisher_name}/{book_name}/{bundle_name}.zip"
+            bundle_object_name = (
+                f"{BUNDLE_PREFIX}/{publisher_name}/{book_name}/{bundle_name}.zip"
+            )
             bundle_size = os.path.getsize(bundle_path)
 
             client.fput_object(

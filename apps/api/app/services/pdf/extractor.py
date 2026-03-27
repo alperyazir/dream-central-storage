@@ -66,7 +66,9 @@ class PDFExtractor:
         self.open()
         return self
 
-    def __exit__(self, exc_type: type | None, exc_val: Exception | None, exc_tb: object) -> None:
+    def __exit__(
+        self, exc_type: type | None, exc_val: Exception | None, exc_tb: object
+    ) -> None:
         self.close()
 
     @property
@@ -94,7 +96,9 @@ class PDFExtractor:
             raise RuntimeError("PDF document not opened. Call open() first.")
 
         if page_number < 0 or page_number >= len(self._doc):
-            raise IndexError(f"Page {page_number} out of range (0-{len(self._doc) - 1})")
+            raise IndexError(
+                f"Page {page_number} out of range (0-{len(self._doc) - 1})"
+            )
 
         page = self._doc[page_number]
         return self._extract_text_with_layout(page)
@@ -113,7 +117,9 @@ class PDFExtractor:
         """
         try:
             # Get text blocks with position info
-            blocks = page.get_text("dict", flags=fitz.TEXT_PRESERVE_WHITESPACE)["blocks"]
+            blocks = page.get_text("dict", flags=fitz.TEXT_PRESERVE_WHITESPACE)[
+                "blocks"
+            ]
         except Exception as e:
             logger.warning(
                 "Failed to extract text blocks for page %d: %s, falling back to simple extraction",
@@ -132,7 +138,10 @@ class PDFExtractor:
         # This handles multi-column layouts by reading top-to-bottom, left-to-right
         sorted_blocks = sorted(
             text_blocks,
-            key=lambda b: (round(b["bbox"][1] / 20) * 20, b["bbox"][0]),  # Group by ~20px rows
+            key=lambda b: (
+                round(b["bbox"][1] / 20) * 20,
+                b["bbox"][0],
+            ),  # Group by ~20px rows
         )
 
         text_parts: list[str] = []
@@ -214,7 +223,9 @@ class PDFExtractor:
             raise RuntimeError("PDF document not opened. Call open() first.")
 
         if page_number < 0 or page_number >= len(self._doc):
-            raise IndexError(f"Page {page_number} out of range (0-{len(self._doc) - 1})")
+            raise IndexError(
+                f"Page {page_number} out of range (0-{len(self._doc) - 1})"
+            )
 
         page = self._doc[page_number]
 

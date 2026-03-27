@@ -24,7 +24,9 @@ def session_local() -> sessionmaker[Session]:
     return sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
-def test_create_admin_user_hashes_password(session_local: sessionmaker[Session]) -> None:
+def test_create_admin_user_hashes_password(
+    session_local: sessionmaker[Session],
+) -> None:
     with session_local() as session:
         user = create_admin_user(session, email="admin@example.com", password="secret")
         session.refresh(user)
@@ -33,7 +35,9 @@ def test_create_admin_user_hashes_password(session_local: sessionmaker[Session])
         assert verify_password("secret", user.hashed_password)
 
 
-def test_create_admin_user_rejects_duplicates(session_local: sessionmaker[Session]) -> None:
+def test_create_admin_user_rejects_duplicates(
+    session_local: sessionmaker[Session],
+) -> None:
     with session_local() as session:
         create_admin_user(session, email="admin@example.com", password="secret")
         session.commit()

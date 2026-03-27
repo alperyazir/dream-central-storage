@@ -176,9 +176,7 @@ class AIDataRetrievalService:
 
         # Build audio file path
         # Path: {publisher}/books/{book_name}/ai-data/audio/vocabulary/{lang}/{word}.mp3
-        audio_path = (
-            f"{publisher}/books/{book_name}/ai-data/audio/vocabulary/{language}/{word}.mp3"
-        )
+        audio_path = f"{publisher}/books/{book_name}/ai-data/audio/vocabulary/{language}/{word}.mp3"
 
         # Check if file exists
         try:
@@ -227,9 +225,7 @@ class AIDataRetrievalService:
         client = get_minio_client(self.settings)
         bucket = self.settings.minio_publishers_bucket
 
-        audio_path = (
-            f"{publisher}/books/{book_name}/ai-data/audio/vocabulary/{language}/{word}.mp3"
-        )
+        audio_path = f"{publisher}/books/{book_name}/ai-data/audio/vocabulary/{language}/{word}.mp3"
 
         try:
             client.stat_object(bucket, audio_path)

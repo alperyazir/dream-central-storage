@@ -48,7 +48,9 @@ class ScannedPDFDetector:
         char_count = len(text.strip())
         word_count = len(text.split()) if text.strip() else 0
 
-        is_scanned = char_count < self.min_char_threshold or word_count < self.min_word_threshold
+        is_scanned = (
+            char_count < self.min_char_threshold or word_count < self.min_word_threshold
+        )
 
         if is_scanned:
             logger.debug(

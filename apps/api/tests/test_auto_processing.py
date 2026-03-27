@@ -61,7 +61,9 @@ class TestAutoProcessingService:
 
         result = service.is_already_processed("TestPub", "123", "test-book")
         assert result is True
-        mock_retrieval.get_metadata.assert_called_once_with("TestPub", "123", "test-book")
+        mock_retrieval.get_metadata.assert_called_once_with(
+            "TestPub", "123", "test-book"
+        )
 
     @patch("app.services.ai_processing.auto_trigger.get_ai_data_retrieval_service")
     def test_is_already_processed_false(
@@ -322,9 +324,12 @@ class TestGetAutoProcessingService:
         """Test singleton returns same instance."""
         # Reset singleton
         import app.services.ai_processing.auto_trigger as module
+
         module._auto_processing_service = None
 
-        with patch("app.services.ai_processing.auto_trigger.get_settings") as mock_settings:
+        with patch(
+            "app.services.ai_processing.auto_trigger.get_settings"
+        ) as mock_settings:
             mock_settings.return_value = MagicMock()
 
             service1 = get_auto_processing_service()

@@ -159,7 +159,11 @@ def list_all_templates(
     return TemplateListResponse(templates=templates)
 
 
-@router.post("/{platform}/upload", response_model=TemplateUploadResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{platform}/upload",
+    response_model=TemplateUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def upload_template_endpoint(
     platform: str,
     file: UploadFile,
@@ -293,7 +297,9 @@ def download_template(
             detail="Failed to generate download URL",
         ) from exc
 
-    expires_at = datetime.now(timezone.utc) + timedelta(seconds=PRESIGNED_URL_EXPIRY_SECONDS)
+    expires_at = datetime.now(timezone.utc) + timedelta(
+        seconds=PRESIGNED_URL_EXPIRY_SECONDS
+    )
 
     return {
         "download_url": download_url,
@@ -423,7 +429,11 @@ def list_bundles_endpoint(
     return BundleListResponse(bundles=bundles)
 
 
-@router.post("/bundle/async", response_model=AsyncBundleResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/bundle/async",
+    response_model=AsyncBundleResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def create_bundle_async_endpoint(
     payload: AsyncBundleRequest,
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
@@ -479,7 +489,11 @@ async def create_bundle_async_endpoint(
         # First, create job record in Redis for status tracking
         from app.services.queue.redis import get_redis_connection
         from app.services.queue.repository import JobRepository
-        from app.services.queue.models import ProcessingJob, ProcessingJobType, JobPriority
+        from app.services.queue.models import (
+            ProcessingJob,
+            ProcessingJobType,
+            JobPriority,
+        )
 
         redis_conn = await get_redis_connection(url=settings.redis_url)
         repository = JobRepository(
@@ -601,7 +615,10 @@ async def get_bundle_job_status(
         )
 
     except Exception as exc:
-        if "JobNotFoundError" in str(type(exc).__name__) or "not found" in str(exc).lower():
+        if (
+            "JobNotFoundError" in str(type(exc).__name__)
+            or "not found" in str(exc).lower()
+        ):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Job {job_id} not found",

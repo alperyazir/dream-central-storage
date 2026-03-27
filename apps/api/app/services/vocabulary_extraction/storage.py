@@ -67,7 +67,9 @@ class VocabularyStorage:
         book_name: str,
     ) -> str:
         """Build path for vocabulary.json file."""
-        return self._build_ai_data_path(publisher_id, book_id, book_name, "vocabulary.json")
+        return self._build_ai_data_path(
+            publisher_id, book_id, book_name, "vocabulary.json"
+        )
 
     def _build_module_path(
         self,
@@ -78,7 +80,9 @@ class VocabularyStorage:
     ) -> str:
         """Build path for a module JSON file."""
         filename = f"module_{module_id}.json"
-        return self._build_ai_data_path(publisher_id, book_id, book_name, "modules", filename)
+        return self._build_ai_data_path(
+            publisher_id, book_id, book_name, "modules", filename
+        )
 
     def _build_metadata_path(
         self,
@@ -226,7 +230,9 @@ class VocabularyStorage:
         client = get_minio_client(self.settings)
         bucket = self.settings.minio_publishers_bucket
 
-        prefix = self._build_ai_data_path(publisher_id, book_id, book_name, "modules") + "/"
+        prefix = (
+            self._build_ai_data_path(publisher_id, book_id, book_name, "modules") + "/"
+        )
         modules: list[dict[str, Any]] = []
 
         try:

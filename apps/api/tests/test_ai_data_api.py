@@ -532,7 +532,9 @@ class TestGetAudioUrl:
         mock_book_repo.get_by_id.return_value = _create_mock_book()
 
         mock_service = MagicMock()
-        mock_service.get_audio_url.return_value = "https://minio.example.com/presigned-url"
+        mock_service.get_audio_url.return_value = (
+            "https://minio.example.com/presigned-url"
+        )
         mock_get_service.return_value = mock_service
 
         client = TestClient(app)

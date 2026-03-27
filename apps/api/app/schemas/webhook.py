@@ -13,7 +13,9 @@ class WebhookSubscriptionBase(BaseModel):
     """Shared attributes for webhook subscription operations."""
 
     url: str = Field(..., max_length=512, description="Webhook endpoint URL")
-    secret: str = Field(..., max_length=255, min_length=16, description="Webhook signing secret")
+    secret: str = Field(
+        ..., max_length=255, min_length=16, description="Webhook signing secret"
+    )
     description: str | None = Field(default=None, max_length=512)
     is_active: bool = Field(default=True)
     event_types: str | None = Field(

@@ -57,8 +57,7 @@ class ProgressReporter:
 
         # Sum weights of completed stages
         stages_before = sum(
-            PROCESSING_STAGES[s]
-            for s in self._stage_order[:stage_index]
+            PROCESSING_STAGES[s] for s in self._stage_order[:stage_index]
         )
 
         # Add progress within current stage

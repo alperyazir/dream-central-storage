@@ -41,10 +41,7 @@ class TeacherRepository(BaseRepository[Teacher]):
     ) -> list[Teacher]:
         """Return only active teachers with pagination."""
         statement = (
-            select(Teacher)
-            .where(Teacher.status == "active")
-            .offset(skip)
-            .limit(limit)
+            select(Teacher).where(Teacher.status == "active").offset(skip).limit(limit)
         )
         return list(session.scalars(statement).all())
 
@@ -82,9 +79,7 @@ class TeacherRepository(BaseRepository[Teacher]):
         result = session.execute(statement)
         return result.scalars().first()
 
-    def get_or_create_by_teacher_id(
-        self, session: Session, teacher_id: str
-    ) -> Teacher:
+    def get_or_create_by_teacher_id(self, session: Session, teacher_id: str) -> Teacher:
         """Get existing teacher by teacher_id or create a new one."""
         teacher = self.get_by_teacher_id(session, teacher_id)
         if teacher is not None:

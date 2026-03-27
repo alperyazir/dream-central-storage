@@ -134,9 +134,7 @@ class PDFExtractionResult:
     native_page_count: int
     total_word_count: int = field(init=False)
     total_char_count: int = field(init=False)
-    extracted_at: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    extracted_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __post_init__(self) -> None:
         self.total_word_count = sum(p.word_count for p in self.pages)

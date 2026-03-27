@@ -23,6 +23,8 @@ def test_list_objects_tree_builds_hierarchy() -> None:
     assert "Dream/books/Sky/chapter1.txt" in children
     assert children["Dream/books/Sky/chapter1.txt"]["type"] == "file"
 
-    notes_folder = next(child for child in tree["children"] if child["path"].endswith("notes/"))
+    notes_folder = next(
+        child for child in tree["children"] if child["path"].endswith("notes/")
+    )
     assert notes_folder["type"] == "folder"
     assert notes_folder["children"][0]["path"].endswith("notes/readme.md")

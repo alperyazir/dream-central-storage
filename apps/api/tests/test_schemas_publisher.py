@@ -99,7 +99,7 @@ def test_publisher_with_books_empty_list() -> None:
     publisher.created_at = now
     publisher.updated_at = now
     # Manually set empty books list
-    object.__setattr__(publisher, 'books', [])
+    object.__setattr__(publisher, "books", [])
 
     schema = PublisherWithBooks.model_validate(publisher)
     assert schema.id == 1

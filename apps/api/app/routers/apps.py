@@ -4,7 +4,15 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
@@ -39,16 +47,22 @@ def _require_admin(credentials: HTTPAuthorizationCredentials) -> int:
     try:
         payload = decode_access_token(token, settings=get_settings())
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        ) from exc
 
     subject = payload.get("sub")
     if subject is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        )
 
     try:
         return int(subject)
     except (TypeError, ValueError) as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        ) from exc
 
 
 @router.post("/{platform}/upload", status_code=status.HTTP_201_CREATED)
@@ -67,7 +81,9 @@ async def upload_application_build(
 
     normalized_platform = platform.lower()
     if normalized_platform not in ALLOWED_PLATFORMS:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported platform")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported platform"
+        )
 
     settings = get_settings()
     client = get_minio_client(settings)
@@ -76,7 +92,9 @@ async def upload_application_build(
     try:
         version = extract_manifest_version(archive_bytes)
     except UploadError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
 
     prefix = f"{normalized_platform}/{version}/"
 
@@ -127,7 +145,9 @@ async def upload_application_build(
             content_type="application/octet-stream",
         )
     except UploadError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
     except Exception as exc:  # pragma: no cover
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -161,16 +181,22 @@ def soft_delete_application_build(
 
     normalized_platform = platform.lower()
     if normalized_platform not in ALLOWED_PLATFORMS:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported platform")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported platform"
+        )
 
     trimmed_path = payload.path.strip()
     if not trimmed_path:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Path is required")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Path is required"
+        )
 
     normalized_path = trimmed_path.strip("/")
     segments = [segment for segment in normalized_path.split("/") if segment]
     if not segments:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Path is invalid")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Path is invalid"
+        )
 
     if segments[0].lower() != normalized_platform:
         raise HTTPException(

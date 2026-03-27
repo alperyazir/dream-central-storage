@@ -48,14 +48,21 @@ class Book(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
     )
 
     # Foreign key to publishers table (required)
-    publisher_id: Mapped[int] = mapped_column(ForeignKey("publishers.id"), nullable=False)
+    publisher_id: Mapped[int] = mapped_column(
+        ForeignKey("publishers.id"), nullable=False
+    )
 
     # Relationship to Publisher model
-    publisher_rel: Mapped["Publisher"] = relationship("Publisher", back_populates="books")
+    publisher_rel: Mapped["Publisher"] = relationship(
+        "Publisher", back_populates="books"
+    )
 
     @property
     def publisher(self) -> str:

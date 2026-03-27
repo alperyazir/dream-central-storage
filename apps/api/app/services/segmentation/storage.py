@@ -185,9 +185,7 @@ class ModuleStorage:
             logger.error("Failed to save metadata %s: %s", path, e)
             raise
 
-    def save_all(
-        self, result: SegmentationResult
-    ) -> dict[str, list[str] | str]:
+    def save_all(self, result: SegmentationResult) -> dict[str, list[str] | str]:
         """
         Save all segmentation data (modules + metadata).
 
@@ -338,9 +336,9 @@ class ModuleStorage:
         Returns:
             True if segmentation metadata exists.
         """
-        return self.get_segmentation_metadata(
-            publisher_id, book_id, book_name
-        ) is not None
+        return (
+            self.get_segmentation_metadata(publisher_id, book_id, book_name) is not None
+        )
 
     def cleanup_modules_directory(
         self,

@@ -129,7 +129,9 @@ def _sanitize_segment(segment: str, label: str) -> str:
     if not sanitized:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=f"{label} is required")
     if any(separator in sanitized for separator in ("/", "\\")):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=f"{label} contains invalid characters")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail=f"{label} contains invalid characters"
+        )
     if sanitized in {"..", "."}:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=f"{label} is invalid")
     return sanitized
@@ -143,7 +145,9 @@ def _normalize_relative_path(path: str) -> str:
 
     posix_path = PurePosixPath(trimmed)
     if any(part in {"..", "."} for part in posix_path.parts):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="path must not traverse directories")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="path must not traverse directories"
+        )
 
     normalized = str(posix_path)
     if normalized.endswith("/"):
@@ -293,7 +297,9 @@ async def list_all_teachers(
     # List all objects at root level to get unique teacher IDs
     teacher_ids = set()
     try:
-        objects = client.list_objects(settings.minio_teachers_bucket, prefix="", recursive=False)
+        objects = client.list_objects(
+            settings.minio_teachers_bucket, prefix="", recursive=False
+        )
         for obj in objects:
             # Object names are like "teacher_123/materials/..."
             # We want just the teacher_id part
@@ -360,13 +366,19 @@ async def download_teacher_material(
         stat = client.stat_object(settings.minio_teachers_bucket, object_key)
     except S3Error as exc:
         if exc.code == "NoSuchKey":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="File not found") from exc
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, detail="File not found"
+            ) from exc
         logger.error("Failed statting teacher material '%s': %s", object_key, exc)
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to load file metadata") from exc
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail="Unable to load file metadata"
+        ) from exc
 
     file_size = stat.size
     if file_size is None:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="Unable to determine file size")
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail="Unable to determine file size"
+        )
 
     media_type = _get_media_type(path, getattr(stat, "content_type", None))
 
@@ -380,7 +392,10 @@ async def download_teacher_material(
         start, end = _parse_range_header(range_header, file_size)
         logger.debug(
             "Range request for '%s': bytes=%d-%d (total=%d)",
-            object_key, start, end, file_size
+            object_key,
+            start,
+            end,
+            file_size,
         )
 
     content_length = end - start + 1
@@ -414,8 +429,7 @@ async def download_teacher_material(
     if is_range_request:
         headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
         logger.info(
-            "Streaming range %d-%d/%d for '%s'",
-            start, end, file_size, object_key
+            "Streaming range %d-%d/%d for '%s'", start, end, file_size, object_key
         )
         return StreamingResponse(
             iterator(),

@@ -73,7 +73,9 @@ class AudioStorage:
         book_name: str,
     ) -> str:
         """Build path for vocabulary.json file."""
-        return self._build_ai_data_path(publisher_id, book_id, book_name, "vocabulary.json")
+        return self._build_ai_data_path(
+            publisher_id, book_id, book_name, "vocabulary.json"
+        )
 
     def _build_audio_path(
         self,
@@ -85,7 +87,13 @@ class AudioStorage:
     ) -> str:
         """Build path for an audio file."""
         return self._build_ai_data_path(
-            publisher_id, book_id, book_name, "audio", "vocabulary", language, f"{word_id}.mp3"
+            publisher_id,
+            book_id,
+            book_name,
+            "audio",
+            "vocabulary",
+            language,
+            f"{word_id}.mp3",
         )
 
     def _build_audio_prefix(
@@ -95,9 +103,12 @@ class AudioStorage:
         book_name: str,
     ) -> str:
         """Build prefix for audio vocabulary directory."""
-        return self._build_ai_data_path(
-            publisher_id, book_id, book_name, "audio", "vocabulary"
-        ) + "/"
+        return (
+            self._build_ai_data_path(
+                publisher_id, book_id, book_name, "audio", "vocabulary"
+            )
+            + "/"
+        )
 
     def load_vocabulary(
         self,
@@ -316,8 +327,13 @@ class AudioStorage:
             translation = word.get("translation", "")
             if translation:
                 translation_id = self._slugify(translation)
-                if translation_id in audio_lookup and translation_lang in audio_lookup[translation_id]:
-                    audio_paths["translation"] = audio_lookup[translation_id][translation_lang]
+                if (
+                    translation_id in audio_lookup
+                    and translation_lang in audio_lookup[translation_id]
+                ):
+                    audio_paths["translation"] = audio_lookup[translation_id][
+                        translation_lang
+                    ]
 
             if audio_paths:
                 word["audio"] = audio_paths
@@ -402,6 +418,7 @@ class AudioStorage:
     def _slugify(self, text: str) -> str:
         """Create a URL-safe slug from text."""
         import re
+
         slug = text.lower()
         slug = re.sub(r"[^a-z0-9]+", "_", slug)
         slug = slug.strip("_")

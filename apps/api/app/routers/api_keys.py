@@ -16,7 +16,12 @@ from app.core.security import (
 from app.db import get_db
 from app.repositories.api_key import ApiKeyRepository
 from app.repositories.user import UserRepository
-from app.schemas.api_key import ApiKeyCreate, ApiKeyCreated, ApiKeyListResponse, ApiKeyRead
+from app.schemas.api_key import (
+    ApiKeyCreate,
+    ApiKeyCreated,
+    ApiKeyListResponse,
+    ApiKeyRead,
+)
 
 router = APIRouter(prefix="/api-keys", tags=["API Keys"])
 _bearer_scheme = HTTPBearer(auto_error=True)
@@ -38,16 +43,22 @@ def _require_admin(credentials: HTTPAuthorizationCredentials, db: Session) -> in
 
     subject = payload.get("sub")
     if subject is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        )
 
     try:
         user_id = int(subject)
     except (TypeError, ValueError) as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        ) from exc
 
     user = _user_repository.get(db, user_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        )
 
     return user_id
 

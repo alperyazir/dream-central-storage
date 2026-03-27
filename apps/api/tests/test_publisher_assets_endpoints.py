@@ -103,7 +103,9 @@ def test_reserved_asset_type_names(
 
     # Test each reserved name
     for reserved_name in ["books", "trash", "temp"]:
-        response = client.get(f"/publishers/1/assets/{reserved_name}", headers=auth_headers)
+        response = client.get(
+            f"/publishers/1/assets/{reserved_name}", headers=auth_headers
+        )
         assert response.status_code == 400
         assert "reserved name" in response.json()["detail"]
 
@@ -154,8 +156,12 @@ def test_list_assets_with_multiple_types(
 
     # Simulate MinIO objects for multiple asset types
     mock_objects = [
-        SimpleNamespace(object_name="Dream Press/assets/materials/worksheet1.pdf", size=1000),
-        SimpleNamespace(object_name="Dream Press/assets/materials/worksheet2.pdf", size=2000),
+        SimpleNamespace(
+            object_name="Dream Press/assets/materials/worksheet1.pdf", size=1000
+        ),
+        SimpleNamespace(
+            object_name="Dream Press/assets/materials/worksheet2.pdf", size=2000
+        ),
         SimpleNamespace(object_name="Dream Press/assets/logos/logo.png", size=5000),
     ]
     mock_minio.return_value.list_objects.return_value = mock_objects
@@ -365,6 +371,7 @@ def test_delete_asset_file_success(
 
     # Mock the relocation report
     from app.services import RelocationReport
+
     mock_move_to_trash.return_value = RelocationReport(
         source_bucket="publishers",
         destination_bucket="trash",
@@ -517,7 +524,9 @@ def test_get_publisher_logo_picks_first_file(
     # Mock list_objects to return multiple logo files
     mock_logo_objects = [
         SimpleNamespace(object_name="Dream Press/assets/logos/logo.png", size=5000),
-        SimpleNamespace(object_name="Dream Press/assets/logos/logo-dark.png", size=6000),
+        SimpleNamespace(
+            object_name="Dream Press/assets/logos/logo-dark.png", size=6000
+        ),
     ]
     mock_minio.return_value.list_objects.return_value = mock_logo_objects
 

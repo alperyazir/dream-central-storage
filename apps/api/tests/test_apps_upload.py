@@ -32,7 +32,12 @@ def patch_upload(monkeypatch):
     from app.routers import apps
 
     def fake_upload(**kwargs):
-        return [{"path": f"{kwargs['platform']}/{kwargs['version']}/app.exe", "size": len("binarydata")}]
+        return [
+            {
+                "path": f"{kwargs['platform']}/{kwargs['version']}/app.exe",
+                "size": len("binarydata"),
+            }
+        ]
 
     monkeypatch.setattr(apps, "upload_app_archive", fake_upload)
     monkeypatch.setattr(apps, "get_minio_client", lambda settings: MagicMock())
@@ -94,7 +99,11 @@ def test_upload_app_rejects_unknown_platform():
 def test_upload_app_handles_upload_error(monkeypatch):
     from app.routers import apps
 
-    monkeypatch.setattr(apps, "upload_app_archive", MagicMock(side_effect=apps.UploadError("bad archive")))
+    monkeypatch.setattr(
+        apps,
+        "upload_app_archive",
+        MagicMock(side_effect=apps.UploadError("bad archive")),
+    )
 
     client = TestClient(app)
     response = client.post(
@@ -161,7 +170,13 @@ def test_delete_app_requires_authentication() -> None:
 def test_delete_app_validates_platform(monkeypatch) -> None:
     from app.routers import apps as apps_router
 
-    monkeypatch.setattr(apps_router, "move_prefix_to_trash", lambda **kwargs: RelocationReport("apps", "trash", "macos/1.0/", "apps/macos/1.0/", 0))
+    monkeypatch.setattr(
+        apps_router,
+        "move_prefix_to_trash",
+        lambda **kwargs: RelocationReport(
+            "apps", "trash", "macos/1.0/", "apps/macos/1.0/", 0
+        ),
+    )
 
     client = TestClient(app)
     response = client.request(
@@ -176,7 +191,13 @@ def test_delete_app_validates_platform(monkeypatch) -> None:
 def test_delete_app_validates_path_prefix(monkeypatch) -> None:
     from app.routers import apps as apps_router
 
-    monkeypatch.setattr(apps_router, "move_prefix_to_trash", lambda **kwargs: RelocationReport("apps", "trash", "macos/1.0/", "apps/macos/1.0/", 0))
+    monkeypatch.setattr(
+        apps_router,
+        "move_prefix_to_trash",
+        lambda **kwargs: RelocationReport(
+            "apps", "trash", "macos/1.0/", "apps/macos/1.0/", 0
+        ),
+    )
 
     client = TestClient(app)
     response = client.request(
@@ -191,7 +212,13 @@ def test_delete_app_validates_path_prefix(monkeypatch) -> None:
 def test_delete_app_validates_missing_version(monkeypatch) -> None:
     from app.routers import apps as apps_router
 
-    monkeypatch.setattr(apps_router, "move_prefix_to_trash", lambda **kwargs: RelocationReport("apps", "trash", "macos/1.0/", "apps/macos/1.0/", 0))
+    monkeypatch.setattr(
+        apps_router,
+        "move_prefix_to_trash",
+        lambda **kwargs: RelocationReport(
+            "apps", "trash", "macos/1.0/", "apps/macos/1.0/", 0
+        ),
+    )
 
     client = TestClient(app)
     response = client.request(

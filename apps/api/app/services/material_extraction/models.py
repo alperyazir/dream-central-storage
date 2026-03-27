@@ -8,6 +8,7 @@ from enum import Enum
 
 class ExtractionMethod(str, Enum):
     """Text extraction method used."""
+
     NATIVE = "native"
     OCR = "ocr"
     MIXED = "mixed"
@@ -16,6 +17,7 @@ class ExtractionMethod(str, Enum):
 
 class FileType(str, Enum):
     """Supported file types for extraction."""
+
     PDF = "pdf"
     TXT = "txt"
     DOC = "doc"
@@ -39,6 +41,7 @@ class FileType(str, Enum):
 @dataclass
 class PageText:
     """Extracted text from a single page."""
+
     page_number: int
     text: str
     method: ExtractionMethod = ExtractionMethod.NATIVE
@@ -52,6 +55,7 @@ class PageText:
 @dataclass
 class MaterialExtractionResult:
     """Result of material text extraction."""
+
     material_id: int
     teacher_id: str
     material_name: str
@@ -70,6 +74,7 @@ class MaterialExtractionResult:
 
 class MaterialExtractionError(Exception):
     """Base exception for material extraction errors."""
+
     def __init__(self, message: str, material_name: str = "") -> None:
         self.message = message
         self.material_name = material_name
@@ -78,14 +83,17 @@ class MaterialExtractionError(Exception):
 
 class UnsupportedFileTypeError(MaterialExtractionError):
     """Raised when file type is not supported for extraction."""
+
     pass
 
 
 class FileNotFoundError(MaterialExtractionError):
     """Raised when material file is not found in storage."""
+
     pass
 
 
 class ExtractionFailedError(MaterialExtractionError):
     """Raised when text extraction fails."""
+
     pass

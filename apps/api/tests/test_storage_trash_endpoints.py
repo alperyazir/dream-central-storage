@@ -41,7 +41,9 @@ def _create_admin_headers() -> dict[str, str]:
         session.add(user)
         session.commit()
         session.refresh(user)
-        token = create_access_token(subject=str(user.id), expires_delta=timedelta(hours=1))
+        token = create_access_token(
+            subject=str(user.id), expires_delta=timedelta(hours=1)
+        )
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -75,7 +77,9 @@ def test_list_trash_returns_entries(monkeypatch) -> None:
     client = TestClient(app)
     headers = _create_admin_headers()
 
-    monkeypatch.setattr(storage_router, "get_minio_client", lambda settings: MagicMock())
+    monkeypatch.setattr(
+        storage_router, "get_minio_client", lambda settings: MagicMock()
+    )
     monkeypatch.setattr(
         storage_router,
         "list_trash_entries",
@@ -131,7 +135,9 @@ def test_restore_book_success(monkeypatch) -> None:
     headers = _create_admin_headers()
     client = TestClient(app)
 
-    monkeypatch.setattr(storage_router, "get_minio_client", lambda settings: MagicMock())
+    monkeypatch.setattr(
+        storage_router, "get_minio_client", lambda settings: MagicMock()
+    )
     monkeypatch.setattr(
         storage_router,
         "restore_prefix_from_trash",
@@ -182,12 +188,16 @@ def test_restore_book_missing_trash(monkeypatch) -> None:
     headers = _create_admin_headers()
     client = TestClient(app)
 
-    monkeypatch.setattr(storage_router, "get_minio_client", lambda settings: MagicMock())
+    monkeypatch.setattr(
+        storage_router, "get_minio_client", lambda settings: MagicMock()
+    )
     monkeypatch.setattr(
         storage_router,
         "restore_prefix_from_trash",
         lambda **kwargs: (_ for _ in ()).throw(
-            RestorationError("No trash objects found for key 'publishers/Press/books/Atlas/'")
+            RestorationError(
+                "No trash objects found for key 'publishers/Press/books/Atlas/'"
+            )
         ),
     )
 
@@ -220,7 +230,9 @@ def test_restore_book_conflict_when_not_archived(monkeypatch) -> None:
     headers = _create_admin_headers()
     client = TestClient(app)
 
-    monkeypatch.setattr(storage_router, "get_minio_client", lambda settings: MagicMock())
+    monkeypatch.setattr(
+        storage_router, "get_minio_client", lambda settings: MagicMock()
+    )
     monkeypatch.setattr(
         storage_router,
         "restore_prefix_from_trash",
@@ -245,8 +257,12 @@ def test_restore_book_conflict_when_not_archived(monkeypatch) -> None:
 def test_restore_requires_authentication(monkeypatch) -> None:
     from app.routers import storage as storage_router
 
-    monkeypatch.setattr(storage_router, "get_minio_client", lambda settings: MagicMock())
+    monkeypatch.setattr(
+        storage_router, "get_minio_client", lambda settings: MagicMock()
+    )
 
     client = TestClient(app)
-    response = client.post("/storage/restore", json={"key": "publishers/Press/books/Atlas/"})
+    response = client.post(
+        "/storage/restore", json={"key": "publishers/Press/books/Atlas/"}
+    )
     assert response.status_code in {401, 403}

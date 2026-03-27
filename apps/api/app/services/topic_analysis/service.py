@@ -63,7 +63,9 @@ class TopicAnalysisService:
             self._llm_service = get_llm_service()
         return self._llm_service
 
-    def _parse_json_response(self, response: str, module_id: int, book_id: str) -> dict[str, Any]:
+    def _parse_json_response(
+        self, response: str, module_id: int, book_id: str
+    ) -> dict[str, Any]:
         """
         Parse JSON from LLM response.
 
@@ -80,7 +82,7 @@ class TopicAnalysisService:
         """
         # Try to extract JSON from response
         # LLM might include markdown code blocks or extra text
-        json_match = re.search(r'\{[\s\S]*\}', response)
+        json_match = re.search(r"\{[\s\S]*\}", response)
         if not json_match:
             raise InvalidLLMResponseError(
                 book_id=book_id,
@@ -206,7 +208,11 @@ class TopicAnalysisService:
                 temperature=temperature,
                 max_tokens=1024,
             )
-            provider_name = self.llm_service.primary_provider.provider_name if self.llm_service.primary_provider else "unknown"
+            provider_name = (
+                self.llm_service.primary_provider.provider_name
+                if self.llm_service.primary_provider
+                else "unknown"
+            )
 
             # Parse response
             parsed = self._parse_json_response(response, module_id, book_id)
@@ -237,7 +243,9 @@ class TopicAnalysisService:
                 module_id,
             )
             try:
-                simple_prompt = build_simple_topic_prompt(module_text, max_length=max_text // 2)
+                simple_prompt = build_simple_topic_prompt(
+                    module_text, max_length=max_text // 2
+                )
                 response = await self.llm_service.simple_completion(
                     prompt=simple_prompt,
                     system_prompt=SYSTEM_PROMPT,
@@ -246,7 +254,9 @@ class TopicAnalysisService:
                 )
 
                 parsed = self._parse_json_response(response, module_id, book_id)
-                topic_result = self._extract_topic_result(parsed, max_topics, max_grammar)
+                topic_result = self._extract_topic_result(
+                    parsed, max_topics, max_grammar
+                )
 
                 return ModuleAnalysisResult(
                     module_id=module_id,

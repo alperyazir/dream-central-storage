@@ -131,7 +131,10 @@ def test_delete_trash_entry_removes_objects_and_metadata(monkeypatch) -> None:
     old_timestamp = datetime.now(UTC) - timedelta(days=10)
     fake_client = MagicMock()
     fake_client.list_objects.return_value = [
-        SimpleNamespace(object_name="publishers/Press/books/Atlas/file.txt", last_modified=old_timestamp)
+        SimpleNamespace(
+            object_name="publishers/Press/books/Atlas/file.txt",
+            last_modified=old_timestamp,
+        )
     ]
     monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
 
@@ -152,7 +155,9 @@ def test_delete_trash_entry_removes_objects_and_metadata(monkeypatch) -> None:
     body = response.json()
     assert body["deleted_key"] == "publishers/Press/books/Atlas/"
     assert body["objects_removed"] == 1
-    fake_client.remove_object.assert_called_once_with("trash", "publishers/Press/books/Atlas/file.txt")
+    fake_client.remove_object.assert_called_once_with(
+        "trash", "publishers/Press/books/Atlas/file.txt"
+    )
     fake_repo.delete.assert_called_once_with(ANY, fake_book)
 
 
@@ -162,7 +167,9 @@ def test_delete_trash_entry_blocks_within_retention(monkeypatch) -> None:
     recent_timestamp = datetime.now(UTC) - timedelta(days=2)
     fake_client = MagicMock()
     fake_client.list_objects.return_value = [
-        SimpleNamespace(object_name="apps/macos/2.0/build.zip", last_modified=recent_timestamp)
+        SimpleNamespace(
+            object_name="apps/macos/2.0/build.zip", last_modified=recent_timestamp
+        )
     ]
     monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
 
@@ -212,7 +219,9 @@ def test_delete_trash_entry_force_with_reason(monkeypatch) -> None:
         assert kwargs["override_reason"] == "Compliance approved"
         return deletion_report
 
-    monkeypatch.setattr(storage, "delete_prefix_from_trash", fake_delete_prefix_from_trash)
+    monkeypatch.setattr(
+        storage, "delete_prefix_from_trash", fake_delete_prefix_from_trash
+    )
 
     client = TestClient(app)
     response = client.request(
@@ -262,7 +271,9 @@ def test_get_book_config_returns_payload(monkeypatch) -> None:
     fake_obj.release_conn = MagicMock()
 
     fake_client = MagicMock()
-    fake_client.stat_object.return_value = SimpleNamespace(size=len(raw), content_type="application/json")
+    fake_client.stat_object.return_value = SimpleNamespace(
+        size=len(raw), content_type="application/json"
+    )
     fake_client.get_object.return_value = fake_obj
 
     monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
@@ -370,7 +381,9 @@ def test_download_book_object_streams_content(monkeypatch) -> None:
     fake_obj.release_conn = MagicMock()
 
     fake_client = MagicMock()
-    fake_client.stat_object.return_value = SimpleNamespace(size=len(data), content_type="text/plain")
+    fake_client.stat_object.return_value = SimpleNamespace(
+        size=len(data), content_type="text/plain"
+    )
     fake_client.get_object.return_value = fake_obj
 
     monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
@@ -409,7 +422,9 @@ def test_download_book_object_range_request_partial_content(monkeypatch) -> None
     fake_obj.release_conn = MagicMock()
 
     fake_client = MagicMock()
-    fake_client.stat_object.return_value = SimpleNamespace(size=100, content_type="audio/mpeg")
+    fake_client.stat_object.return_value = SimpleNamespace(
+        size=100, content_type="audio/mpeg"
+    )
     fake_client.get_object.return_value = fake_obj
 
     monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
@@ -450,7 +465,9 @@ def test_download_book_object_range_request_open_end(monkeypatch) -> None:
     fake_obj.release_conn = MagicMock()
 
     fake_client = MagicMock()
-    fake_client.stat_object.return_value = SimpleNamespace(size=full_size, content_type="video/mp4")
+    fake_client.stat_object.return_value = SimpleNamespace(
+        size=full_size, content_type="video/mp4"
+    )
     fake_client.get_object.return_value = fake_obj
 
     monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
@@ -488,7 +505,9 @@ def test_download_book_object_range_request_suffix(monkeypatch) -> None:
     fake_obj.release_conn = MagicMock()
 
     fake_client = MagicMock()
-    fake_client.stat_object.return_value = SimpleNamespace(size=full_size, content_type="audio/mpeg")
+    fake_client.stat_object.return_value = SimpleNamespace(
+        size=full_size, content_type="audio/mpeg"
+    )
     fake_client.get_object.return_value = fake_obj
 
     monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
@@ -518,7 +537,9 @@ def test_download_book_object_range_invalid_format(monkeypatch) -> None:
     from app.routers import storage
 
     fake_client = MagicMock()
-    fake_client.stat_object.return_value = SimpleNamespace(size=100, content_type="audio/mpeg")
+    fake_client.stat_object.return_value = SimpleNamespace(
+        size=100, content_type="audio/mpeg"
+    )
 
     monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
 
@@ -542,7 +563,9 @@ def test_download_book_object_range_out_of_bounds(monkeypatch) -> None:
     from app.routers import storage
 
     fake_client = MagicMock()
-    fake_client.stat_object.return_value = SimpleNamespace(size=100, content_type="audio/mpeg")
+    fake_client.stat_object.return_value = SimpleNamespace(
+        size=100, content_type="audio/mpeg"
+    )
 
     monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)
 
@@ -596,7 +619,9 @@ def test_download_book_object_mime_type_detection(monkeypatch) -> None:
 
         assert response.status_code == 200
         # Content-Type may include charset for text types
-        assert response.headers["content-type"].startswith(expected_mime), f"Failed for {path}"
+        assert response.headers["content-type"].startswith(expected_mime), (
+            f"Failed for {path}"
+        )
 
 
 def test_download_book_object_no_range_includes_accept_ranges(monkeypatch) -> None:
@@ -610,7 +635,9 @@ def test_download_book_object_no_range_includes_accept_ranges(monkeypatch) -> No
     fake_obj.release_conn = MagicMock()
 
     fake_client = MagicMock()
-    fake_client.stat_object.return_value = SimpleNamespace(size=len(data), content_type="audio/mpeg")
+    fake_client.stat_object.return_value = SimpleNamespace(
+        size=len(data), content_type="audio/mpeg"
+    )
     fake_client.get_object.return_value = fake_obj
 
     monkeypatch.setattr(storage, "get_minio_client", lambda settings: fake_client)

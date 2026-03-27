@@ -14,7 +14,10 @@ from app.services.minio import get_minio_client
 
 if TYPE_CHECKING:
     from app.core.config import Settings
-    from app.services.topic_analysis.models import BookAnalysisResult, ModuleAnalysisResult
+    from app.services.topic_analysis.models import (
+        BookAnalysisResult,
+        ModuleAnalysisResult,
+    )
 
 logger = logging.getLogger(__name__)
 

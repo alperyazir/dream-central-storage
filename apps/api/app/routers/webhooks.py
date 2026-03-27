@@ -10,7 +10,10 @@ from app.core.config import get_settings
 from app.core.security import decode_access_token
 from app.db import get_db
 from app.repositories.user import UserRepository
-from app.repositories.webhook import WebhookDeliveryLogRepository, WebhookSubscriptionRepository
+from app.repositories.webhook import (
+    WebhookDeliveryLogRepository,
+    WebhookSubscriptionRepository,
+)
 from app.schemas.webhook import (
     WebhookDeliveryLogRead,
     WebhookSubscriptionCreate,
@@ -39,21 +42,29 @@ def _require_admin(credentials: HTTPAuthorizationCredentials, db: Session) -> in
 
     subject = payload.get("sub")
     if subject is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        )
 
     try:
         user_id = int(subject)
     except (TypeError, ValueError) as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        ) from exc
 
     user = _user_repository.get(db, user_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        )
 
     return user_id
 
 
-@router.post("/", response_model=WebhookSubscriptionRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/", response_model=WebhookSubscriptionRead, status_code=status.HTTP_201_CREATED
+)
 def create_webhook_subscription(
     payload: WebhookSubscriptionCreate,
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
@@ -93,7 +104,8 @@ def get_webhook_subscription(
     subscription = _subscription_repository.get_by_id(db, subscription_id)
     if subscription is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Webhook subscription not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Webhook subscription not found",
         )
 
     return WebhookSubscriptionRead.model_validate(subscription)
@@ -113,7 +125,8 @@ def update_webhook_subscription(
     subscription = _subscription_repository.get_by_id(db, subscription_id)
     if subscription is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Webhook subscription not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Webhook subscription not found",
         )
 
     update_data = payload.model_dump(exclude_unset=True)
@@ -124,7 +137,9 @@ def update_webhook_subscription(
     return WebhookSubscriptionRead.model_validate(updated)
 
 
-@router.delete("/{subscription_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+@router.delete(
+    "/{subscription_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None
+)
 def delete_webhook_subscription(
     subscription_id: int,
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
@@ -137,7 +152,8 @@ def delete_webhook_subscription(
     subscription = _subscription_repository.get_by_id(db, subscription_id)
     if subscription is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Webhook subscription not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Webhook subscription not found",
         )
 
     _subscription_repository.delete(db, subscription)
@@ -157,7 +173,8 @@ def list_webhook_delivery_logs(
     subscription = _subscription_repository.get_by_id(db, subscription_id)
     if subscription is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Webhook subscription not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Webhook subscription not found",
         )
 
     logs = _delivery_log_repository.list_by_subscription(db, subscription_id)

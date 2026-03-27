@@ -21,7 +21,9 @@ def create_admin_user(session: Session, *, email: str, password: str) -> User:
     normalized_email = email.strip().lower()
     existing = repository.get_by_email(session, normalized_email)
     if existing is not None:
-        raise ValueError(f"An administrator with email {normalized_email!r} already exists")
+        raise ValueError(
+            f"An administrator with email {normalized_email!r} already exists"
+        )
 
     user = User(email=normalized_email, hashed_password=create_password_hash(password))
     repository.add(session, user)
@@ -68,7 +70,9 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit(str(exc)) from exc
         except IntegrityError as exc:
             session.rollback()
-            raise SystemExit("Failed to create admin user due to database constraint") from exc
+            raise SystemExit(
+                "Failed to create admin user due to database constraint"
+            ) from exc
 
     print(f"Admin user created with id={user.id}")
     return 0

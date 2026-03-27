@@ -88,9 +88,7 @@ class MaterialRepository(BaseRepository[Material]):
         total_stmt = select(
             func.count().label("count"),
             func.coalesce(func.sum(Material.size), 0).label("size"),
-        ).where(
-            Material.teacher_id == teacher_id, Material.status != "archived"
-        )
+        ).where(Material.teacher_id == teacher_id, Material.status != "archived")
         total_result = session.execute(total_stmt).first()
         total_count = total_result.count if total_result else 0
         total_size = total_result.size if total_result else 0

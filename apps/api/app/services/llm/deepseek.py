@@ -123,7 +123,10 @@ class DeepSeekProvider(LLMProvider):
                     raise LLMProviderError(
                         message=f"API error: {response.status_code}",
                         provider=self.provider_name,
-                        details={"status_code": response.status_code, "response": response.text},
+                        details={
+                            "status_code": response.status_code,
+                            "response": response.text,
+                        },
                     )
 
                 return response.json()

@@ -148,9 +148,7 @@ class SegmentationResult:
     total_pages: int
     modules: list[Module]
     method: SegmentationMethod
-    segmented_at: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    segmented_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property
     def module_count(self) -> int:

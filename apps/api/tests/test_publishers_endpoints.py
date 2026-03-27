@@ -250,7 +250,11 @@ def test_list_publishers_pagination_called(
     assert response.status_code == 200
     mock_repo.list_paginated.assert_called_once()
     call_args = mock_repo.list_paginated.call_args
-    assert call_args.kwargs.get("skip") == 10 or call_args[1].get("skip") == 10 or (len(call_args[0]) > 1 and call_args[0][1] == 10)
+    assert (
+        call_args.kwargs.get("skip") == 10
+        or call_args[1].get("skip") == 10
+        or (len(call_args[0]) > 1 and call_args[0][1] == 10)
+    )
 
 
 # =============================================================================

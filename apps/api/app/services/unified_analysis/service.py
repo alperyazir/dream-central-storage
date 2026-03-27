@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-UNIFIED_ANALYSIS_PROMPT = '''Analyze this educational book content and provide a COMPLETE analysis covering ALL pages.
+UNIFIED_ANALYSIS_PROMPT = """Analyze this educational book content and provide a COMPLETE analysis covering ALL pages.
 
 ## Your Task
 1. **Identify ALL Module/Chapter Boundaries**: Find EVERY logical division in the content (units, chapters, lessons). Educational books typically have 6-15 units. Look for:
@@ -80,11 +80,11 @@ Return ONLY a valid JSON object (no markdown, no explanations):
 
 IMPORTANT: Ensure you cover ALL pages and identify ALL units. Do not stop at the first few units.
 
-Analyze the content now:'''
+Analyze the content now:"""
 
 
 # Chunked approach prompts
-PHASE1_DETECT_MODULES_PROMPT = '''Analyze this educational book and identify ALL modules/units/chapters.
+PHASE1_DETECT_MODULES_PROMPT = """Analyze this educational book and identify ALL modules/units/chapters.
 
 ## Your Task
 Identify every logical division in this book. Look for:
@@ -114,10 +114,10 @@ Return ONLY a valid JSON object:
 
 IMPORTANT:
 - Cover ALL pages from start to end
-- Identify ALL units'''
+- Identify ALL units"""
 
 
-PHASE2_EXTRACT_VOCABULARY_PROMPT = '''Extract vocabulary and write a brief summary for this educational content.
+PHASE2_EXTRACT_VOCABULARY_PROMPT = """Extract vocabulary and write a brief summary for this educational content.
 
 ## Module Information
 - Title: {module_title}
@@ -154,7 +154,7 @@ Focus on:
 - Key nouns, verbs, adjectives
 - Common phrases and expressions
 - Words essential to the module's topics
-- Provide Turkish translations'''
+- Provide Turkish translations"""
 
 
 class UnifiedAnalysisService:
@@ -189,6 +189,7 @@ class UnifiedAnalysisService:
         """Get LLM service (lazy load)."""
         if self._llm_service is None:
             from app.services.llm import get_llm_service
+
             self._llm_service = get_llm_service()
         return self._llm_service
 
@@ -343,10 +344,12 @@ class UnifiedAnalysisService:
         if progress_callback:
             progress_callback(5, 100)
         if detailed_progress_callback:
-            detailed_progress_callback(ChunkedProgress(
-                phase="detecting_modules",
-                overall_percent=5,
-            ))
+            detailed_progress_callback(
+                ChunkedProgress(
+                    phase="detecting_modules",
+                    overall_percent=5,
+                )
+            )
 
         # ============ Phase 1: Detect Modules ============
         modules_data = await self._phase1_detect_modules(
@@ -424,12 +427,17 @@ class UnifiedAnalysisService:
                     if attempt < max_retries - 1:
                         logger.warning(
                             "Vocabulary extraction failed for module %d (attempt %d/%d): %s",
-                            i + 1, attempt + 1, max_retries, e
+                            i + 1,
+                            attempt + 1,
+                            max_retries,
+                            e,
                         )
                     else:
                         logger.error(
                             "Vocabulary extraction failed for module %d after %d attempts: %s",
-                            i + 1, max_retries, e
+                            i + 1,
+                            max_retries,
+                            e,
                         )
                         # Continue with empty vocabulary for this module
 
@@ -454,7 +462,10 @@ class UnifiedAnalysisService:
 
             logger.info(
                 "Module %d/%d complete: %s - %d vocabulary words",
-                i + 1, len(detected_modules), module.title, len(vocabulary)
+                i + 1,
+                len(detected_modules),
+                module.title,
+                len(vocabulary),
             )
 
         # Build final result
@@ -475,12 +486,14 @@ class UnifiedAnalysisService:
         if progress_callback:
             progress_callback(100, 100)
         if detailed_progress_callback:
-            detailed_progress_callback(ChunkedProgress(
-                phase="complete",
-                current_module=len(modules),
-                total_modules=len(modules),
-                overall_percent=100,
-            ))
+            detailed_progress_callback(
+                ChunkedProgress(
+                    phase="complete",
+                    current_module=len(modules),
+                    total_modules=len(modules),
+                    overall_percent=100,
+                )
+            )
 
         logger.info(
             "Chunked analysis completed: %d modules, %d vocabulary words, %.2fs",
@@ -522,7 +535,9 @@ class UnifiedAnalysisService:
                 if attempt < max_retries - 1:
                     logger.warning(
                         "Phase 1 failed (attempt %d/%d): %s",
-                        attempt + 1, max_retries, e
+                        attempt + 1,
+                        max_retries,
+                        e,
                     )
                 else:
                     raise
@@ -566,11 +581,11 @@ class UnifiedAnalysisService:
         response = response.strip()
 
         # Try to find JSON object in response
-        json_start = response.find('{')
-        json_end = response.rfind('}')
+        json_start = response.find("{")
+        json_end = response.rfind("}")
 
         if json_start != -1 and json_end != -1:
-            json_str = response[json_start:json_end + 1]
+            json_str = response[json_start : json_end + 1]
         else:
             # Fallback: remove markdown code blocks
             if response.startswith("```json"):
@@ -648,7 +663,9 @@ class UnifiedAnalysisService:
             return "".join(parts)
 
         # Otherwise, use smart truncation per page
-        chars_per_page = max_total_chars // total_pages if total_pages > 0 else max_chars_per_page
+        chars_per_page = (
+            max_total_chars // total_pages if total_pages > 0 else max_chars_per_page
+        )
         chars_per_page = max(200, min(chars_per_page, max_chars_per_page))
 
         for page_num in sorted(pages.keys()):

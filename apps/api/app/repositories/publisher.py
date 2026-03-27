@@ -24,7 +24,9 @@ class PublisherRepository(BaseRepository[Publisher]):
         statement = select(Publisher)
         return list(session.scalars(statement).all())
 
-    def list_paginated(self, session: Session, skip: int = 0, limit: int = 100) -> list[Publisher]:
+    def list_paginated(
+        self, session: Session, skip: int = 0, limit: int = 100
+    ) -> list[Publisher]:
         """Return publishers with pagination."""
         statement = select(Publisher).offset(skip).limit(limit)
         return list(session.scalars(statement).all())
@@ -34,7 +36,9 @@ class PublisherRepository(BaseRepository[Publisher]):
         statement = select(func.count()).select_from(Publisher)
         return session.execute(statement).scalar() or 0
 
-    def list_active(self, session: Session, skip: int = 0, limit: int = 100) -> list[Publisher]:
+    def list_active(
+        self, session: Session, skip: int = 0, limit: int = 100
+    ) -> list[Publisher]:
         """Return only active publishers with pagination."""
         statement = (
             select(Publisher)
@@ -46,10 +50,16 @@ class PublisherRepository(BaseRepository[Publisher]):
 
     def count_active(self, session: Session) -> int:
         """Return count of active publishers."""
-        statement = select(func.count()).select_from(Publisher).where(Publisher.status == "active")
+        statement = (
+            select(func.count())
+            .select_from(Publisher)
+            .where(Publisher.status == "active")
+        )
         return session.execute(statement).scalar() or 0
 
-    def list_archived(self, session: Session, skip: int = 0, limit: int = 100) -> list[Publisher]:
+    def list_archived(
+        self, session: Session, skip: int = 0, limit: int = 100
+    ) -> list[Publisher]:
         """Return archived (trashed) publishers with pagination."""
         statement = (
             select(Publisher)
@@ -61,7 +71,11 @@ class PublisherRepository(BaseRepository[Publisher]):
 
     def count_archived(self, session: Session) -> int:
         """Return count of archived publishers."""
-        statement = select(func.count()).select_from(Publisher).where(Publisher.status == "inactive")
+        statement = (
+            select(func.count())
+            .select_from(Publisher)
+            .where(Publisher.status == "inactive")
+        )
         return session.execute(statement).scalar() or 0
 
     def get_by_name(self, session: Session, name: str) -> Publisher | None:
@@ -96,7 +110,9 @@ class PublisherRepository(BaseRepository[Publisher]):
         session.commit()
         return created
 
-    def update(self, session: Session, publisher: Publisher, *, data: dict[str, object]) -> Publisher:
+    def update(
+        self, session: Session, publisher: Publisher, *, data: dict[str, object]
+    ) -> Publisher:
         """Update an existing publisher."""
         for field, value in data.items():
             setattr(publisher, field, value)
@@ -115,13 +131,17 @@ class PublisherRepository(BaseRepository[Publisher]):
         session.refresh(publisher)
         book_count = len(publisher.books)
 
-        logger.info(f"Deleting publisher '{publisher.name}' (ID: {publisher.id}) and {book_count} associated books")
+        logger.info(
+            f"Deleting publisher '{publisher.name}' (ID: {publisher.id}) and {book_count} associated books"
+        )
 
         # Delete publisher (cascade will delete all books)
         session.delete(publisher)
         session.commit()
 
-        logger.info(f"Successfully deleted publisher '{publisher.name}' and {book_count} books")
+        logger.info(
+            f"Successfully deleted publisher '{publisher.name}' and {book_count} books"
+        )
 
     def get_ai_settings(self, publisher: Publisher) -> dict[str, object]:
         """Get AI processing settings for a publisher.

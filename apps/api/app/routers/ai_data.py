@@ -39,7 +39,20 @@ _user_repository = UserRepository()
 logger = logging.getLogger(__name__)
 
 # Supported language codes for audio
-SUPPORTED_LANGUAGES = {"en", "tr", "de", "fr", "es", "it", "pt", "ru", "ar", "zh", "ja", "ko"}
+SUPPORTED_LANGUAGES = {
+    "en",
+    "tr",
+    "de",
+    "fr",
+    "es",
+    "it",
+    "pt",
+    "ru",
+    "ar",
+    "zh",
+    "ja",
+    "ko",
+}
 
 # Cache durations in seconds
 CACHE_METADATA = 60  # 1 minute for metadata (may change during processing)
@@ -161,15 +174,23 @@ def get_ai_metadata(
             continue
         stages_response[stage_name] = StageResultResponse(
             status=stage_result.status.value,
-            completed_at=stage_result.completed_at.isoformat() if stage_result.completed_at else None,
-            error_message=stage_result.error_message if stage_result.error_message else None,
+            completed_at=stage_result.completed_at.isoformat()
+            if stage_result.completed_at
+            else None,
+            error_message=stage_result.error_message
+            if stage_result.error_message
+            else None,
         )
 
     response_data = ProcessingMetadataResponse(
         book_id=metadata.book_id,
         processing_status=metadata.processing_status.value,
-        processing_started_at=metadata.processing_started_at.isoformat() if metadata.processing_started_at else None,
-        processing_completed_at=metadata.processing_completed_at.isoformat() if metadata.processing_completed_at else None,
+        processing_started_at=metadata.processing_started_at.isoformat()
+        if metadata.processing_started_at
+        else None,
+        processing_completed_at=metadata.processing_completed_at.isoformat()
+        if metadata.processing_completed_at
+        else None,
         total_pages=metadata.total_pages,
         total_modules=metadata.total_modules,
         total_vocabulary=metadata.total_vocabulary,
@@ -193,11 +214,15 @@ def get_ai_metadata(
 
 class _BulkAISummaryRequest(BaseModel):
     """Request body for bulk AI summary retrieval."""
-    book_ids: list[int] = Field(..., max_length=100, description="List of book IDs (max 100)")
+
+    book_ids: list[int] = Field(
+        ..., max_length=100, description="List of book IDs (max 100)"
+    )
 
 
 class _BookAISummary(BaseModel):
     """Summary of AI processing status for a single book."""
+
     book_id: int
     processing_status: str  # pending, processing, completed, failed, not_found
     total_modules: int = 0
@@ -238,7 +263,9 @@ def get_bulk_ai_summary(
         publisher = _publisher_repository.get(db, book.publisher_id)
         publisher_name = publisher.name if publisher else ""
 
-        metadata = retrieval_service.get_metadata(publisher_name, str(book_id), book.book_name)
+        metadata = retrieval_service.get_metadata(
+            publisher_name, str(book_id), book.book_name
+        )
         if metadata is None:
             results.append({"book_id": book_id, "processing_status": "not_found"})
             continue
@@ -349,7 +376,9 @@ def get_ai_modules_metadata(
     publisher, book_name = _get_book_info(db, book_id)
 
     retrieval_service = get_ai_data_retrieval_service()
-    metadata = retrieval_service.get_modules_metadata(publisher, str(book_id), book_name)
+    metadata = retrieval_service.get_modules_metadata(
+        publisher, str(book_id), book_name
+    )
 
     if metadata is None:
         raise HTTPException(
@@ -432,7 +461,11 @@ def get_ai_module(
     # Storage uses: difficulty_level, vocabulary (inline array)
     # API expects: difficulty, vocabulary_ids
     vocabulary_data = module.get("vocabulary", [])
-    vocabulary_ids = [v.get("word", "") for v in vocabulary_data] if vocabulary_data else module.get("vocabulary_ids", [])
+    vocabulary_ids = (
+        [v.get("word", "") for v in vocabulary_data]
+        if vocabulary_data
+        else module.get("vocabulary_ids", [])
+    )
 
     response_data = ModuleDetailResponse(
         module_id=module.get("module_id", 0),
@@ -598,7 +631,9 @@ def stream_vocabulary_audio(
     client = get_minio_client(settings)
 
     # Build audio file path
-    audio_path = f"{publisher}/books/{book_name}/ai-data/audio/vocabulary/{lang}/{word_id}.mp3"
+    audio_path = (
+        f"{publisher}/books/{book_name}/ai-data/audio/vocabulary/{lang}/{word_id}.mp3"
+    )
 
     # Get file metadata
     try:

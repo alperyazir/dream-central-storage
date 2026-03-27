@@ -36,13 +36,19 @@ class ModuleDetailResponse(BaseModel):
     title: str = Field(..., description="Module title")
     pages: list[int] = Field(default_factory=list, description="Page numbers in module")
     text: str = Field("", description="Full text content of the module")
-    topics: list[str] = Field(default_factory=list, description="Topics covered in module")
-    grammar_points: list[str] = Field(default_factory=list, description="Grammar points taught in module")
+    topics: list[str] = Field(
+        default_factory=list, description="Topics covered in module"
+    )
+    grammar_points: list[str] = Field(
+        default_factory=list, description="Grammar points taught in module"
+    )
     vocabulary_ids: list[str] = Field(
         default_factory=list, description="Vocabulary word IDs in module"
     )
     language: str = Field("", description="Primary language of module")
-    summary: str = Field("", description="2-3 sentence summary of module content and learning objectives")
+    summary: str = Field(
+        "", description="2-3 sentence summary of module content and learning objectives"
+    )
     difficulty: str = Field("", description="CEFR difficulty level")
     word_count: int = Field(0, description="Number of words in module")
     extracted_at: str | None = Field(None, description="When module was extracted")
@@ -57,9 +63,13 @@ class ModuleMetadataSummary(BaseModel):
     end_page: int = Field(..., description="End page number")
     page_count: int = Field(0, description="Number of pages in module")
     word_count: int = Field(0, description="Number of words in module")
-    topics: list[str] = Field(default_factory=list, description="Topics covered in module")
+    topics: list[str] = Field(
+        default_factory=list, description="Topics covered in module"
+    )
     difficulty_level: str = Field("", description="CEFR difficulty level")
-    summary: str = Field("", description="2-3 sentence summary of module content and learning objectives")
+    summary: str = Field(
+        "", description="2-3 sentence summary of module content and learning objectives"
+    )
     vocabulary_count: int = Field(0, description="Number of vocabulary words")
 
 
@@ -104,7 +114,9 @@ class VocabularyWordResponse(BaseModel):
     level: str = Field("", description="CEFR level")
     example: str = Field("", description="Example sentence")
     module_id: int | None = Field(None, description="Module where word appears")
-    module_title: str | None = Field(None, description="Module title where word appears")
+    module_title: str | None = Field(
+        None, description="Module title where word appears"
+    )
     page: int | None = Field(None, description="Page where word appears")
     audio: VocabularyWordAudio | None = Field(None, description="Audio file references")
 
@@ -140,8 +152,12 @@ class ProcessingMetadataResponse(BaseModel):
 
     book_id: str = Field(..., description="Book identifier")
     processing_status: str = Field(..., description="Overall processing status")
-    processing_started_at: str | None = Field(None, description="When processing started")
-    processing_completed_at: str | None = Field(None, description="When processing completed")
+    processing_started_at: str | None = Field(
+        None, description="When processing started"
+    )
+    processing_completed_at: str | None = Field(
+        None, description="When processing completed"
+    )
     total_pages: int = Field(0, description="Total pages processed")
     total_modules: int = Field(0, description="Total modules created")
     total_vocabulary: int = Field(0, description="Total vocabulary words extracted")

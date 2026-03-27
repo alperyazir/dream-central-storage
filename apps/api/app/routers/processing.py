@@ -24,7 +24,10 @@ from app.schemas.processing import (
     ProcessingTriggerRequest,
 )
 from app.services import get_minio_client
-from app.services.ai_data import get_ai_data_cleanup_manager, get_ai_data_retrieval_service
+from app.services.ai_data import (
+    get_ai_data_cleanup_manager,
+    get_ai_data_retrieval_service,
+)
 from app.services.queue.models import (
     JobAlreadyExistsError,
     JobPriority,
@@ -394,7 +397,9 @@ class BookWithProcessingStatus(BaseModel):
     book_title: str
     publisher_id: int
     publisher_name: str
-    processing_status: str  # 'not_started', 'queued', 'processing', 'completed', 'failed', 'partial'
+    processing_status: (
+        str  # 'not_started', 'queued', 'processing', 'completed', 'failed', 'partial'
+    )
     progress: int
     current_step: Optional[str]
     error_message: Optional[str]
@@ -439,7 +444,9 @@ class BulkReprocessRequest(BaseModel):
     """Request for bulk reprocessing."""
 
     book_ids: List[int]
-    job_type: Optional[str] = "unified"  # unified uses single LLM call for better accuracy
+    job_type: Optional[str] = (
+        "unified"  # unified uses single LLM call for better accuracy
+    )
     priority: Optional[str] = "normal"
 
 
@@ -477,12 +484,15 @@ async def list_books_with_processing_status(
 
     if publisher:
         from app.models.publisher import Publisher
+
         query = query.join(Publisher).filter(Publisher.name.ilike(f"%{publisher}%"))
 
     if search:
         from app.models.book import Book
+
         query = query.filter(
-            (Book.book_name.ilike(f"%{search}%")) | (Book.book_title.ilike(f"%{search}%"))
+            (Book.book_name.ilike(f"%{search}%"))
+            | (Book.book_title.ilike(f"%{search}%"))
         )
 
     # Get total count before pagination
@@ -493,9 +503,16 @@ async def list_books_with_processing_status(
 
     # Build publisher name lookup (to avoid lazy loading issues)
     publisher_ids = list(set(book.publisher_id for book in books))
-    publishers = {p.id: p.name for p in db.query(_publisher_repository.model).filter(
-        _publisher_repository.model.id.in_(publisher_ids)
-    ).all()} if publisher_ids else {}
+    publishers = (
+        {
+            p.id: p.name
+            for p in db.query(_publisher_repository.model)
+            .filter(_publisher_repository.model.id.in_(publisher_ids))
+            .all()
+        }
+        if publisher_ids
+        else {}
+    )
 
     # Get processing status for each book
     queue_service = await get_queue_service()
@@ -516,39 +533,53 @@ async def list_books_with_processing_status(
 
         if jobs:
             job = jobs[0]
-            processing_status = job.status.value if hasattr(job.status, 'value') else str(job.status)
+            processing_status = (
+                job.status.value if hasattr(job.status, "value") else str(job.status)
+            )
             progress = job.progress
             current_step = job.current_step
             error_message = job.error_message
             job_id = job.job_id
             if job.completed_at:
-                last_processed_at = job.completed_at.isoformat() if hasattr(job.completed_at, 'isoformat') else str(job.completed_at)
+                last_processed_at = (
+                    job.completed_at.isoformat()
+                    if hasattr(job.completed_at, "isoformat")
+                    else str(job.completed_at)
+                )
         else:
             # Check if metadata exists (means it was processed at some point)
-            metadata = retrieval_service.get_metadata(publisher_name, str(book.id), book.book_name)
+            metadata = retrieval_service.get_metadata(
+                publisher_name, str(book.id), book.book_name
+            )
             if metadata:
                 processing_status = "completed"
                 progress = 100
                 if metadata.processing_completed_at:
-                    last_processed_at = metadata.processing_completed_at.isoformat() if hasattr(metadata.processing_completed_at, 'isoformat') else str(metadata.processing_completed_at)
+                    last_processed_at = (
+                        metadata.processing_completed_at.isoformat()
+                        if hasattr(metadata.processing_completed_at, "isoformat")
+                        else str(metadata.processing_completed_at)
+                    )
 
         # Apply status filter
         if status and processing_status != status:
             continue
 
-        result_books.append(BookWithProcessingStatus(
-            book_id=book.id,
-            book_name=book.book_name,
-            book_title=book.book_title or book.book_name,
-            publisher_id=book.publisher_id,
-            publisher_name=publisher_name,
-            processing_status=processing_status,
-            progress=progress,
-            current_step=current_step,
-            error_message=error_message,
-            job_id=job_id,
-            last_processed_at=last_processed_at,
-        ))
+        result_books.append(
+            BookWithProcessingStatus(
+                book_id=book.id,
+                book_name=book.book_name,
+                book_title=book.book_title or book.book_name,
+                publisher_id=book.publisher_id,
+                publisher_name=publisher_name,
+                processing_status=processing_status,
+                progress=progress,
+                current_step=current_step,
+                error_message=error_message,
+                job_id=job_id,
+                last_processed_at=last_processed_at,
+            )
+        )
 
     return BooksWithProcessingStatusResponse(
         books=result_books,
@@ -575,8 +606,12 @@ async def get_processing_queue(
     queue_service = await get_queue_service()
 
     # Get queued and processing jobs
-    queued_jobs = await queue_service.list_jobs(status=ProcessingStatus.QUEUED, limit=100)
-    processing_jobs = await queue_service.list_jobs(status=ProcessingStatus.PROCESSING, limit=100)
+    queued_jobs = await queue_service.list_jobs(
+        status=ProcessingStatus.QUEUED, limit=100
+    )
+    processing_jobs = await queue_service.list_jobs(
+        status=ProcessingStatus.PROCESSING, limit=100
+    )
 
     all_jobs = processing_jobs + queued_jobs  # Processing first, then queued
 
@@ -588,19 +623,27 @@ async def get_processing_queue(
             # Get publisher name explicitly
             publisher = _publisher_repository.get(db, book.publisher_id)
             publisher_name = publisher.name if publisher else ""
-            queue_items.append(ProcessingQueueItem(
-                job_id=job.job_id,
-                book_id=int(job.book_id),
-                book_name=book.book_name,
-                book_title=book.book_title or book.book_name,
-                publisher_name=publisher_name,
-                status=job.status.value if hasattr(job.status, 'value') else str(job.status),
-                progress=job.progress,
-                current_step=job.current_step or "",
-                position=idx + 1,
-                created_at=job.created_at.isoformat() if hasattr(job.created_at, 'isoformat') else str(job.created_at),
-                started_at=job.started_at.isoformat() if job.started_at and hasattr(job.started_at, 'isoformat') else None,
-            ))
+            queue_items.append(
+                ProcessingQueueItem(
+                    job_id=job.job_id,
+                    book_id=int(job.book_id),
+                    book_name=book.book_name,
+                    book_title=book.book_title or book.book_name,
+                    publisher_name=publisher_name,
+                    status=job.status.value
+                    if hasattr(job.status, "value")
+                    else str(job.status),
+                    progress=job.progress,
+                    current_step=job.current_step or "",
+                    position=idx + 1,
+                    created_at=job.created_at.isoformat()
+                    if hasattr(job.created_at, "isoformat")
+                    else str(job.created_at),
+                    started_at=job.started_at.isoformat()
+                    if job.started_at and hasattr(job.started_at, "isoformat")
+                    else None,
+                )
+            )
 
     return ProcessingQueueResponse(
         queue=queue_items,
@@ -874,7 +917,9 @@ async def update_processing_settings(
     if request.queue_max_concurrency is not None:
         settings.queue_max_concurrency = request.queue_max_concurrency
     if request.vocabulary_max_words_per_module is not None:
-        settings.vocabulary_max_words_per_module = request.vocabulary_max_words_per_module
+        settings.vocabulary_max_words_per_module = (
+            request.vocabulary_max_words_per_module
+        )
     if request.audio_generation_languages is not None:
         settings.audio_generation_languages = request.audio_generation_languages
     if request.audio_generation_concurrency is not None:
@@ -976,7 +1021,9 @@ async def update_publisher_processing_settings(
         ai_audio_languages=request.ai_audio_languages,
     )
 
-    logger.info("Updated processing settings for publisher %s by user %s", publisher_id, user_id)
+    logger.info(
+        "Updated processing settings for publisher %s by user %s", publisher_id, user_id
+    )
 
     return PublisherProcessingSettings(
         publisher_id=publisher.id,

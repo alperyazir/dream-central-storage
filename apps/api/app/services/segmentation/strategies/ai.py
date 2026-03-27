@@ -66,6 +66,7 @@ class AIAssistedStrategy(SegmentationStrategy):
         """Get LLM service (lazy load)."""
         if self._llm_service is None:
             from app.services.llm import get_llm_service
+
             self._llm_service = get_llm_service()
         return self._llm_service
 
@@ -210,11 +211,13 @@ class AIAssistedStrategy(SegmentationStrategy):
                 if start_page < 1:
                     continue
 
-                boundaries.append(ModuleBoundary(
-                    title=str(title).strip(),
-                    start_page=start_page,
-                    confidence=0.7,  # AI has moderate confidence
-                ))
+                boundaries.append(
+                    ModuleBoundary(
+                        title=str(title).strip(),
+                        start_page=start_page,
+                        confidence=0.7,  # AI has moderate confidence
+                    )
+                )
 
         except json.JSONDecodeError as e:
             logger.warning(f"Failed to parse LLM response as JSON: {e}")

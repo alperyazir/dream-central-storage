@@ -341,9 +341,7 @@ class TestTOCBasedStrategy:
     def test_can_segment_with_toc(self):
         """Test can_segment with valid TOC."""
         strategy = TOCBasedStrategy()
-        pages = {
-            1: "Table of Contents\nCh 1 ........ 5\nCh 2 ........ 10"
-        }
+        pages = {1: "Table of Contents\nCh 1 ........ 5\nCh 2 ........ 10"}
         assert strategy.can_segment(pages) is True
 
 
@@ -658,7 +656,10 @@ class TestModuleStorage:
 
         storage = ModuleStorage()
         path = storage._build_metadata_path("pub-1", "book-1", "my-book")
-        assert path == "pub-1/books/book-1/my-book/ai-data/modules/segmentation_metadata.json"
+        assert (
+            path
+            == "pub-1/books/book-1/my-book/ai-data/modules/segmentation_metadata.json"
+        )
 
     @patch("app.services.segmentation.storage.get_minio_client")
     def test_save_module(self, mock_get_minio):

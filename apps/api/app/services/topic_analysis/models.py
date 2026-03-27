@@ -102,7 +102,11 @@ class InvalidLLMResponseError(TopicAnalysisError):
         super().__init__(
             f"Invalid LLM response for module {module_id}: {parse_error}",
             book_id,
-            {"module_id": module_id, "response": response[:500], "parse_error": parse_error},
+            {
+                "module_id": module_id,
+                "response": response[:500],
+                "parse_error": parse_error,
+            },
         )
         self.module_id = module_id
         self.response = response
@@ -228,12 +232,18 @@ class BookAnalysisResult:
         # Determine primary language
         if languages:
             from collections import Counter
+
             lang_counts = Counter(languages)
             self.primary_language = lang_counts.most_common(1)[0][0]
 
         # Determine difficulty range
         if difficulties:
-            unique_difficulties = sorted(set(difficulties), key=lambda x: ["A1", "A2", "B1", "B2", "C1", "C2"].index(x) if x in ["A1", "A2", "B1", "B2", "C1", "C2"] else 99)
+            unique_difficulties = sorted(
+                set(difficulties),
+                key=lambda x: ["A1", "A2", "B1", "B2", "C1", "C2"].index(x)
+                if x in ["A1", "A2", "B1", "B2", "C1", "C2"]
+                else 99,
+            )
             self.difficulty_range = unique_difficulties
 
     def to_dict(self) -> dict[str, Any]:

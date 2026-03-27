@@ -6,7 +6,22 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routers import ai_content, ai_data, api_keys, apps, auth, books, health, processing, publishers, standalone_apps, storage, teachers, teachers_crud, webhooks
+from app.routers import (
+    ai_content,
+    ai_data,
+    api_keys,
+    apps,
+    auth,
+    books,
+    health,
+    processing,
+    publishers,
+    standalone_apps,
+    storage,
+    teachers,
+    teachers_crud,
+    webhooks,
+)
 from app.services import ensure_buckets, get_minio_client
 from app.monitoring import MetricsMiddleware, router as monitoring_router
 from app.db import SessionLocal
@@ -65,9 +80,7 @@ def ensure_default_admin() -> None:
 
             try:
                 user = create_admin_user(
-                    session,
-                    email=default_email,
-                    password=default_password
+                    session, email=default_email, password=default_password
                 )
                 logger.info(
                     "Created default admin user (email: %s, id: %d)",

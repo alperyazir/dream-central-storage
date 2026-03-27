@@ -81,7 +81,9 @@ class AnalyzedModule:
                 }
                 for v in self.vocabulary
             ],
-            "extracted_at": self.extracted_at.isoformat() if self.extracted_at else None,
+            "extracted_at": self.extracted_at.isoformat()
+            if self.extracted_at
+            else None,
         }
 
 

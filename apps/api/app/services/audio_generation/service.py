@@ -155,7 +155,9 @@ class AudioGenerationService:
 
         # Build batch items for all words (primary + translations)
         batch_items: list[TTSBatchItem] = []
-        item_metadata: list[dict[str, str]] = []  # Track which word/language each item is
+        item_metadata: list[
+            dict[str, str]
+        ] = []  # Track which word/language each item is
 
         for word_data in vocabulary:
             word_id = word_data.get("id", "")
@@ -170,12 +172,14 @@ class AudioGenerationService:
                         id=f"{word_id}_word",
                     )
                 )
-                item_metadata.append({
-                    "word_id": word_id,
-                    "word": word,
-                    "language": language,
-                    "type": "word",
-                })
+                item_metadata.append(
+                    {
+                        "word_id": word_id,
+                        "word": word,
+                        "language": language,
+                        "type": "word",
+                    }
+                )
 
             if translation:
                 # Use word_id for translation file too (different folder)
@@ -187,13 +191,15 @@ class AudioGenerationService:
                         id=f"{word_id}_translation",
                     )
                 )
-                item_metadata.append({
-                    "word_id": translation_id,
-                    "word": translation,
-                    "language": translation_language,
-                    "type": "translation",
-                    "original_word_id": word_id,
-                })
+                item_metadata.append(
+                    {
+                        "word_id": translation_id,
+                        "word": translation,
+                        "language": translation_language,
+                        "type": "translation",
+                        "original_word_id": word_id,
+                    }
+                )
 
         total_items = len(batch_items)
         logger.info(
@@ -202,7 +208,7 @@ class AudioGenerationService:
         )
 
         # Process in batches using TTS batch processing
-        concurrency = getattr(self.settings, 'audio_generation_concurrency', 5)
+        concurrency = getattr(self.settings, "audio_generation_concurrency", 5)
         batch_result = await self.tts_service.synthesize_batch(
             items=batch_items,
             concurrency=concurrency,
@@ -281,6 +287,7 @@ class AudioGenerationService:
     def _slugify(self, text: str) -> str:
         """Create a URL-safe slug from text."""
         import re
+
         slug = text.lower()
         slug = re.sub(r"[^a-z0-9]+", "_", slug)
         slug = slug.strip("_")

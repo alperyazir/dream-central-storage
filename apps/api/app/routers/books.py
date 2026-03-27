@@ -10,7 +10,15 @@ import os
 import zipfile
 from collections.abc import Iterable
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
@@ -81,18 +89,27 @@ def _require_admin(credentials: HTTPAuthorizationCredentials, db: Session) -> in
 
 def _trigger_webhook(book_id: int, event_type: WebhookEventType) -> None:
     """Trigger webhook broadcast for a book event (runs in background)."""
-    logger.info(f"[WEBHOOK] Triggering {event_type.value} webhook for book_id={book_id}")
+    logger.info(
+        f"[WEBHOOK] Triggering {event_type.value} webhook for book_id={book_id}"
+    )
     try:
         with SessionLocal() as session:
             book = _book_repository.get_by_id(session, book_id)
             if book:
-                logger.info(f"[WEBHOOK] Book {book_id} found, broadcasting event to webhook service")
+                logger.info(
+                    f"[WEBHOOK] Book {book_id} found, broadcasting event to webhook service"
+                )
                 asyncio.run(_webhook_service.broadcast_event(session, event_type, book))
                 logger.info(f"[WEBHOOK] Broadcast completed for book {book_id}")
             else:
-                logger.warning(f"[WEBHOOK] Book {book_id} not found in database, cannot trigger webhook")
+                logger.warning(
+                    f"[WEBHOOK] Book {book_id} not found in database, cannot trigger webhook"
+                )
     except Exception as e:
-        logger.error(f"[WEBHOOK] Failed to trigger webhook for book {book_id}: {e}", exc_info=True)
+        logger.error(
+            f"[WEBHOOK] Failed to trigger webhook for book {book_id}: {e}",
+            exc_info=True,
+        )
 
 
 @router.post("/", response_model=BookRead, status_code=status.HTTP_201_CREATED)
@@ -115,16 +132,22 @@ def create_book(
     book = _book_repository.create(db, data=data)
 
     # Trigger webhook in background
-    logger.info(f"[WEBHOOK-TRIGGER] Scheduling BOOK_CREATED webhook for book_id={book.id}, book_name='{book.book_name}', publisher='{book.publisher}'")
+    logger.info(
+        f"[WEBHOOK-TRIGGER] Scheduling BOOK_CREATED webhook for book_id={book.id}, book_name='{book.book_name}', publisher='{book.publisher}'"
+    )
     background_tasks.add_task(_trigger_webhook, book.id, WebhookEventType.BOOK_CREATED)
-    logger.debug(f"[WEBHOOK-TRIGGER] BOOK_CREATED webhook task added to background queue for book_id={book.id}")
+    logger.debug(
+        f"[WEBHOOK-TRIGGER] BOOK_CREATED webhook task added to background queue for book_id={book.id}"
+    )
 
     return BookRead.model_validate(book)
 
 
 @router.get("/", response_model=list[BookRead])
 def list_books(
-    publisher_id: int | None = Query(default=None, description="Filter books by publisher ID"),
+    publisher_id: int | None = Query(
+        default=None, description="Filter books by publisher ID"
+    ),
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
 ) -> list[BookRead]:
@@ -140,7 +163,10 @@ def list_books(
 
 class _BatchBookRequest(BaseModel):
     """Request body for batch book retrieval."""
-    ids: list[int] = Field(..., max_length=100, description="List of book IDs to retrieve (max 100)")
+
+    ids: list[int] = Field(
+        ..., max_length=100, description="List of book IDs to retrieve (max 100)"
+    )
 
 
 @router.post("/batch", response_model=list[BookRead])
@@ -159,6 +185,7 @@ def get_books_batch(
         return []
 
     from sqlalchemy import select as sa_select
+
     statement = sa_select(Book).where(
         Book.id.in_(payload.ids),
         Book.status != BookStatusEnum.ARCHIVED,
@@ -178,7 +205,9 @@ def get_book(
     _require_admin(credentials, db)
     book = _book_repository.get_by_id(db, book_id)
     if book is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Book not found"
+        )
     return BookRead.model_validate(book)
 
 
@@ -195,7 +224,9 @@ def update_book(
     _require_admin(credentials, db)
     book = _book_repository.get_by_id(db, book_id)
     if book is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Book not found"
+        )
 
     update_data = payload.model_dump(exclude_unset=True)
     if not update_data:
@@ -210,9 +241,13 @@ def update_book(
     updated = _book_repository.update(db, book, data=update_data)
 
     # Trigger webhook in background
-    logger.info(f"[WEBHOOK-TRIGGER] Scheduling BOOK_UPDATED webhook for book_id={book_id}, book_name='{updated.book_name}', updated_fields={list(update_data.keys())}")
+    logger.info(
+        f"[WEBHOOK-TRIGGER] Scheduling BOOK_UPDATED webhook for book_id={book_id}, book_name='{updated.book_name}', updated_fields={list(update_data.keys())}"
+    )
     background_tasks.add_task(_trigger_webhook, book_id, WebhookEventType.BOOK_UPDATED)
-    logger.debug(f"[WEBHOOK-TRIGGER] BOOK_UPDATED webhook task added to background queue for book_id={book_id}")
+    logger.debug(
+        f"[WEBHOOK-TRIGGER] BOOK_UPDATED webhook task added to background queue for book_id={book_id}"
+    )
 
     return BookRead.model_validate(updated)
 
@@ -229,7 +264,9 @@ def soft_delete_book(
     admin_id = _require_admin(credentials, db)
     book = _book_repository.get_by_id(db, book_id)
     if book is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Book not found"
+        )
 
     if book.status == BookStatusEnum.ARCHIVED:
         return BookRead.model_validate(book)
@@ -265,9 +302,13 @@ def soft_delete_book(
     )
 
     # Trigger webhook in background
-    logger.info(f"[WEBHOOK-TRIGGER] Scheduling BOOK_DELETED webhook for book_id={book_id}, book_name='{archived.book_name}', objects_moved={report.objects_moved}")
+    logger.info(
+        f"[WEBHOOK-TRIGGER] Scheduling BOOK_DELETED webhook for book_id={book_id}, book_name='{archived.book_name}', objects_moved={report.objects_moved}"
+    )
     background_tasks.add_task(_trigger_webhook, book_id, WebhookEventType.BOOK_DELETED)
-    logger.debug(f"[WEBHOOK-TRIGGER] BOOK_DELETED webhook task added to background queue for book_id={book_id}")
+    logger.debug(
+        f"[WEBHOOK-TRIGGER] BOOK_DELETED webhook task added to background queue for book_id={book_id}"
+    )
 
     return BookRead.model_validate(archived)
 
@@ -284,7 +325,9 @@ async def upload_book(
     _require_admin(credentials, db)
     book = _book_repository.get_by_id(db, book_id)
     if book is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Book not found"
+        )
 
     contents = await file.read()
     settings = get_settings()
@@ -294,7 +337,11 @@ async def upload_book(
 
     # Clear existing files
     try:
-        objects = list(client.list_objects(settings.minio_publishers_bucket, prefix=prefix, recursive=True))
+        objects = list(
+            client.list_objects(
+                settings.minio_publishers_bucket, prefix=prefix, recursive=True
+            )
+        )
         for obj in objects:
             client.remove_object(settings.minio_publishers_bucket, obj.object_name)
         logger.info("Cleared %d existing objects for book %s", len(objects), book_id)
@@ -316,7 +363,9 @@ async def upload_book(
             strip_root_folder=True,
         )
     except UploadError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
     except Exception as exc:  # pragma: no cover - defensive guard
         logger.error("Failed to upload book archive: %s", exc)
         raise HTTPException(
@@ -331,12 +380,18 @@ async def upload_book(
     )
 
     # Trigger webhook for book update
-    logger.info(f"[WEBHOOK-TRIGGER] Scheduling BOOK_UPDATED webhook (upload) for book_id={book_id}, files_uploaded={len(manifest)}")
+    logger.info(
+        f"[WEBHOOK-TRIGGER] Scheduling BOOK_UPDATED webhook (upload) for book_id={book_id}, files_uploaded={len(manifest)}"
+    )
     background_tasks.add_task(_trigger_webhook, book_id, WebhookEventType.BOOK_UPDATED)
-    logger.debug(f"[WEBHOOK-TRIGGER] BOOK_UPDATED webhook task (upload) added to background queue for book_id={book_id}")
+    logger.debug(
+        f"[WEBHOOK-TRIGGER] BOOK_UPDATED webhook task (upload) added to background queue for book_id={book_id}"
+    )
 
     # Trigger auto-processing (force=True since content was replaced)
-    logger.info(f"[AUTO-PROCESS] Scheduling auto-processing for book_id={book_id} (content replaced)")
+    logger.info(
+        f"[AUTO-PROCESS] Scheduling auto-processing for book_id={book_id} (content replaced)"
+    )
     background_tasks.add_task(
         trigger_auto_processing,
         book_id=book_id,
@@ -373,12 +428,16 @@ async def upload_new_book(
     admin_id = _require_admin(credentials, db)
 
     if not file.filename:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must have a filename")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="File must have a filename"
+        )
 
     # Extract book name from ZIP filename (remove .zip extension)
     zip_filename = file.filename
     if not zip_filename.lower().endswith(".zip"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be a ZIP archive")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="File must be a ZIP archive"
+        )
 
     book_name_from_zip = zip_filename[:-4]  # Remove .zip extension
 
@@ -388,7 +447,9 @@ async def upload_new_book(
     try:
         create_payload = _extract_book_metadata(contents)
     except UploadError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
 
     # Extract additional metadata (book_title, book_cover, activity_count)
     additional_metadata = _extract_additional_metadata(contents)
@@ -437,9 +498,13 @@ async def upload_new_book(
 
     # Check if book already exists in storage
     try:
-        prefix_exists = _prefix_exists(client, settings.minio_publishers_bucket, object_prefix)
+        prefix_exists = _prefix_exists(
+            client, settings.minio_publishers_bucket, object_prefix
+        )
     except Exception as exc:
-        logger.error("Failed to check existing book prefix '%s': %s", object_prefix, exc)
+        logger.error(
+            "Failed to check existing book prefix '%s': %s", object_prefix, exc
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Unable to check for existing book",
@@ -452,8 +517,8 @@ async def upload_new_book(
             detail={
                 "message": f"Book '{book_data['book_name']}' already exists for publisher '{book_data['publisher']}'. Use override=true to backup and replace.",
                 "code": "BOOK_EXISTS",
-                "publisher": book_data['publisher'],
-                "book_name": book_data['book_name'],
+                "publisher": book_data["publisher"],
+                "book_name": book_data["book_name"],
             },
         )
 
@@ -461,11 +526,22 @@ async def upload_new_book(
     if prefix_exists and override:
         try:
             # Delete all objects at this prefix
-            objects = list(client.list_objects(settings.minio_publishers_bucket, prefix=object_prefix, recursive=True))
+            objects = list(
+                client.list_objects(
+                    settings.minio_publishers_bucket,
+                    prefix=object_prefix,
+                    recursive=True,
+                )
+            )
             for obj in objects:
                 client.remove_object(settings.minio_publishers_bucket, obj.object_name)
 
-            logger.info("Deleted %d existing objects for book %s/%s", len(objects), book_data['publisher'], book_data['book_name'])
+            logger.info(
+                "Deleted %d existing objects for book %s/%s",
+                len(objects),
+                book_data["publisher"],
+                book_data["book_name"],
+            )
         except Exception as exc:
             logger.error("Failed to delete existing book: %s", exc)
             raise HTTPException(
@@ -484,7 +560,9 @@ async def upload_new_book(
             strip_root_folder=True,
         )
     except UploadError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
     except Exception as exc:  # pragma: no cover - defensive guard
         logger.error("Failed to upload book archive: %s", exc)
         raise HTTPException(
@@ -493,15 +571,15 @@ async def upload_new_book(
         ) from exc
 
     # Convert publisher name to publisher_id
-    publisher_name = book_data.pop('publisher')
+    publisher_name = book_data.pop("publisher")
     publisher = _publisher_repository.get_or_create_by_name(db, publisher_name)
-    book_data['publisher_id'] = publisher.id
+    book_data["publisher_id"] = publisher.id
 
     # Create or update book metadata in database
     existing_book = _book_repository.get_by_publisher_id_and_name(
         db,
         publisher_id=publisher.id,
-        book_name=book_data['book_name'],
+        book_name=book_data["book_name"],
     )
 
     if existing_book:
@@ -522,12 +600,18 @@ async def upload_new_book(
     )
 
     # Trigger webhook in background
-    logger.info(f"[WEBHOOK-TRIGGER] Scheduling BOOK_CREATED webhook (new upload) for book_id={book.id}, book_name='{book.book_name}', files_uploaded={len(manifest)}")
+    logger.info(
+        f"[WEBHOOK-TRIGGER] Scheduling BOOK_CREATED webhook (new upload) for book_id={book.id}, book_name='{book.book_name}', files_uploaded={len(manifest)}"
+    )
     background_tasks.add_task(_trigger_webhook, book.id, WebhookEventType.BOOK_CREATED)
-    logger.debug(f"[WEBHOOK-TRIGGER] BOOK_CREATED webhook task (new upload) added to background queue for book_id={book.id}")
+    logger.debug(
+        f"[WEBHOOK-TRIGGER] BOOK_CREATED webhook task (new upload) added to background queue for book_id={book.id}"
+    )
 
     # Trigger auto-processing for new book (force if override was used)
-    logger.info(f"[AUTO-PROCESS] Scheduling auto-processing for book_id={book.id}, book_name='{book.book_name}'")
+    logger.info(
+        f"[AUTO-PROCESS] Scheduling auto-processing for book_id={book.id}, book_name='{book.book_name}'"
+    )
     background_tasks.add_task(
         trigger_auto_processing,
         book_id=book.id,
@@ -558,12 +642,14 @@ async def upload_bulk_books(
     admin_id = _require_admin(credentials, db)
 
     if not files:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No files provided")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="No files provided"
+        )
 
     if len(files) > 50:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Maximum 50 files allowed per bulk upload"
+            detail="Maximum 50 files allowed per bulk upload",
         )
 
     results = []
@@ -617,24 +703,37 @@ async def upload_bulk_books(
             book_data.update(additional_metadata)
 
             # Clean up string fields
-            for field in ("publisher", "book_name", "book_title", "language", "category"):
+            for field in (
+                "publisher",
+                "book_name",
+                "book_title",
+                "language",
+                "category",
+            ):
                 value = book_data.get(field)
                 if isinstance(value, str):
                     book_data[field] = value.strip()
 
             # Default to published status
-            if book_data.get("status") is None or book_data["status"] == BookStatusEnum.DRAFT:
+            if (
+                book_data.get("status") is None
+                or book_data["status"] == BookStatusEnum.DRAFT
+            ):
                 book_data["status"] = BookStatusEnum.PUBLISHED
 
             object_prefix = f"{book_data['publisher']}/books/{book_data['book_name']}/"
-            result["publisher"] = book_data['publisher']
-            result["book_name"] = book_data['book_name']
+            result["publisher"] = book_data["publisher"]
+            result["book_name"] = book_data["book_name"]
 
             # Check if book exists
             try:
-                prefix_exists = _prefix_exists(client, settings.minio_publishers_bucket, object_prefix)
+                prefix_exists = _prefix_exists(
+                    client, settings.minio_publishers_bucket, object_prefix
+                )
             except Exception as exc:
-                logger.error("Failed to check existing book prefix '%s': %s", object_prefix, exc)
+                logger.error(
+                    "Failed to check existing book prefix '%s': %s", object_prefix, exc
+                )
                 result["error"] = "Unable to check for existing book"
                 results.append(result)
                 failed_count += 1
@@ -650,11 +749,24 @@ async def upload_bulk_books(
             # Delete existing book if override is true
             if prefix_exists and override:
                 try:
-                    objects = list(client.list_objects(settings.minio_publishers_bucket, prefix=object_prefix, recursive=True))
+                    objects = list(
+                        client.list_objects(
+                            settings.minio_publishers_bucket,
+                            prefix=object_prefix,
+                            recursive=True,
+                        )
+                    )
                     for obj in objects:
-                        client.remove_object(settings.minio_publishers_bucket, obj.object_name)
+                        client.remove_object(
+                            settings.minio_publishers_bucket, obj.object_name
+                        )
 
-                    logger.info("Deleted %d existing objects for book %s/%s", len(objects), book_data['publisher'], book_data['book_name'])
+                    logger.info(
+                        "Deleted %d existing objects for book %s/%s",
+                        len(objects),
+                        book_data["publisher"],
+                        book_data["book_name"],
+                    )
                 except Exception as exc:
                     logger.error("Failed to delete existing book: %s", exc)
                     result["error"] = "Failed to delete existing book"
@@ -685,15 +797,15 @@ async def upload_bulk_books(
                 continue
 
             # Convert publisher name to publisher_id
-            publisher_name = book_data.pop('publisher')
+            publisher_name = book_data.pop("publisher")
             publisher = _publisher_repository.get_or_create_by_name(db, publisher_name)
-            book_data['publisher_id'] = publisher.id
+            book_data["publisher_id"] = publisher.id
 
             # Create or update database record
             existing_book = _book_repository.get_by_publisher_id_and_name(
                 db,
                 publisher_id=publisher.id,
-                book_name=book_data['book_name'],
+                book_name=book_data["book_name"],
             )
 
             if existing_book:
@@ -714,12 +826,20 @@ async def upload_bulk_books(
             )
 
             # Trigger webhook in background
-            logger.info(f"[WEBHOOK-TRIGGER] Scheduling BOOK_CREATED webhook (bulk upload) for book_id={book.id}, book_name='{book.book_name}', files_uploaded={len(manifest)}")
-            background_tasks.add_task(_trigger_webhook, book.id, WebhookEventType.BOOK_CREATED)
-            logger.debug(f"[WEBHOOK-TRIGGER] BOOK_CREATED webhook task (bulk upload) added to background queue for book_id={book.id}")
+            logger.info(
+                f"[WEBHOOK-TRIGGER] Scheduling BOOK_CREATED webhook (bulk upload) for book_id={book.id}, book_name='{book.book_name}', files_uploaded={len(manifest)}"
+            )
+            background_tasks.add_task(
+                _trigger_webhook, book.id, WebhookEventType.BOOK_CREATED
+            )
+            logger.debug(
+                f"[WEBHOOK-TRIGGER] BOOK_CREATED webhook task (bulk upload) added to background queue for book_id={book.id}"
+            )
 
             # Trigger auto-processing for bulk uploaded book
-            logger.info(f"[AUTO-PROCESS] Scheduling auto-processing (bulk) for book_id={book.id}, book_name='{book.book_name}'")
+            logger.info(
+                f"[AUTO-PROCESS] Scheduling auto-processing (bulk) for book_id={book.id}, book_name='{book.book_name}'"
+            )
             background_tasks.add_task(
                 trigger_auto_processing,
                 book_id=book.id,
@@ -782,7 +902,9 @@ def _collect_activity_details(config_data: dict) -> dict:
                 if isinstance(activity_obj, dict) and "type" in activity_obj:
                     activity_type = activity_obj["type"]
                     if isinstance(activity_type, str):
-                        activity_freq[activity_type] = activity_freq.get(activity_type, 0) + 1
+                        activity_freq[activity_type] = (
+                            activity_freq.get(activity_type, 0) + 1
+                        )
             for value in obj.values():
                 collect_recursive(value)
         elif isinstance(obj, list):
@@ -797,7 +919,9 @@ def _calculate_archive_size(archive_bytes: bytes) -> int:
     """Calculate the total uncompressed size of all files in the archive."""
     try:
         with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
-            total_size = sum(entry.file_size for entry in archive.infolist() if not entry.is_dir())
+            total_size = sum(
+                entry.file_size for entry in archive.infolist() if not entry.is_dir()
+            )
             return total_size
     except Exception:
         return 0
@@ -814,7 +938,9 @@ def _extract_additional_metadata(archive_bytes: bytes) -> dict[str, object]:
             config_path = _first_matching(names, "config.json")
 
             if config_path is None:
-                logger.warning("config.json not found in archive for metadata extraction")
+                logger.warning(
+                    "config.json not found in archive for metadata extraction"
+                )
                 return {"total_size": total_size}
 
             config_data = _read_json_from_archive(
@@ -977,7 +1103,9 @@ def _coalesce_metadata(
     return result, metadata_used
 
 
-def _first_non_empty(payload: dict[str, object], aliases: Iterable[str]) -> object | None:
+def _first_non_empty(
+    payload: dict[str, object], aliases: Iterable[str]
+) -> object | None:
     for alias in aliases:
         if alias in payload:
             candidate = payload[alias]

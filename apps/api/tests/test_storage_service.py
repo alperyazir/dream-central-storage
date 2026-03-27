@@ -58,7 +58,9 @@ def test_iter_zip_entries_filters_unwanted_files() -> None:
         archive.writestr("content/UPPERCASE.BAK", "backup data")
         archive.writestr("content/temp.tmp", "temp data")
         archive.writestr("nested/file.FBINF", "nested index")
-        archive.writestr("config.bak.old", "old backup")  # Should NOT be filtered (doesn't end with .bak)
+        archive.writestr(
+            "config.bak.old", "old backup"
+        )  # Should NOT be filtered (doesn't end with .bak)
 
         # Files that should pass through
         archive.writestr("content/legitimate.pdf", "pdf content")
@@ -232,7 +234,9 @@ def test_move_prefix_to_trash_raises_when_listing_fails() -> None:
 
 def test_ensure_version_target_detects_conflict() -> None:
     client = MagicMock()
-    client.list_objects.return_value = iter([SimpleNamespace(object_name="dream/books/sky/1.0.0/file.txt")])
+    client.list_objects.return_value = iter(
+        [SimpleNamespace(object_name="dream/books/sky/1.0.0/file.txt")]
+    )
 
     with pytest.raises(UploadConflictError):
         ensure_version_target(
@@ -246,7 +250,9 @@ def test_ensure_version_target_detects_conflict() -> None:
 
 def test_ensure_version_target_allows_override() -> None:
     client = MagicMock()
-    client.list_objects.return_value = iter([SimpleNamespace(object_name="dream/books/sky/1.0.0/file.txt")])
+    client.list_objects.return_value = iter(
+        [SimpleNamespace(object_name="dream/books/sky/1.0.0/file.txt")]
+    )
 
     result = ensure_version_target(
         client=client,
@@ -262,8 +268,12 @@ def test_ensure_version_target_allows_override() -> None:
 def test_restore_prefix_from_trash_restores_objects() -> None:
     client = MagicMock()
     client.list_objects.return_value = [
-        SimpleNamespace(object_name="publishers/DreamPress/books/SkyTales/chapter1.txt"),
-        SimpleNamespace(object_name="publishers/DreamPress/books/SkyTales/notes/chapter2.txt"),
+        SimpleNamespace(
+            object_name="publishers/DreamPress/books/SkyTales/chapter1.txt"
+        ),
+        SimpleNamespace(
+            object_name="publishers/DreamPress/books/SkyTales/notes/chapter2.txt"
+        ),
     ]
 
     report = restore_prefix_from_trash(
@@ -356,20 +366,32 @@ def test_list_trash_entries_aggregates_teacher_materials() -> None:
     assert len(teacher_entries) == 2
 
     # Verify teacher_123 entry
-    teacher_123_entry = next(e for e in teacher_entries if e.metadata and e.metadata.get("teacher_id") == "teacher_123")
+    teacher_123_entry = next(
+        e
+        for e in teacher_entries
+        if e.metadata and e.metadata.get("teacher_id") == "teacher_123"
+    )
     assert teacher_123_entry.key == "teachers/teacher_123/materials/"
     assert teacher_123_entry.bucket == "teachers"
     assert teacher_123_entry.path == "teacher_123/materials"
     assert teacher_123_entry.object_count == 2
     assert teacher_123_entry.total_size == 1024 + 2048
-    assert teacher_123_entry.eligible_for_deletion is False  # Youngest is 2 days old, retention is 7 days
+    assert (
+        teacher_123_entry.eligible_for_deletion is False
+    )  # Youngest is 2 days old, retention is 7 days
 
     # Verify teacher_456 entry
-    teacher_456_entry = next(e for e in teacher_entries if e.metadata and e.metadata.get("teacher_id") == "teacher_456")
+    teacher_456_entry = next(
+        e
+        for e in teacher_entries
+        if e.metadata and e.metadata.get("teacher_id") == "teacher_456"
+    )
     assert teacher_456_entry.key == "teachers/teacher_456/materials/"
     assert teacher_456_entry.object_count == 1
     assert teacher_456_entry.total_size == 512
-    assert teacher_456_entry.eligible_for_deletion is True  # 10 days old, past 7 day retention
+    assert (
+        teacher_456_entry.eligible_for_deletion is True
+    )  # 10 days old, past 7 day retention
 
 
 def test_move_prefix_to_trash_teacher_materials() -> None:
@@ -443,19 +465,31 @@ def test_list_trash_entries_aggregates_publisher_assets() -> None:
     assert len(asset_entries) == 2
 
     # Verify materials entry
-    materials_entry = next(e for e in asset_entries if e.metadata and e.metadata.get("asset_type") == "materials")
+    materials_entry = next(
+        e
+        for e in asset_entries
+        if e.metadata and e.metadata.get("asset_type") == "materials"
+    )
     assert materials_entry.key == "publishers/Dream Press/assets/materials/"
     assert materials_entry.bucket == "publishers"
     assert materials_entry.path == "Dream Press/assets/materials"
     assert materials_entry.object_count == 2
     assert materials_entry.total_size == 1024 + 2048
     assert materials_entry.metadata["publisher"] == "Dream Press"
-    assert materials_entry.eligible_for_deletion is False  # Youngest is 2 days old, retention is 7 days
+    assert (
+        materials_entry.eligible_for_deletion is False
+    )  # Youngest is 2 days old, retention is 7 days
 
     # Verify logos entry
-    logos_entry = next(e for e in asset_entries if e.metadata and e.metadata.get("asset_type") == "logos")
+    logos_entry = next(
+        e
+        for e in asset_entries
+        if e.metadata and e.metadata.get("asset_type") == "logos"
+    )
     assert logos_entry.key == "publishers/Dream Press/assets/logos/"
     assert logos_entry.object_count == 1
     assert logos_entry.total_size == 512
     assert logos_entry.metadata["publisher"] == "Dream Press"
-    assert logos_entry.eligible_for_deletion is True  # 10 days old, past 7 day retention
+    assert (
+        logos_entry.eligible_for_deletion is True
+    )  # 10 days old, past 7 day retention

@@ -81,11 +81,13 @@ class ManualStrategy(SegmentationStrategy):
         # Convert to boundaries
         boundaries = []
         for defn in defs:
-            boundaries.append(ModuleBoundary(
-                title=defn.title,
-                start_page=defn.start_page,
-                confidence=1.0,  # Manual = full confidence
-            ))
+            boundaries.append(
+                ModuleBoundary(
+                    title=defn.title,
+                    start_page=defn.start_page,
+                    confidence=1.0,  # Manual = full confidence
+                )
+            )
 
         # Sort by start page
         boundaries.sort(key=lambda b: b.start_page)
@@ -110,8 +112,7 @@ class ManualStrategy(SegmentationStrategy):
         """
         if not definitions:
             raise InvalidModuleDefinitionError(
-                book_id,
-                "No module definitions provided"
+                book_id, "No module definitions provided"
             )
 
         all_errors = []
@@ -150,10 +151,7 @@ class ManualStrategy(SegmentationStrategy):
                 )
 
         if all_errors:
-            raise InvalidModuleDefinitionError(
-                book_id,
-                "; ".join(all_errors)
-            )
+            raise InvalidModuleDefinitionError(book_id, "; ".join(all_errors))
 
     def can_segment(self, pages: dict[int, str], **kwargs) -> bool:
         """Check if valid definitions are available."""
@@ -178,9 +176,11 @@ class ManualStrategy(SegmentationStrategy):
         """
         definitions = []
         for item in config:
-            definitions.append(ManualModuleDefinition(
-                title=item.get("title", "Untitled"),
-                start_page=int(item.get("start_page", 1)),
-                end_page=int(item.get("end_page", 1)),
-            ))
+            definitions.append(
+                ManualModuleDefinition(
+                    title=item.get("title", "Untitled"),
+                    start_page=int(item.get("start_page", 1)),
+                    end_page=int(item.get("end_page", 1)),
+                )
+            )
         return cls(definitions=definitions, require_full_coverage=require_full_coverage)

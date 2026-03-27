@@ -10,7 +10,6 @@ except ImportError:  # pragma: no cover - exercised only when dependency missing
 
         model_config = ConfigDict()
 
-
     def SettingsConfigDict(**kwargs: object) -> ConfigDict:
         """Provide a ConfigDict-compatible factory when pydantic-settings is unavailable."""
 
@@ -49,7 +48,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expires_minutes: int = 30
 
-    cors_allowed_origins: str | list[str] = "http://localhost:5173,http://localhost:5174"
+    cors_allowed_origins: str | list[str] = (
+        "http://localhost:5173,http://localhost:5174"
+    )
 
     # LLM Provider Configuration
     deepseek_api_key: str = ""
@@ -178,9 +179,7 @@ class Settings(BaseSettings):
     def teacher_all_allowed_mime_types(self) -> list[str]:
         """Return flat list of all allowed MIME types for teacher uploads."""
         return [
-            mime
-            for mimes in self.teacher_allowed_mime_types.values()
-            for mime in mimes
+            mime for mimes in self.teacher_allowed_mime_types.values() for mime in mimes
         ]
 
     @property

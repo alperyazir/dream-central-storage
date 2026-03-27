@@ -20,7 +20,9 @@ MIGRATION_PATH = (
 
 
 def test_users_table_migration_creates_expected_schema() -> None:
-    spec = importlib.util.spec_from_file_location("migration_20250923_01", MIGRATION_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "migration_20250923_01", MIGRATION_PATH
+    )
     assert spec and spec.loader
     migration = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(migration)
@@ -47,7 +49,8 @@ def test_users_table_migration_creates_expected_schema() -> None:
             assert column_info["email"]["nullable"] is False
             unique_constraints = inspector.get_unique_constraints("users")
             assert any(
-                constraint["column_names"] == ["email"] for constraint in unique_constraints
+                constraint["column_names"] == ["email"]
+                for constraint in unique_constraints
             )
 
             connection.execute(

@@ -56,9 +56,7 @@ def verify_password(password: str, stored_hash: str) -> bool:
     except (ValueError, TypeError):  # pragma: no cover - defensive
         return False
 
-    derived = hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt, iterations
-    )
+    derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
     return hmac.compare_digest(derived, expected)
 
 
@@ -89,7 +87,9 @@ def create_access_token(
     if additional_claims:
         payload.update(additional_claims)
 
-    header_segment = _b64encode(json.dumps(header, separators=(",", ":")).encode("utf-8"))
+    header_segment = _b64encode(
+        json.dumps(header, separators=(",", ":")).encode("utf-8")
+    )
     payload_segment = _b64encode(
         json.dumps(payload, separators=(",", ":")).encode("utf-8")
     )
@@ -168,7 +168,9 @@ def get_api_key_prefix(api_key: str) -> str:
     return api_key[:16] if len(api_key) >= 16 else api_key
 
 
-def authenticate_token_or_api_key(token: str, settings: Settings | None = None) -> dict[str, Any]:
+def authenticate_token_or_api_key(
+    token: str, settings: Settings | None = None
+) -> dict[str, Any]:
     """
     Authenticate a request using either JWT token or API key.
 
@@ -192,7 +194,9 @@ def authenticate_token_or_api_key(token: str, settings: Settings | None = None) 
     # If JWT fails, it might be an API key
     # We need to check the database for the API key
     # This will be done in the router/dependency level where we have DB access
-    raise ValueError("Authentication required - token is neither valid JWT nor API key format")
+    raise ValueError(
+        "Authentication required - token is neither valid JWT nor API key format"
+    )
 
 
 def verify_api_key_from_db(token: str, session) -> dict[str, Any] | None:

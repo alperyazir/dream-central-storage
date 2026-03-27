@@ -13,7 +13,9 @@ from app.schemas.book import BookRead
 class TrashEntryRead(BaseModel):
     """Represents an aggregated trash entry available for restoration."""
 
-    key: str = Field(..., description="Full key within the trash bucket including trailing slash")
+    key: str = Field(
+        ..., description="Full key within the trash bucket including trailing slash"
+    )
     bucket: str = Field(..., description="Original bucket the content belonged to")
     path: str = Field(..., description="Original path within the bucket")
     item_type: Literal["book", "app", "unknown"] = Field(default="unknown")

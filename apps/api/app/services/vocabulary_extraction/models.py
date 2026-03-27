@@ -89,7 +89,11 @@ class InvalidLLMResponseError(VocabularyExtractionError):
         super().__init__(
             f"Invalid LLM response for module {module_id}: {parse_error}",
             book_id,
-            {"module_id": module_id, "response": response[:500], "parse_error": parse_error},
+            {
+                "module_id": module_id,
+                "response": response[:500],
+                "parse_error": parse_error,
+            },
         )
         self.module_id = module_id
         self.response = response
@@ -117,6 +121,7 @@ class DuplicateVocabularyError(VocabularyExtractionError):
 def _slugify(text: str) -> str:
     """Create a URL-safe slug from text."""
     import re
+
     # Convert to lowercase
     slug = text.lower()
     # Replace spaces and special chars with underscores

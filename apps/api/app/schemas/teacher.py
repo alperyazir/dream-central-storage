@@ -16,7 +16,9 @@ from pydantic import BaseModel, ConfigDict, Field
 class TeacherBase(BaseModel):
     """Shared attributes required for teacher metadata operations."""
 
-    teacher_id: str = Field(..., max_length=255, description="Unique external teacher ID")
+    teacher_id: str = Field(
+        ..., max_length=255, description="Unique external teacher ID"
+    )
     display_name: str | None = Field(default=None, max_length=255)
     email: str | None = Field(default=None, max_length=255)
     status: str = Field(default="active", max_length=20)
@@ -26,13 +28,18 @@ class TeacherCreate(TeacherBase):
     """Payload for creating a new teacher record."""
 
     ai_auto_process_enabled: bool | None = Field(
-        default=None, description="Enable auto AI processing (None = use global default)"
+        default=None,
+        description="Enable auto AI processing (None = use global default)",
     )
     ai_processing_priority: str | None = Field(
-        default=None, max_length=20, description="Processing priority (high, normal, low)"
+        default=None,
+        max_length=20,
+        description="Processing priority (high, normal, low)",
     )
     ai_audio_languages: str | None = Field(
-        default=None, max_length=100, description="Comma-separated language codes for audio"
+        default=None,
+        max_length=100,
+        description="Comma-separated language codes for audio",
     )
 
 
@@ -76,7 +83,9 @@ class TeacherListItem(TeacherRead):
     """Teacher item in list response with computed fields."""
 
     material_count: int = Field(default=0, description="Number of materials")
-    total_storage_size: int = Field(default=0, description="Total storage size in bytes")
+    total_storage_size: int = Field(
+        default=0, description="Total storage size in bytes"
+    )
 
 
 class TeacherListResponse(BaseModel):
@@ -96,7 +105,9 @@ class MaterialBase(BaseModel):
 
     material_name: str = Field(..., max_length=255, description="Original filename")
     display_name: str | None = Field(default=None, max_length=255)
-    file_type: str = Field(..., max_length=50, description="File extension (pdf, txt, docx, etc.)")
+    file_type: str = Field(
+        ..., max_length=50, description="File extension (pdf, txt, docx, etc.)"
+    )
     content_type: str = Field(..., max_length=100, description="MIME type")
     size: int = Field(..., ge=0, description="File size in bytes")
 

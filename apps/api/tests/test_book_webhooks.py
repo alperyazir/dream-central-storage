@@ -147,9 +147,7 @@ def test_update_book_triggers_webhook(
     )
 
     assert response.status_code == 200
-    mock_trigger_webhook.assert_called_once_with(
-        1, WebhookEventType.BOOK_UPDATED
-    )
+    mock_trigger_webhook.assert_called_once_with(1, WebhookEventType.BOOK_UPDATED)
 
 
 @patch("app.routers.books.move_prefix_to_trash")
@@ -207,6 +205,4 @@ def test_delete_book_triggers_webhook(
     response = client.delete("/books/1", headers=auth_headers)
 
     assert response.status_code == 200
-    mock_trigger_webhook.assert_called_once_with(
-        1, WebhookEventType.BOOK_DELETED
-    )
+    mock_trigger_webhook.assert_called_once_with(1, WebhookEventType.BOOK_DELETED)

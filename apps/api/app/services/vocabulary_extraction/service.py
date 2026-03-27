@@ -85,8 +85,8 @@ class VocabularyExtractionService:
         cleaned = response.strip()
 
         # Remove markdown code blocks like ```json ... ``` or ``` ... ```
-        cleaned = re.sub(r'^```(?:json)?\s*\n?', '', cleaned)
-        cleaned = re.sub(r'\n?```\s*$', '', cleaned)
+        cleaned = re.sub(r"^```(?:json)?\s*\n?", "", cleaned)
+        cleaned = re.sub(r"\n?```\s*$", "", cleaned)
         cleaned = cleaned.strip()
 
         # Try direct parse first (cleanest case)
@@ -98,10 +98,10 @@ class VocabularyExtractionService:
             pass
 
         # Try to extract JSON array from response
-        json_match = re.search(r'\[[\s\S]*?\](?=\s*$|\s*```)', cleaned)
+        json_match = re.search(r"\[[\s\S]*?\](?=\s*$|\s*```)", cleaned)
         if not json_match:
             # Try more aggressive match
-            json_match = re.search(r'\[[\s\S]*\]', cleaned)
+            json_match = re.search(r"\[[\s\S]*\]", cleaned)
 
         if not json_match:
             raise InvalidLLMResponseError(
@@ -167,8 +167,16 @@ class VocabularyExtractionService:
             # Validate part of speech
             pos = str(item.get("part_of_speech", "")).lower()
             valid_pos = [
-                "noun", "verb", "adjective", "adverb", "pronoun",
-                "preposition", "conjunction", "interjection", "article", "determiner"
+                "noun",
+                "verb",
+                "adjective",
+                "adverb",
+                "pronoun",
+                "preposition",
+                "conjunction",
+                "interjection",
+                "article",
+                "determiner",
             ]
             if pos not in valid_pos:
                 pos = ""

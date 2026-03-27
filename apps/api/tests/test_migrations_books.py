@@ -20,7 +20,9 @@ MIGRATION_PATH = (
 
 
 def test_books_table_migration_creates_expected_schema() -> None:
-    spec = importlib.util.spec_from_file_location("migration_20250922_01", MIGRATION_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "migration_20250922_01", MIGRATION_PATH
+    )
     assert spec and spec.loader
     migration = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(migration)

@@ -67,7 +67,9 @@ class MaterialAIDataStorage:
             AI data prefix path
         """
         # Remove extension from material_name for folder
-        base_name = material_name.rsplit(".", 1)[0] if "." in material_name else material_name
+        base_name = (
+            material_name.rsplit(".", 1)[0] if "." in material_name else material_name
+        )
         return f"{teacher_id}/materials/{base_name}/ai-data"
 
     def save_extracted_text(
@@ -156,7 +158,10 @@ class MaterialAIDataStorage:
             # Save modules metadata
             modules_meta = {
                 "module_count": len(modules),
-                "modules": [{"id": m.get("id", i), "title": m.get("title", "")} for i, m in enumerate(modules, 1)],
+                "modules": [
+                    {"id": m.get("id", i), "title": m.get("title", "")}
+                    for i, m in enumerate(modules, 1)
+                ],
             }
             modules_meta_path = f"{modules_prefix}/metadata.json"
             self._save_json(modules_meta_path, modules_meta)
@@ -171,7 +176,9 @@ class MaterialAIDataStorage:
                 "words": vocabulary,
                 "total_count": len(vocabulary),
                 "language": analysis_metadata.get("primary_language", "en"),
-                "translation_language": analysis_metadata.get("translation_language", "tr"),
+                "translation_language": analysis_metadata.get(
+                    "translation_language", "tr"
+                ),
             }
             self._save_json(vocab_path, vocab_data)
             saved_paths["vocabulary"] = vocab_path
@@ -292,7 +299,9 @@ class MaterialAIDataStorage:
 
         deleted = 0
         try:
-            objects = self.client.list_objects(self.bucket, prefix=prefix, recursive=True)
+            objects = self.client.list_objects(
+                self.bucket, prefix=prefix, recursive=True
+            )
             for obj in objects:
                 self.client.remove_object(self.bucket, obj.object_name)
                 deleted += 1

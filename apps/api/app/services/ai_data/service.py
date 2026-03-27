@@ -161,11 +161,13 @@ class AIDataMetadataService:
 
         # Add error if stage failed
         if not success and error_message:
-            metadata.errors.append({
-                "stage": stage_name,
-                "error": error_message,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            })
+            metadata.errors.append(
+                {
+                    "stage": stage_name,
+                    "error": error_message,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
 
         try:
             self._save_metadata(client, bucket, path, metadata)
@@ -265,11 +267,13 @@ class AIDataMetadataService:
         metadata.processing_completed_at = datetime.now(timezone.utc)
 
         if error_message:
-            metadata.errors.append({
-                "stage": "finalization",
-                "error": error_message,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            })
+            metadata.errors.append(
+                {
+                    "stage": "finalization",
+                    "error": error_message,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
 
         try:
             self._save_metadata(client, bucket, path, metadata)

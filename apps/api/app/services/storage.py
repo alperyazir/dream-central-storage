@@ -24,7 +24,9 @@ class UploadConflictError(UploadError):
     """Raised when an upload targets an existing version without override."""
 
     def __init__(self, version: str) -> None:
-        super().__init__(f"Version '{version}' already exists; re-run with override to replace it.")
+        super().__init__(
+            f"Version '{version}' already exists; re-run with override to replace it."
+        )
         self.version = version
 
 
@@ -51,7 +53,9 @@ class TrashEntryNotFoundError(TrashDeletionError):
 logger = logging.getLogger(__name__)
 
 _VERSION_FILE_PATH = "data/version"
-_VERSION_PATTERN = re.compile(r"^v?(?:0|[1-9]\d*)(?:\.(?:0|[1-9]\d*)){1,2}(?:[-+][0-9A-Za-z\-.]+)?$")
+_VERSION_PATTERN = re.compile(
+    r"^v?(?:0|[1-9]\d*)(?:\.(?:0|[1-9]\d*)){1,2}(?:[-+][0-9A-Za-z\-.]+)?$"
+)
 _MAX_VERSION_LENGTH = 64
 
 
@@ -120,7 +124,9 @@ def _detect_root_folder(archive: zipfile.ZipFile) -> str | None:
     return root_folders.pop() if len(root_folders) == 1 else None
 
 
-def iter_zip_entries(archive: zipfile.ZipFile, strip_root: str | None = None) -> Iterable[tuple[zipfile.ZipInfo, str]]:
+def iter_zip_entries(
+    archive: zipfile.ZipFile, strip_root: str | None = None
+) -> Iterable[tuple[zipfile.ZipInfo, str]]:
     """Yield file entries from archive with optionally stripped paths.
 
     Returns tuples of (entry, final_path) where final_path has the root folder stripped if specified.
@@ -147,14 +153,14 @@ def iter_zip_entries(archive: zipfile.ZipFile, strip_root: str | None = None) ->
 
         # Skip backup and temporary files
         basename_lower = os.path.basename(normalized_path).lower()
-        if basename_lower.endswith(('.fbinf', '.bak', '.tmp')):
+        if basename_lower.endswith((".fbinf", ".bak", ".tmp")):
             logger.debug("Skipping backup/temp file: %s", entry.filename)
             continue
 
         # Strip root folder if specified
         final_path = normalized_path
         if strip_root and normalized_path.startswith(f"{strip_root}/"):
-            final_path = normalized_path[len(strip_root) + 1:]
+            final_path = normalized_path[len(strip_root) + 1 :]
 
         yield entry, final_path
 
@@ -250,7 +256,9 @@ def extract_manifest_version(archive_bytes: bytes) -> str:
         raise UploadError("data/version exceeds the maximum length of 64 characters")
 
     if not _VERSION_PATTERN.match(raw_value):
-        raise UploadError("data/version must use semantic versioning (e.g., 1.2.3 or 1.2.3-beta)")
+        raise UploadError(
+            "data/version must use semantic versioning (e.g., 1.2.3 or 1.2.3-beta)"
+        )
 
     return raw_value
 
@@ -490,7 +498,10 @@ def list_trash_entries(
 
         last_modified = _normalize_timestamp(getattr(obj, "last_modified", None))
         if last_modified is not None:
-            if aggregate.youngest_last_modified is None or last_modified > aggregate.youngest_last_modified:
+            if (
+                aggregate.youngest_last_modified is None
+                or last_modified > aggregate.youngest_last_modified
+            ):
                 aggregate.youngest_last_modified = last_modified
 
         aggregate.object_count += 1
@@ -522,10 +533,19 @@ def move_prefix_to_trash(
     destination_prefix = f"{source_bucket}/{normalized_prefix}"
 
     try:
-        objects = list(client.list_objects(source_bucket, prefix=normalized_prefix, recursive=True))
+        objects = list(
+            client.list_objects(source_bucket, prefix=normalized_prefix, recursive=True)
+        )
     except S3Error as exc:  # pragma: no cover - network/MinIO failure
-        logger.error("Failed listing objects for prefix '%s/%s': %s", source_bucket, normalized_prefix, exc)
-        raise RelocationError(f"Unable to list objects for prefix '{normalized_prefix}'") from exc
+        logger.error(
+            "Failed listing objects for prefix '%s/%s': %s",
+            source_bucket,
+            normalized_prefix,
+            exc,
+        )
+        raise RelocationError(
+            f"Unable to list objects for prefix '{normalized_prefix}'"
+        ) from exc
 
     moved = 0
     for obj in objects:
@@ -549,7 +569,9 @@ def move_prefix_to_trash(
                 destination_object,
                 exc,
             )
-            raise RelocationError(f"Unable to relocate object '{source_object}'") from exc
+            raise RelocationError(
+                f"Unable to relocate object '{source_object}'"
+            ) from exc
         moved += 1
 
     report = RelocationReport(
@@ -595,7 +617,9 @@ def restore_prefix_from_trash(
         )
     except S3Error as exc:  # pragma: no cover - depends on MinIO responses
         logger.error("Failed listing trash objects for '%s': %s", normalized_key, exc)
-        raise RestorationError(f"Unable to list trash entry '{normalized_key}'") from exc
+        raise RestorationError(
+            f"Unable to list trash entry '{normalized_key}'"
+        ) from exc
 
     if not objects:
         raise RestorationError(f"No trash objects found for key '{normalized_key}'")
@@ -624,7 +648,9 @@ def restore_prefix_from_trash(
                 destination_object,
                 exc,
             )
-            raise RestorationError(f"Unable to restore object '{source_object}'") from exc
+            raise RestorationError(
+                f"Unable to restore object '{source_object}'"
+            ) from exc
         restored += 1
 
     report = RelocationReport(
@@ -661,13 +687,21 @@ def delete_prefix_from_trash(
     normalized_key = key if key.endswith("/") else f"{key}/"
 
     try:
-        objects = list(client.list_objects(trash_bucket, prefix=normalized_key, recursive=True))
+        objects = list(
+            client.list_objects(trash_bucket, prefix=normalized_key, recursive=True)
+        )
     except S3Error as exc:  # pragma: no cover - depends on MinIO responses
-        logger.error("Failed listing trash objects for deletion '%s': %s", normalized_key, exc)
-        raise TrashDeletionError(f"Unable to list trash entry '{normalized_key}'") from exc
+        logger.error(
+            "Failed listing trash objects for deletion '%s': %s", normalized_key, exc
+        )
+        raise TrashDeletionError(
+            f"Unable to list trash entry '{normalized_key}'"
+        ) from exc
 
     if not objects:
-        raise TrashEntryNotFoundError(f"No trash objects found for key '{normalized_key}'")
+        raise TrashEntryNotFoundError(
+            f"No trash objects found for key '{normalized_key}'"
+        )
 
     now = datetime.now(UTC)
     if not force:
@@ -704,7 +738,9 @@ def delete_prefix_from_trash(
                 object_name,
                 exc,
             )
-            raise TrashDeletionError(f"Unable to remove trash object '{object_name}'") from exc
+            raise TrashDeletionError(
+                f"Unable to remove trash object '{object_name}'"
+            ) from exc
         removed += 1
 
     logger.info(
@@ -716,4 +752,6 @@ def delete_prefix_from_trash(
         override_reason if force else None,
     )
 
-    return DeletionReport(trash_bucket=trash_bucket, key=normalized_key, objects_removed=removed)
+    return DeletionReport(
+        trash_bucket=trash_bucket, key=normalized_key, objects_removed=removed
+    )

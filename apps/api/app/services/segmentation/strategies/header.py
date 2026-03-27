@@ -11,26 +11,45 @@ from app.services.segmentation.strategies.base import SegmentationStrategy
 
 # Number word mappings for detection
 NUMBER_WORDS = {
-    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
-    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
-    "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
-    "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18,
-    "nineteen": 19, "twenty": 20,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+    "twenty": 20,
     # Turkish numbers
-    "bir": 1, "iki": 2, "uc": 3, "dort": 4, "bes": 5,
-    "alti": 6, "yedi": 7, "sekiz": 8, "dokuz": 9, "on": 10,
+    "bir": 1,
+    "iki": 2,
+    "uc": 3,
+    "dort": 4,
+    "bes": 5,
+    "alti": 6,
+    "yedi": 7,
+    "sekiz": 8,
+    "dokuz": 9,
+    "on": 10,
 }
 
 # Roman numeral patterns
 ROMAN_NUMERAL_PATTERN = re.compile(
-    r'^(M{0,3})(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$',
-    re.IGNORECASE
+    r"^(M{0,3})(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$", re.IGNORECASE
 )
 
-ROMAN_VALUES = {
-    'I': 1, 'V': 5, 'X': 10, 'L': 50,
-    'C': 100, 'D': 500, 'M': 1000
-}
+ROMAN_VALUES = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
 
 
 def roman_to_int(roman: str) -> int | None:
@@ -65,9 +84,18 @@ class HeaderBasedStrategy(SegmentationStrategy):
     # Header keyword patterns (English and Turkish)
     HEADER_KEYWORDS = [
         # English
-        "unit", "chapter", "module", "section", "part", "lesson",
+        "unit",
+        "chapter",
+        "module",
+        "section",
+        "part",
+        "lesson",
         # Turkish
-        "unite", "bolum", "konu", "ders", "kisim",
+        "unite",
+        "bolum",
+        "konu",
+        "ders",
+        "kisim",
     ]
 
     def __init__(self, min_confidence: float = 0.5) -> None:
@@ -90,41 +118,37 @@ class HeaderBasedStrategy(SegmentationStrategy):
 
         # Pattern 1: "Unit 1:", "Chapter 2 -", etc. (highest confidence)
         keywords = "|".join(self.HEADER_KEYWORDS)
-        patterns.append((
-            re.compile(
-                rf'^({keywords})\s*(\d+)\s*[:\-–—]?\s*(.*)$',
-                re.IGNORECASE | re.MULTILINE
-            ),
-            1.0
-        ))
+        patterns.append(
+            (
+                re.compile(
+                    rf"^({keywords})\s*(\d+)\s*[:\-–—]?\s*(.*)$",
+                    re.IGNORECASE | re.MULTILINE,
+                ),
+                1.0,
+            )
+        )
 
         # Pattern 2: "Unit One", "Chapter Two" (with word numbers)
         number_words = "|".join(NUMBER_WORDS.keys())
-        patterns.append((
-            re.compile(
-                rf'^({keywords})\s+({number_words})\s*[:\-–—]?\s*(.*)$',
-                re.IGNORECASE | re.MULTILINE
-            ),
-            0.95
-        ))
+        patterns.append(
+            (
+                re.compile(
+                    rf"^({keywords})\s+({number_words})\s*[:\-–—]?\s*(.*)$",
+                    re.IGNORECASE | re.MULTILINE,
+                ),
+                0.95,
+            )
+        )
 
         # Pattern 3: Roman numerals "I.", "II.", "III."
-        patterns.append((
-            re.compile(
-                r'^([IVXLCDM]+)\.\s+(.+)$',
-                re.IGNORECASE | re.MULTILINE
-            ),
-            0.8
-        ))
+        patterns.append(
+            (re.compile(r"^([IVXLCDM]+)\.\s+(.+)$", re.IGNORECASE | re.MULTILINE), 0.8)
+        )
 
         # Pattern 4: Simple numbered "1.", "2.", "3." at line start
-        patterns.append((
-            re.compile(
-                r'^(\d+)\.\s+([A-Z][a-zA-Z\s]{3,50})$',
-                re.MULTILINE
-            ),
-            0.6
-        ))
+        patterns.append(
+            (re.compile(r"^(\d+)\.\s+([A-Z][a-zA-Z\s]{3,50})$", re.MULTILINE), 0.6)
+        )
 
         return patterns
 
@@ -171,7 +195,7 @@ class HeaderBasedStrategy(SegmentationStrategy):
     def _detect_in_page(self, text: str, page_num: int) -> list[ModuleBoundary]:
         """Detect boundaries in a single page."""
         boundaries = []
-        lines = text.split('\n')
+        lines = text.split("\n")
 
         for line in lines[:30]:  # Focus on top portion of page
             line = line.strip()
@@ -214,8 +238,28 @@ class HeaderBasedStrategy(SegmentationStrategy):
                 number_part = str(number)
 
             # Check if it's a roman numeral (for pattern 3)
-            if keyword.upper() in ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X',
-                                   'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX', 'XX']:
+            if keyword.upper() in [
+                "I",
+                "II",
+                "III",
+                "IV",
+                "V",
+                "VI",
+                "VII",
+                "VIII",
+                "IX",
+                "X",
+                "XI",
+                "XII",
+                "XIII",
+                "XIV",
+                "XV",
+                "XVI",
+                "XVII",
+                "XVIII",
+                "XIX",
+                "XX",
+            ]:
                 # Roman numeral pattern
                 return f"{keyword}. {number_part}".strip()
 

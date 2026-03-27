@@ -94,12 +94,16 @@ class GeminiProvider(LLMProvider):
                     for image_bytes in msg.images:
                         # Detect image type from magic bytes
                         mime_type = self._detect_image_type(image_bytes)
-                        parts.append({
-                            "inline_data": {
-                                "mime_type": mime_type,
-                                "data": base64.standard_b64encode(image_bytes).decode("utf-8"),
+                        parts.append(
+                            {
+                                "inline_data": {
+                                    "mime_type": mime_type,
+                                    "data": base64.standard_b64encode(
+                                        image_bytes
+                                    ).decode("utf-8"),
+                                }
                             }
-                        })
+                        )
 
                 contents.append({"role": role, "parts": parts})
 
@@ -149,7 +153,10 @@ class GeminiProvider(LLMProvider):
                 if response.status_code == 401 or response.status_code == 403:
                     raise LLMAuthError(
                         provider=self.provider_name,
-                        details={"status_code": response.status_code, "response": response.text},
+                        details={
+                            "status_code": response.status_code,
+                            "response": response.text,
+                        },
                     )
 
                 if response.status_code == 429:
@@ -171,7 +178,10 @@ class GeminiProvider(LLMProvider):
                     raise LLMProviderError(
                         message=f"API error: {response.status_code}",
                         provider=self.provider_name,
-                        details={"status_code": response.status_code, "response": response.text},
+                        details={
+                            "status_code": response.status_code,
+                            "response": response.text,
+                        },
                     )
 
                 return response.json()
@@ -199,9 +209,13 @@ class GeminiProvider(LLMProvider):
         """
         # Check if any message has images - use vision model if so
         has_images = any(msg.images for msg in request.messages)
-        model = request.model or (self.vision_model if has_images else self.default_model)
+        model = request.model or (
+            self.vision_model if has_images else self.default_model
+        )
 
-        contents, system_instruction = self._convert_messages_to_contents(request.messages)
+        contents, system_instruction = self._convert_messages_to_contents(
+            request.messages
+        )
 
         payload: dict[str, Any] = {
             "contents": contents,

@@ -8,7 +8,16 @@ import logging
 import re
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -41,16 +50,27 @@ logger = logging.getLogger(__name__)
 
 def _trigger_publisher_webhook(publisher_id: int, event_type: WebhookEventType) -> None:
     """Trigger webhook broadcast for a publisher event (runs in background)."""
-    logger.info(f"[WEBHOOK] Triggering {event_type.value} webhook for publisher_id={publisher_id}")
+    logger.info(
+        f"[WEBHOOK] Triggering {event_type.value} webhook for publisher_id={publisher_id}"
+    )
     try:
         with SessionLocal() as session:
             publisher = _publisher_repository.get(session, publisher_id)
             if publisher:
-                asyncio.run(_webhook_service.broadcast_publisher_event(session, event_type, publisher))
+                asyncio.run(
+                    _webhook_service.broadcast_publisher_event(
+                        session, event_type, publisher
+                    )
+                )
             else:
-                logger.warning(f"[WEBHOOK] Publisher {publisher_id} not found for webhook broadcast")
+                logger.warning(
+                    f"[WEBHOOK] Publisher {publisher_id} not found for webhook broadcast"
+                )
     except Exception as e:
-        logger.error(f"[WEBHOOK] Failed to trigger publisher webhook: {e}", exc_info=True)
+        logger.error(
+            f"[WEBHOOK] Failed to trigger publisher webhook: {e}", exc_info=True
+        )
+
 
 # Asset type validation
 ASSET_TYPE_PATTERN = re.compile(r"^[a-z0-9_-]{1,50}$")
@@ -125,9 +145,15 @@ def create_publisher(
         )
 
     # Trigger webhook in background
-    logger.info(f"[WEBHOOK-TRIGGER] Scheduling PUBLISHER_CREATED webhook for publisher_id={publisher.id}, name='{publisher.name}'")
-    background_tasks.add_task(_trigger_publisher_webhook, publisher.id, WebhookEventType.PUBLISHER_CREATED)
-    logger.debug(f"[WEBHOOK-TRIGGER] PUBLISHER_CREATED webhook task added to background queue for publisher_id={publisher.id}")
+    logger.info(
+        f"[WEBHOOK-TRIGGER] Scheduling PUBLISHER_CREATED webhook for publisher_id={publisher.id}, name='{publisher.name}'"
+    )
+    background_tasks.add_task(
+        _trigger_publisher_webhook, publisher.id, WebhookEventType.PUBLISHER_CREATED
+    )
+    logger.debug(
+        f"[WEBHOOK-TRIGGER] PUBLISHER_CREATED webhook task added to background queue for publisher_id={publisher.id}"
+    )
 
     return PublisherRead.model_validate(publisher)
 
@@ -262,9 +288,15 @@ def update_publisher(
         )
 
     # Trigger webhook in background
-    logger.info(f"[WEBHOOK-TRIGGER] Scheduling PUBLISHER_UPDATED webhook for publisher_id={updated.id}, name='{updated.name}', updated_fields={list(update_data.keys())}")
-    background_tasks.add_task(_trigger_publisher_webhook, updated.id, WebhookEventType.PUBLISHER_UPDATED)
-    logger.debug(f"[WEBHOOK-TRIGGER] PUBLISHER_UPDATED webhook task added to background queue for publisher_id={updated.id}")
+    logger.info(
+        f"[WEBHOOK-TRIGGER] Scheduling PUBLISHER_UPDATED webhook for publisher_id={updated.id}, name='{updated.name}', updated_fields={list(update_data.keys())}"
+    )
+    background_tasks.add_task(
+        _trigger_publisher_webhook, updated.id, WebhookEventType.PUBLISHER_UPDATED
+    )
+    logger.debug(
+        f"[WEBHOOK-TRIGGER] PUBLISHER_UPDATED webhook task added to background queue for publisher_id={updated.id}"
+    )
 
     return PublisherRead.model_validate(updated)
 
@@ -277,7 +309,9 @@ def soft_delete_publisher(
     db: Session = Depends(get_db),
 ) -> PublisherRead:
     """Soft-delete a publisher by setting status to inactive (moves to trash)."""
-    logger.info(f"[DELETE] Publisher {publisher_id} - credentials received: {credentials is not None}")
+    logger.info(
+        f"[DELETE] Publisher {publisher_id} - credentials received: {credentials is not None}"
+    )
     _require_admin(credentials, db)
     publisher = _publisher_repository.get(db, publisher_id)
     if publisher is None:
@@ -290,9 +324,15 @@ def soft_delete_publisher(
     updated = _publisher_repository.update(db, publisher, data={"status": "inactive"})
 
     # Trigger webhook in background
-    logger.info(f"[WEBHOOK-TRIGGER] Scheduling PUBLISHER_DELETED webhook for publisher_id={updated.id}, name='{updated.name}', status='inactive'")
-    background_tasks.add_task(_trigger_publisher_webhook, updated.id, WebhookEventType.PUBLISHER_DELETED)
-    logger.debug(f"[WEBHOOK-TRIGGER] PUBLISHER_DELETED webhook task added to background queue for publisher_id={updated.id}")
+    logger.info(
+        f"[WEBHOOK-TRIGGER] Scheduling PUBLISHER_DELETED webhook for publisher_id={updated.id}, name='{updated.name}', status='inactive'"
+    )
+    background_tasks.add_task(
+        _trigger_publisher_webhook, updated.id, WebhookEventType.PUBLISHER_DELETED
+    )
+    logger.debug(
+        f"[WEBHOOK-TRIGGER] PUBLISHER_DELETED webhook task added to background queue for publisher_id={updated.id}"
+    )
 
     return PublisherRead.model_validate(updated)
 
@@ -323,14 +363,24 @@ def restore_publisher(
     updated = _publisher_repository.update(db, publisher, data={"status": "active"})
 
     # Trigger webhook as created (since it's being restored)
-    logger.info(f"[WEBHOOK-TRIGGER] Scheduling PUBLISHER_CREATED webhook (restore) for publisher_id={updated.id}, name='{updated.name}', status='active'")
-    background_tasks.add_task(_trigger_publisher_webhook, updated.id, WebhookEventType.PUBLISHER_CREATED)
-    logger.debug(f"[WEBHOOK-TRIGGER] PUBLISHER_CREATED webhook task (restore) added to background queue for publisher_id={updated.id}")
+    logger.info(
+        f"[WEBHOOK-TRIGGER] Scheduling PUBLISHER_CREATED webhook (restore) for publisher_id={updated.id}, name='{updated.name}', status='active'"
+    )
+    background_tasks.add_task(
+        _trigger_publisher_webhook, updated.id, WebhookEventType.PUBLISHER_CREATED
+    )
+    logger.debug(
+        f"[WEBHOOK-TRIGGER] PUBLISHER_CREATED webhook task (restore) added to background queue for publisher_id={updated.id}"
+    )
 
     return PublisherRead.model_validate(updated)
 
 
-@router.delete("/{publisher_id}/permanent", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+@router.delete(
+    "/{publisher_id}/permanent",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
 def permanent_delete_publisher(
     publisher_id: int,
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
@@ -368,9 +418,13 @@ def permanent_delete_publisher(
         )
         for obj in objects_to_delete:
             client.remove_object(settings.minio_publishers_bucket, obj.object_name)
-        logger.info(f"Deleted {len(objects_to_delete)} objects from MinIO for publisher {publisher.name}")
+        logger.info(
+            f"Deleted {len(objects_to_delete)} objects from MinIO for publisher {publisher.name}"
+        )
     except Exception as e:
-        logger.error(f"Error deleting MinIO objects for publisher {publisher.name}: {e}")
+        logger.error(
+            f"Error deleting MinIO objects for publisher {publisher.name}: {e}"
+        )
         # Continue with database deletion even if MinIO deletion fails
 
     # Permanently delete from database
@@ -499,7 +553,11 @@ def list_asset_type_files(
     return files
 
 
-@router.post("/{publisher_id}/assets/{asset_type}", response_model=AssetFileInfo, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{publisher_id}/assets/{asset_type}",
+    response_model=AssetFileInfo,
+    status_code=status.HTTP_201_CREATED,
+)
 async def upload_asset_file(
     publisher_id: int,
     asset_type: str,

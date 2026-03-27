@@ -19,7 +19,9 @@ class BookBase(BaseModel):
     activity_count: int | None = Field(default=None)
     activity_details: dict | None = Field(default=None)
     total_size: int | None = Field(default=None)
-    language: str = Field(default="en", max_length=64)  # Defaults to "en" if not specified
+    language: str = Field(
+        default="en", max_length=64
+    )  # Defaults to "en" if not specified
     category: str | None = Field(default=None, max_length=128)
     status: BookStatusEnum = Field(default=BookStatusEnum.DRAFT)
 
@@ -31,7 +33,10 @@ class BookCreate(BookBase):
     Publisher string field is derived from the publisher relationship for API responses.
     """
 
-    publisher_id: int | None = Field(default=None, description="Required publisher ID (foreign key to publishers table)")
+    publisher_id: int | None = Field(
+        default=None,
+        description="Required publisher ID (foreign key to publishers table)",
+    )
 
 
 class BookUpdate(BaseModel):
@@ -42,7 +47,9 @@ class BookUpdate(BaseModel):
     """
 
     publisher: str | None = Field(default=None, max_length=255)
-    publisher_id: int | None = Field(default=None, description="Publisher ID (foreign key to publishers table)")
+    publisher_id: int | None = Field(
+        default=None, description="Publisher ID (foreign key to publishers table)"
+    )
     book_name: str | None = Field(default=None, max_length=255)
     book_title: str | None = Field(default=None, max_length=255)
     book_cover: str | None = Field(default=None, max_length=512)

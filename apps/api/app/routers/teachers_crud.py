@@ -370,7 +370,9 @@ def list_teacher_materials_db(
     teacher_id: int,
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum records to return"),
-    file_type: str = Query(None, description="Filter by file type (pdf, txt, docx, etc.)"),
+    file_type: str = Query(
+        None, description="Filter by file type (pdf, txt, docx, etc.)"
+    ),
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
 ) -> MaterialListResponse:

@@ -225,7 +225,9 @@ class MaterialExtractionService:
             Extracted text
         """
         try:
-            blocks = page.get_text("dict", flags=fitz.TEXT_PRESERVE_WHITESPACE)["blocks"]
+            blocks = page.get_text("dict", flags=fitz.TEXT_PRESERVE_WHITESPACE)[
+                "blocks"
+            ]
             text_blocks = [b for b in blocks if b.get("type") == 0]
 
             if not text_blocks:

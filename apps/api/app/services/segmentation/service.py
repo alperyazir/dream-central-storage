@@ -74,6 +74,7 @@ class SegmentationService:
         """Get AI storage service (lazy load)."""
         if self._ai_storage is None:
             from app.services.pdf.storage import get_ai_storage
+
             self._ai_storage = get_ai_storage()
         return self._ai_storage
 
@@ -195,9 +196,7 @@ class SegmentationService:
 
         # Load each page
         for page_num in range(1, total_pages + 1):
-            text = self._load_page_text(
-                publisher_id, book_id, book_name, page_num
-            )
+            text = self._load_page_text(publisher_id, book_id, book_name, page_num)
             if text:
                 pages[page_num] = text
 
@@ -219,10 +218,7 @@ class SegmentationService:
         bucket = self.settings.minio_publishers_bucket
 
         # Build path (book_id not used in storage path)
-        path = (
-            f"{publisher_id}/books/{book_name}/"
-            f"ai-data/text/page_{page_num:03d}.txt"
-        )
+        path = f"{publisher_id}/books/{book_name}/ai-data/text/page_{page_num:03d}.txt"
 
         try:
             response = client.get_object(bucket, path)
@@ -301,9 +297,7 @@ class SegmentationService:
         if manual_definitions:
             logger.debug("Trying manual segmentation")
             self._manual_strategy.definitions = manual_definitions
-            boundaries = self._manual_strategy.detect_boundaries(
-                pages, book_id=book_id
-            )
+            boundaries = self._manual_strategy.detect_boundaries(pages, book_id=book_id)
             if boundaries:
                 return boundaries, SegmentationMethod.MANUAL
 

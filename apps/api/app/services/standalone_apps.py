@@ -14,7 +14,6 @@ from minio import Minio
 from minio.error import S3Error
 
 
-
 logger = logging.getLogger(__name__)
 
 TEMPLATE_PREFIX = "standalone-templates"
@@ -401,7 +400,10 @@ def create_bundle(
                 asset_count += 1
 
             logger.info(
-                "Copied %d assets for book %s/%s", asset_count, publisher_name, book_name
+                "Copied %d assets for book %s/%s",
+                asset_count,
+                publisher_name,
+                book_name,
             )
 
             # 6. Create bundle zip
@@ -420,7 +422,9 @@ def create_bundle(
                         zf.write(file_path, arcname)
 
             # 6. Upload bundle to MinIO
-            bundle_object_name = f"{BUNDLE_PREFIX}/{publisher_name}/{book_name}/{bundle_name}.zip"
+            bundle_object_name = (
+                f"{BUNDLE_PREFIX}/{publisher_name}/{book_name}/{bundle_name}.zip"
+            )
             bundle_size = os.path.getsize(bundle_path)
 
             client.fput_object(

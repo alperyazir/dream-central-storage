@@ -11,9 +11,15 @@ from pydantic import BaseModel, Field
 class ApiKeyCreate(BaseModel):
     """Request payload for creating a new API key."""
 
-    name: str = Field(..., max_length=255, description="Human-readable name for the API key")
-    description: Optional[str] = Field(None, description="Optional description of the key's purpose")
-    expires_at: Optional[datetime] = Field(None, description="Optional expiration timestamp")
+    name: str = Field(
+        ..., max_length=255, description="Human-readable name for the API key"
+    )
+    description: Optional[str] = Field(
+        None, description="Optional description of the key's purpose"
+    )
+    expires_at: Optional[datetime] = Field(
+        None, description="Optional expiration timestamp"
+    )
     rate_limit: int = Field(100, description="Requests per minute limit")
 
 

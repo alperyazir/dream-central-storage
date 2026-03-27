@@ -138,7 +138,9 @@ class LLMService:
         Raises:
             LLMProviderError: If all retries fail.
         """
-        retries = max_retries if max_retries is not None else self.settings.llm_max_retries
+        retries = (
+            max_retries if max_retries is not None else self.settings.llm_max_retries
+        )
         last_error: Exception | None = None
         backoff_times = [1, 2, 4, 8, 16]  # Exponential backoff in seconds
 
@@ -148,7 +150,9 @@ class LLMService:
             except LLMRateLimitError as e:
                 last_error = e
                 # Use retry-after if provided, otherwise use exponential backoff
-                wait_time = e.retry_after or backoff_times[min(attempt, len(backoff_times) - 1)]
+                wait_time = (
+                    e.retry_after or backoff_times[min(attempt, len(backoff_times) - 1)]
+                )
                 logger.warning(
                     f"[LLMService] Rate limit hit on {provider.provider_name}, "
                     f"waiting {wait_time}s (attempt {attempt + 1}/{retries + 1})"
@@ -162,7 +166,9 @@ class LLMService:
                     f"(attempt {attempt + 1}/{retries + 1})"
                 )
                 if attempt < retries:
-                    await asyncio.sleep(backoff_times[min(attempt, len(backoff_times) - 1)])
+                    await asyncio.sleep(
+                        backoff_times[min(attempt, len(backoff_times) - 1)]
+                    )
 
         # If we get here, all retries failed
         raise last_error or LLMProviderError(
@@ -195,14 +201,18 @@ class LLMService:
         if force_provider:
             provider = self.get_provider(force_provider)
             if not provider:
-                raise ValueError(f"Provider '{force_provider}' not configured or unavailable")
+                raise ValueError(
+                    f"Provider '{force_provider}' not configured or unavailable"
+                )
             return await self._execute_with_retry(provider, request)
 
         # Try primary provider
         primary = self.primary_provider
         if primary:
             try:
-                logger.info(f"[LLMService] Using primary provider: {primary.provider_name}")
+                logger.info(
+                    f"[LLMService] Using primary provider: {primary.provider_name}"
+                )
                 return await self._execute_with_retry(primary, request)
             except LLMProviderError as e:
                 logger.error(f"[LLMService] Primary provider failed: {e}")
@@ -212,9 +222,13 @@ class LLMService:
         # Try fallback provider
         if use_fallback:
             fallback = self.fallback_provider
-            if fallback and (not primary or fallback.provider_name != primary.provider_name):
+            if fallback and (
+                not primary or fallback.provider_name != primary.provider_name
+            ):
                 try:
-                    logger.info(f"[LLMService] Falling back to: {fallback.provider_name}")
+                    logger.info(
+                        f"[LLMService] Falling back to: {fallback.provider_name}"
+                    )
                     return await self._execute_with_retry(fallback, request)
                 except LLMProviderError as e:
                     logger.error(f"[LLMService] Fallback provider also failed: {e}")
