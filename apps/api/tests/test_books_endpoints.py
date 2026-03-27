@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
 from unittest.mock import MagicMock
 
 import pytest
@@ -173,7 +172,7 @@ def test_soft_delete_book_archives_and_moves_assets(monkeypatch) -> None:
         return RelocationReport(
             source_bucket="publishers",
             destination_bucket="trash",
-            source_prefix=f"DreamPress/books/SkyTales/",
+            source_prefix="DreamPress/books/SkyTales/",
             destination_prefix="publishers/DreamPress/books/SkyTales/",
             objects_moved=2,
         )

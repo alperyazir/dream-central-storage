@@ -3,7 +3,6 @@
 import json
 from unittest.mock import MagicMock, patch, PropertyMock
 
-import pytest
 
 from app.models.book import BookStatusEnum
 

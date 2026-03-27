@@ -18,7 +18,6 @@ from app.repositories.book import BookRepository
 from app.repositories.publisher import PublisherRepository
 from app.repositories.user import UserRepository
 from app.schemas.ai_data import (
-    AudioUrlResponse,
     ModuleDetailResponse,
     ModuleListResponse,
     ModuleMetadataSummary,

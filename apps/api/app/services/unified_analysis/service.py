@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import time
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -328,8 +327,8 @@ class UnifiedAnalysisService:
         """
         start_time = time.time()
         total_pages = max(pages.keys()) if pages else 0
-        total_tokens_used = 0
-        estimated_cost = 0.0
+        _total_tokens_used = 0
+        _estimated_cost = 0.0
 
         logger.info(
             "Starting chunked analysis for book %s (%d pages)",

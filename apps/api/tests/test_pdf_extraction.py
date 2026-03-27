@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,7 +13,6 @@ from app.services.pdf.models import (
     ExtractionMethod,
     OCRError,
     PageText,
-    PDFAnalysisResult,
     PDFCorruptedError,
     PDFExtractionError,
     PDFExtractionResult,

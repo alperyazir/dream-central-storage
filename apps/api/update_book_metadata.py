@@ -1,6 +1,4 @@
 """Script to update existing books with new metadata fields."""
-import io
-import zipfile
 from sqlalchemy.orm import joinedload
 from app.core.config import get_settings
 from app.services.minio import get_minio_client

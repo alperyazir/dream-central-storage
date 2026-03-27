@@ -5,7 +5,6 @@ from __future__ import annotations
 import io
 import logging
 import os
-import shutil
 import tempfile
 import zipfile
 from dataclasses import dataclass
@@ -14,7 +13,6 @@ from datetime import datetime, timedelta, timezone
 from minio import Minio
 from minio.error import S3Error
 
-from app.core.config import Settings
 
 
 logger = logging.getLogger(__name__)

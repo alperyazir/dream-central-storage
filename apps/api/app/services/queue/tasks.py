@@ -7,7 +7,6 @@ from app.core.config import get_settings
 from app.services.queue.models import (
     ProcessingJobType,
     ProcessingStatus,
-    PROCESSING_STAGES,
     FULL_PROCESSING_STAGES,
     LLM_ONLY_STAGES,
     UNIFIED_PROCESSING_STAGES,
@@ -1341,8 +1340,6 @@ async def process_material_task(
     Raises:
         QueueError: If processing fails
     """
-    from app.services.material_extraction import get_material_extraction_service
-    from app.services.material_ai_data import get_material_ai_storage
 
     settings = get_settings()
     redis_conn = await get_redis_connection(url=settings.redis_url)
@@ -1697,7 +1694,7 @@ async def _run_material_analysis(
         "processing_time_seconds": result.processing_time_seconds,
     }
 
-    saved = ai_storage.save_analysis_result(
+    _saved = ai_storage.save_analysis_result(
         teacher_id=teacher_id,
         material_name=material_name,
         modules=modules,

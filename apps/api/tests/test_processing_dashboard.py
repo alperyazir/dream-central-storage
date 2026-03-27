@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services.queue.models import ProcessingJob, ProcessingJobType, ProcessingStatus, JobPriority
+from app.services.queue.models import ProcessingJob, ProcessingStatus
 
 
 # =============================================================================

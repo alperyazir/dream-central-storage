@@ -2,12 +2,11 @@
 
 import logging
 import uuid
-from datetime import datetime
 from typing import Optional
 
 from arq import ArqRedis, create_pool
 from arq.connections import RedisSettings
-from arq.jobs import Job, JobStatus
+from arq.jobs import Job
 
 from app.core.config import get_settings
 from app.services.queue.models import (
@@ -17,8 +16,6 @@ from app.services.queue.models import (
     ProcessingStatus,
     QueueStats,
     PROCESSING_STAGES,
-    JobNotFoundError,
-    QueueConnectionError,
     QueueError,
 )
 from app.services.queue.repository import JobRepository

@@ -19,7 +19,6 @@ from app.schemas.standalone_app import (
     AsyncBundleResponse,
     BundleInfo,
     BundleJobResult,
-    BundleJobStatus,
     BundleListResponse,
     BundleRequest,
     BundleResponse,
@@ -564,7 +563,6 @@ async def get_bundle_job_status(
     try:
         from app.services.queue.redis import get_redis_connection
         from app.services.queue.repository import JobRepository
-        from app.services.queue.models import JobNotFoundError
 
         redis_conn = await get_redis_connection(url=settings.redis_url)
         repository = JobRepository(

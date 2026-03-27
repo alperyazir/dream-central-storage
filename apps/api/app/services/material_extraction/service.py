@@ -13,7 +13,6 @@ from app.services.minio import get_minio_client
 from app.services.material_extraction.models import (
     ExtractionMethod,
     FileType,
-    MaterialExtractionError,
     MaterialExtractionResult,
     PageText,
     UnsupportedFileTypeError,

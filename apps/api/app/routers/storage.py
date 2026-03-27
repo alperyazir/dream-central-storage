@@ -239,7 +239,7 @@ async def get_book_config(
     object_key = _build_book_object_key(publisher, book_name, "config.json")
 
     try:
-        stat = client.stat_object(settings.minio_publishers_bucket, object_key)
+        client.stat_object(settings.minio_publishers_bucket, object_key)
     except S3Error as exc:
         if exc.code == "NoSuchKey":
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="config.json not found") from exc

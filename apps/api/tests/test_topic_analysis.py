@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -490,7 +489,7 @@ Here is the analysis:
         This lesson covers various topics in detail with examples.
         """
 
-        result = await service.analyze_module(
+        result = await service.analyze_module(  # noqa: F841
             module_id=1,
             module_title="Test",
             module_text=module_text,

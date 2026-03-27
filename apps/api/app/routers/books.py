@@ -12,9 +12,8 @@ from collections.abc import Iterable
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from minio.commonconfig import CopySource
 from pydantic import BaseModel, Field, ValidationError
-from sqlalchemy.orm import Session, object_session
+from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.security import decode_access_token, verify_api_key_from_db
@@ -27,10 +26,7 @@ from app.repositories.user import UserRepository
 from app.schemas.book import BookCreate, BookRead, BookUpdate
 from app.services import (
     RelocationError,
-    UploadConflictError,
     UploadError,
-    ensure_version_target,
-    extract_manifest_version,
     get_minio_client,
     move_prefix_to_trash,
     upload_book_archive,
@@ -646,7 +642,7 @@ async def upload_bulk_books(
 
             # Handle conflict
             if prefix_exists and not override:
-                result["error"] = f"Book already exists. Use override=true to replace."
+                result["error"] = "Book already exists. Use override=true to replace."
                 results.append(result)
                 failed_count += 1
                 continue

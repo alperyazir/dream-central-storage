@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import getpass
-from typing import Any
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session

@@ -6,7 +6,7 @@ import threading
 import time
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, Iterable, Tuple
+from typing import Dict, Tuple
 
 MetricKey = Tuple[str, str, str]
 PathKey = Tuple[str, str]

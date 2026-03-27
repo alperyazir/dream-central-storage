@@ -92,7 +92,7 @@ def setup_repositories(monkeypatch):
     monkeypatch.setattr(books, "_require_admin", lambda credentials, db: 1)
 
     # Create mock publisher
-    mock_publisher = Publisher(id=1, name="Dream", display_name="Dream", status="active")
+    _mock_publisher = Publisher(id=1, name="Dream", display_name="Dream", status="active")
 
     # Create mock book with proper relationship
     book = _create_mock_book(id=1, publisher_name="Dream", book_name="Sky")
