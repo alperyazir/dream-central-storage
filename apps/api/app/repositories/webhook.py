@@ -31,8 +31,8 @@ class WebhookSubscriptionRepository(BaseRepository[WebhookSubscription]):
     def list_active(self, session: Session) -> list[WebhookSubscription]:
         """Return only active webhook subscriptions."""
         statement = select(WebhookSubscription).where(
-            WebhookSubscription.is_active == True
-        )  # noqa: E712
+            WebhookSubscription.is_active == True  # noqa: E712
+        )
         result = session.execute(statement)
         return list(result.scalars())
 
